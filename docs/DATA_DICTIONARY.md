@@ -14,5 +14,6 @@
 | source_provenance | question_version, source, license, relation_type | hỗ trợ nhiều nguồn |
 | asset_references | asset, owner_type/id, json_path | kiểm tra asset trước publish |
 | import_jobs | package_id/hash, status, report | idempotency theo package + hash |
+| import_reviews | import_job_id, reviewer_id, scope, decision, reason, report hash, actor source | một quyết định kỹ thuật bất biến/job; FK tới import job |
 
 Retention/xóa mềm đầy đủ chưa triển khai; entity đã được tham chiếu không được hard-delete ở feature tương lai.

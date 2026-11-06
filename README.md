@@ -72,6 +72,8 @@ curl -X POST http://localhost:3000/api/imports \
 
 Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
 
+Package `READY_FOR_REVIEW` có thể mở bằng chính Rich Content renderer trong Import Lab. Quyết định hiện chỉ là `TECHNICAL`, yêu cầu development reviewer ID, gắn hash validation report và không thể ghi đè. Nó không phải phê duyệt học thuật và không chuyển nội dung thành `PUBLISHED`.
+
 Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
 
 ## CI/CD

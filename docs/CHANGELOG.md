@@ -9,3 +9,5 @@
 - Thêm Exam Package V1 staging, validator bảo mật, local source retention, MySQL repository và idempotency.
 - Thêm Import Lab hiển thị validation report; production import mặc định tắt trước RBAC.
 - Nâng ZIP parser runtime lên `yauzl 3.4.0`; runtime audit không còn advisory.
+- Thêm reviewer preview dựng từ ZIP nguồn bằng cùng Rich Content renderer, kèm asset/answer/explanation.
+- Thêm migration `import_reviews` và technical decision transaction bất biến; publish vẫn khóa.

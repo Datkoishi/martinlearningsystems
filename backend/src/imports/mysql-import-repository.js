@@ -48,4 +48,71 @@ export class MysqlImportRepository {
     );
     return this.findById(job.id);
   }
+
+  async listReviews(importJobId) {
+    const [rows] = await this.pool.execute(
+      `SELECT id, import_job_id, reviewer_id, review_scope, decision, reason,
+              validation_report_sha256, actor_source, created_at
+       FROM import_reviews
+       WHERE import_job_id = ?
+       ORDER BY created_at ASC`,
+      [importJobId]
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      importJobId: row.import_job_id,
+      reviewerId: row.reviewer_id,
+      scope: row.review_scope,
+      decision: row.decision,
+      reason: row.reason,
+      validationReportSha256: row.validation_report_sha256,
+      actorSource: row.actor_source,
+      createdAt: row.created_at
+    }));
+  }
+
+  async createTechnicalReview(review) {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute(
+        'SELECT status FROM import_jobs WHERE id = ? FOR UPDATE',
+        [review.importJobId]
+      );
+      if (!rows[0]) {
+        const error = new Error('Không tìm thấy import job.');
+        error.code = 'IMPORT_NOT_FOUND';
+        error.statusCode = 404;
+        throw error;
+      }
+      if (rows[0].status !== 'READY_FOR_REVIEW') {
+        const error = new Error('Import job không còn ở trạng thái chờ review.');
+        error.code = 'IMPORT_NOT_REVIEWABLE';
+        error.statusCode = 409;
+        throw error;
+      }
+      await connection.execute(
+        `INSERT INTO import_reviews
+          (id, import_job_id, reviewer_id, review_scope, decision, reason,
+           validation_report_sha256, actor_source)
+         VALUES (?, ?, ?, 'TECHNICAL', ?, ?, ?, 'DEVELOPMENT_HEADER')`,
+        [review.id, review.importJobId, review.reviewerId, review.decision, review.reason, review.validationReportSha256]
+      );
+      const nextStatus = review.decision === 'APPROVE' ? 'TECHNICALLY_APPROVED' : 'REJECTED';
+      await connection.execute('UPDATE import_jobs SET status = ? WHERE id = ?', [nextStatus, review.importJobId]);
+      await connection.commit();
+      return { ...review, scope: 'TECHNICAL', actorSource: 'DEVELOPMENT_HEADER', status: nextStatus };
+    } catch (error) {
+      await connection.rollback();
+      if (error?.code === 'ER_DUP_ENTRY') {
+        const conflict = new Error('Import job đã có quyết định review bất biến.');
+        conflict.code = 'REVIEW_ALREADY_RECORDED';
+        conflict.statusCode = 409;
+        throw conflict;
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
 }

@@ -9,6 +9,8 @@
 - Additive MySQL foundation + idempotent DEMO seed; đã smoke test trên container MySQL 8.4 cô lập.
 - Exam Package ZIP staging: kiểm tra path/limit/checksum/MIME/SVG/rich content/reference/answer/license, local source retention, MySQL job adapter và duplicate detection.
 - Import Lab responsive hiển thị report theo field/path; publish bị khóa.
+- Reviewer preview dùng cùng Rich Content renderer, phục vụ asset từ ZIP và hiển thị answer key/explanation.
+- Technical review transaction bất biến, bind validation-report hash; trạng thái chỉ `TECHNICALLY_APPROVED`/`REJECTED`, không publish.
 
 ## Partial / giới hạn
 
@@ -20,4 +22,4 @@
 
 ## Chưa làm
 
-Auth/RBAC/tenant/audit, S3 object storage, reviewer flow, immutable publish enforcement, attempts, scoring, ASSEMBLED, assessment/reporting.
+Auth/RBAC/tenant, academic reviewer approval, S3 object storage, immutable publish transaction, attempts, scoring, ASSEMBLED, assessment/reporting.

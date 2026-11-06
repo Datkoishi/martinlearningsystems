@@ -83,7 +83,10 @@ const buildValidPackage = async ({ corruptChecksum = false, unsafeSvg = false } 
 };
 
 class MemoryImportRepository {
-  constructor() { this.jobs = []; }
+  constructor() {
+    this.jobs = [];
+    this.reviews = [];
+  }
   async findByPackageHash(packageId, packageSha256) {
     return this.jobs.find((job) => job.packageId === packageId && job.packageSha256 === packageSha256) || null;
   }
@@ -91,6 +94,27 @@ class MemoryImportRepository {
   async create(job) {
     const created = { ...job, createdAt: new Date('2026-11-07T00:00:00Z'), updatedAt: new Date('2026-11-07T00:00:00Z') };
     this.jobs.push(created);
+    return created;
+  }
+  async listReviews(importJobId) { return this.reviews.filter((review) => review.importJobId === importJobId); }
+  async createTechnicalReview(review) {
+    const job = await this.findById(review.importJobId);
+    if (job.status !== 'READY_FOR_REVIEW' || this.reviews.some((item) => item.importJobId === review.importJobId)) {
+      const error = new Error('Import job không còn ở trạng thái chờ review.');
+      error.code = 'IMPORT_NOT_REVIEWABLE';
+      error.statusCode = 409;
+      throw error;
+    }
+    const created = {
+      ...review,
+      scope: 'TECHNICAL',
+      actorSource: 'DEVELOPMENT_HEADER',
+      status: review.decision === 'APPROVE' ? 'TECHNICALLY_APPROVED' : 'REJECTED',
+      createdAt: new Date('2026-11-07T00:00:00Z')
+    };
+    this.reviews.push(created);
+    job.status = created.status;
+    job.updatedAt = new Date('2026-11-07T00:01:00Z');
     return created;
   }
 }
@@ -158,4 +182,65 @@ test('import service stores the original once and returns the existing id for an
   assert.equal(repository.jobs.length, 1);
   assert.equal(sha256(stored), sha256(zip));
   assert.equal(report.packageId, 'pkg-demo-import-001');
+});
+
+test('reviewer preview is rebuilt from the stored package with assets and answer keys', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-preview-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const service = new ImportService({ repository: new MemoryImportRepository(), storage: new LocalImportStorage(root) });
+  const staged = await service.stage(await buildValidPackage());
+
+  const result = await service.getReviewerPreview(staged.id);
+  const question = result.preview.exam.sections[0].groups[0].questions[0];
+  const asset = await service.getAsset(staged.id, 'asset-shape');
+
+  assert.equal(result.preview.packageId, 'pkg-demo-import-001');
+  assert.equal(result.preview.exam.mode, 'FIXED');
+  assert.deepEqual(question.answerKey.correctOptionIds, ['option-a']);
+  assert.equal(question.explanation.schemaVersion, '1.0.0');
+  assert.match(result.preview.assets['asset-shape'].url, new RegExp(staged.id));
+  assert.equal(asset.mimeType, 'image/svg+xml');
+  assert.match(asset.data.toString('utf8'), /<svg/);
+});
+
+test('technical review binds the report hash, changes status without publishing and is immutable', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-review-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const repository = new MemoryImportRepository();
+  const service = new ImportService({ repository, storage: new LocalImportStorage(root) });
+  const staged = await service.stage(await buildValidPackage());
+
+  const result = await service.createTechnicalReview({
+    importJobId: staged.id,
+    reviewerId: 'reviewer-demo-01',
+    decision: 'APPROVE',
+    reason: 'Đã đối chiếu cấu trúc, asset và đáp án trong gói DEMO.'
+  });
+
+  assert.equal(result.review.scope, 'TECHNICAL');
+  assert.match(result.review.validationReportSha256, /^[a-f0-9]{64}$/);
+  assert.equal(result.job.status, 'TECHNICALLY_APPROVED');
+  assert.notEqual(result.job.status, 'PUBLISHED');
+  assert.equal((await service.listReviews(staged.id)).length, 1);
+  await assert.rejects(
+    service.createTechnicalReview({
+      importJobId: staged.id,
+      reviewerId: 'reviewer-demo-02',
+      decision: 'REJECT',
+      reason: 'Không được phép ghi đè quyết định review đã tồn tại.'
+    }),
+    (error) => error.code === 'IMPORT_NOT_REVIEWABLE' && error.statusCode === 409
+  );
+});
+
+test('invalid package cannot expose reviewer preview or answers', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-invalid-preview-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const service = new ImportService({ repository: new MemoryImportRepository(), storage: new LocalImportStorage(root) });
+  const staged = await service.stage(await buildValidPackage({ corruptChecksum: true }));
+
+  await assert.rejects(
+    service.getReviewerPreview(staged.id),
+    (error) => error.code === 'IMPORT_NOT_PREVIEWABLE' && error.statusCode === 409
+  );
 });

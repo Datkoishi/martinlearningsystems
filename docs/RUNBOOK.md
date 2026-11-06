@@ -17,6 +17,7 @@ Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới
 - Asset missing: kiểm tra asset map/storage key/hash/reference; không thay bằng URL tạm.
 - Import `INVALID`: dùng `report.errors[].path`; sửa package gốc rồi tạo package ID/version phù hợp. Upload byte-identical trả job cũ.
 - `IMPORT_API_DISABLED`: chỉ bật flag trong môi trường kiểm soát; đây không phải lỗi hệ thống.
+- Technical review là bất biến. Nếu reject, sửa nguồn và upload package mới; không update/delete `import_reviews`. `TECHNICALLY_APPROVED` vẫn không được publish khi chưa có academic approval/auth.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
 Production deploy chưa cấu hình ngoài CI publish image GHCR. Không coi image publish là database migration hoặc production rollout.

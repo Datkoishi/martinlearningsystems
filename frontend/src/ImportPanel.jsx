@@ -1,8 +1,15 @@
 import { useState } from 'react';
+import ReviewerPreview from './ReviewerPreview.jsx';
 
 const StatusPill = ({ status }) => {
-  const label = status === 'READY_FOR_REVIEW' ? 'Sẵn sàng duyệt' : status === 'INVALID' ? 'Không hợp lệ' : status;
-  return <span className={`import-status ${status === 'READY_FOR_REVIEW' ? 'ready' : 'invalid'}`}>{label}</span>;
+  const labels = {
+    READY_FOR_REVIEW: 'Sẵn sàng duyệt',
+    TECHNICALLY_APPROVED: 'Đã duyệt kỹ thuật',
+    REJECTED: 'Đã từ chối',
+    INVALID: 'Không hợp lệ'
+  };
+  const tone = status === 'TECHNICALLY_APPROVED' ? 'approved' : status === 'READY_FOR_REVIEW' ? 'ready' : 'invalid';
+  return <span className={`import-status ${tone}`}>{labels[status] || status}</span>;
 };
 
 const IssueList = ({ title, issues, tone }) => {
@@ -134,6 +141,12 @@ export default function ImportPanel() {
           )}
         </section>
       </div>
+      {['READY_FOR_REVIEW', 'TECHNICALLY_APPROVED', 'REJECTED'].includes(result?.status) && (
+        <ReviewerPreview
+          job={result}
+          onJobUpdate={(updatedJob) => setResult((current) => ({ ...current, ...updatedJob }))}
+        />
+      )}
     </main>
   );
 }

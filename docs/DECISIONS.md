@@ -19,3 +19,7 @@ Rich presentation ở JSON có version/validation; dữ liệu cần lọc (grad
 ## D-005 Import fail-closed trước auth
 
 Import API dùng feature flag và mặc định tắt ở production. ZIP nguy hiểm bị từ chối trước khi lưu; package hợp lệ về cấu trúc hoặc lỗi nghiệp vụ mới được giữ để review. Publish không nằm trong slice. Runtime lưu nguồn trên local persistent volume qua adapter; interface cho phép thay S3-compatible storage sau này.
+
+## D-006 Technical review không phải academic approval
+
+Trước khi có identity/RBAC, reviewer development ID chỉ tạo audit record scope `TECHNICAL`. Decision bind SHA-256 của validation report, unique theo ImportJob và không thể sửa/ghi đè. APPROVE chỉ đổi sang `TECHNICALLY_APPROVED`; không tạo nội dung live và không cho phép gọi `PUBLISHED`. Academic approval là gate riêng sau auth.

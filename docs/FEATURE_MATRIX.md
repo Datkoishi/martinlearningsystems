@@ -7,8 +7,9 @@
 | API-001 | Student-safe FIXED exam projection | Student | P0 | VERIFIED | `backend/src/domain/exam-presentation.js` | UT-SEC-01 PASS | API_SPEC | reveal policy pending |
 | UI-001 | Responsive renderer hình/math/table/stimulus/group | Student | P0 | IMPLEMENTED | `frontend/src` | frontend build PASS; browser QA BLOCKED | ARCHITECTURE | API-001 |
 | DEMO-001 | Fixture/seed Toán 5 có nhãn DEMO | QA | P0 | IMPLEMENTED | `demo-exam.js`, `003_demo_fixed_exam.sql` | UT-FIXED-01 PASS | PROJECT_OVERVIEW | academic approval N/A |
-| IMP-001a | Import ZIP staging + validation + idempotency | Editor | P0 | IMPLEMENTED | `backend/src/imports`, `frontend/src/ImportPanel.jsx` | UT-IMP-01–05 PASS; DB/HTTP integration BLOCKED | EXAM_PACKAGE_SPEC | production auth pending |
-| IMP-001b | Reviewer preview/approve + atomic publish | Reviewer | P0 | NOT_STARTED | — | AC-01/02/09 | EXAM_PACKAGE_SPEC | IMP-001a + auth/storage |
+| IMP-001a | Import ZIP staging + validation + idempotency | Editor | P0 | IMPLEMENTED | `backend/src/imports`, `frontend/src/ImportPanel.jsx` | UT-IMP-01–06 + DB PASS; HTTP BLOCKED | EXAM_PACKAGE_SPEC | production auth pending |
+| IMP-001b | Reviewer preview + immutable technical decision | Reviewer | P0 | IMPLEMENTED | `reviewer-preview.js`, `ReviewerPreview.jsx`, `004_import_reviews.sql` | UT-REV-01–03 + DB-REV-01 PASS | API_SPEC | production auth pending |
+| IMP-001c | Academic approval + atomic publish | Academic Reviewer | P0 | NOT_STARTED | — | AC-01/02/09 | EXAM_PACKAGE_SPEC | auth/RBAC + IMP-001b |
 | PLAY-001 | Attempt/autosave/submit/scoring | Student | P0 | NOT_STARTED | — | AC-04/10–13 | ROADMAP | auth + attempt schema |
 | ASM-001 | Deterministic assembled exam | Editor/Student | P0 | NOT_STARTED | — | AC-05–07/20 | ASSEMBLY_ENGINE | approved pool |
 | ASMNT-001 | Evidence-based assessment | Student/Teacher | P0 | NOT_STARTED | — | AC-14 | ASSESSMENT_ENGINE | approved framework |

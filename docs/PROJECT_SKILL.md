@@ -19,6 +19,8 @@ FIXED giữ đúng cấu trúc version đã phát hành. ASSEMBLED lọc pool ap
 
 Nguồn AI ngoài hệ thống phải vào ZIP staging gồm manifest, exam, questions, answers và assets. Không publish trực tiếp. Runtime nằm ở `backend/src/imports`: đọc ZIP lazy, áp giới hạn, lưu bản nguồn, validate rồi ghi `ImportJob`. Rich content dùng `{schemaVersion,nodes}`; chi tiết ở `RICH_CONTENT_SCHEMA.md`. Asset thiếu, answer key thiếu hoặc reference sai phải chặn publish.
 
+Reviewer preview luôn được dựng lại từ ZIP nguồn đã lưu và dùng cùng renderer với student UI. Reviewer payload có answer key/lời giải nên chỉ được cấp qua reviewer guard; production hiện fail-closed. `TECHNICALLY_APPROVED` chỉ xác nhận package kỹ thuật, không thay thế `ACADEMIC_APPROVAL_PENDING` và không publish.
+
 ## Cách mở rộng
 
 - Loại câu: thêm enum DB, validator/scorer, student renderer, reviewer renderer và test answer leakage.

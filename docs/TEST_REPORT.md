@@ -34,3 +34,17 @@ Lệnh đã chạy: `npm test --prefix backend` (lần đầu 6 pass/1 blocked d
 | DB-SMOKE-01 MySQL migration/seed/import JSON | PASS | MySQL 8.4 temp: 18 tables, 1 demo exam, READY_FOR_REVIEW + JSON errors=0 |
 | HTTP route integration | BLOCKED | sandbox không mở loopback trong Node test; service/controller được test trực tiếp |
 | Browser QA | BLOCKED | không có browser QA tool trong workflow |
+
+## 2026-11-07 — TASK-003
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-REV-01 reviewer projection | PASS | rebuilt from ZIP; source/asset/answer/explanation preserved |
+| UT-REV-02 immutable technical decision | PASS | report hash; TECHNICALLY_APPROVED; never PUBLISHED; second decision rejected |
+| UT-REV-03 invalid-package leakage | PASS | INVALID package returns IMPORT_NOT_PREVIEWABLE |
+| Backend regression | PASS | 17/17 tests |
+| Frontend production build | PASS | Vite, 32 modules |
+| DB-REV-01 migration + repository transaction | PASS | MySQL 8.4, 19 tables, review count 1, status TECHNICALLY_APPROVED |
+| DB-REV-02 repeated decision | PASS | real repository returns 409 IMPORT_NOT_REVIEWABLE |
+| HTTP/auth negative cases | BLOCKED | auth chưa triển khai; production API disabled |
+| Browser reviewer QA | BLOCKED | không có browser QA tool trong workflow |
