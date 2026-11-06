@@ -17,4 +17,4 @@
 - Next actionable task: IMP-001a — staging và validator Exam Package.
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `2863a02` (`feat(exam): add rich fixed exam foundation`).
-- Push status: pending.
+- Push status: `PUSH_BLOCKED` — lớp bảo vệ từ chối egress source tới remote GitHub chưa được xác minh; cần chủ repo phê duyệt rõ việc push nhánh này.
