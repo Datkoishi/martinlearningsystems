@@ -16,5 +16,5 @@
 - Known issues / trade-offs: chưa auth, import, storage, submit/autosave; math chưa typeset; migration/browser QA chưa chạy.
 - Next actionable task: IMP-001a — staging và validator Exam Package.
 - Git branch: `feat/eduassess-rich-content`.
-- Commit SHA: pending.
+- Commit SHA: `2863a02` (`feat(exam): add rich fixed exam foundation`).
 - Push status: pending.
