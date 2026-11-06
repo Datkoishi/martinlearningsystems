@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import ReviewerPreview from './ReviewerPreview.jsx';
+import AuthPanel from './AuthPanel.jsx';
+import { csrfHeaders, hasRole } from './auth.js';
 
 const StatusPill = ({ status }) => {
   const labels = {
@@ -30,11 +32,14 @@ const IssueList = ({ title, issues, tone }) => {
   );
 };
 
-export default function ImportPanel() {
+export default function ImportPanel({ authUser, onLogin }) {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [lookupId, setLookupId] = useState('');
+  const canImport = hasRole(authUser, 'CONTENT_EDITOR', 'SUPER_ADMIN');
+  const canReview = hasRole(authUser, 'ACADEMIC_REVIEWER', 'SUPER_ADMIN');
 
   const submit = async (event) => {
     event.preventDefault();
@@ -45,7 +50,7 @@ export default function ImportPanel() {
     try {
       const response = await fetch('/api/imports', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
+        headers: { 'Content-Type': 'application/zip', ...csrfHeaders() },
         body: file
       });
       const payload = await response.json().catch(() => ({}));
@@ -57,6 +62,28 @@ export default function ImportPanel() {
       setUploading(false);
     }
   };
+
+  const lookup = async (event) => {
+    event.preventDefault();
+    setError('');
+    setResult(null);
+    try {
+      const response = await fetch(`/api/imports/${lookupId.trim()}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || 'Không tìm thấy import job.');
+      setResult(payload);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
+  if (authUser === undefined) {
+    return <main className="center-page"><div className="loading-state" role="status"><span className="loader" aria-hidden="true" /><p>Đang kiểm tra phiên đăng nhập…</p></div></main>;
+  }
+  if (!authUser) return <main className="import-page"><AuthPanel onLogin={onLogin} /></main>;
+  if (!canImport && !canReview) {
+    return <main className="import-page"><section className="forbidden-panel"><p className="eyebrow">403 · Không đủ quyền</p><h1>Tài khoản chưa có role nội dung</h1><p>Import Lab yêu cầu CONTENT_EDITOR hoặc ACADEMIC_REVIEWER.</p></section></main>;
+  }
 
   return (
     <main className="import-page" id="top">
@@ -77,8 +104,13 @@ export default function ImportPanel() {
         </div>
       </section>
 
+      <div className="identity-bar">
+        <div><span>Đang đăng nhập</span><strong>{authUser.displayName}</strong></div>
+        <div><span>Roles</span><strong>{authUser.roles.join(' · ')}</strong></div>
+      </div>
+
       <div className="import-grid">
-        <form className="upload-card" onSubmit={submit}>
+        {canImport ? <form className="upload-card" onSubmit={submit}>
           <div className="upload-icon" aria-hidden="true">ZIP</div>
           <h2>Chọn Exam Package</h2>
           <p>Tối đa 25 MiB · không nhận file mã hóa, symlink hoặc đường dẫn không an toàn.</p>
@@ -98,10 +130,25 @@ export default function ImportPanel() {
           <button className="primary-button" type="submit" disabled={!file || uploading}>
             {uploading ? 'Đang kiểm tra…' : 'Tải lên và kiểm tra'}
           </button>
-          <p className="import-security">Import API mặc định tắt ở production cho đến khi RBAC được triển khai.</p>
-        </form>
+          <p className="import-security">Upload yêu cầu session CONTENT_EDITOR và CSRF token hợp lệ.</p>
+        </form> : (
+          <section className="upload-card role-card">
+            <div className="upload-icon" aria-hidden="true">R</div>
+            <h2>Reviewer workspace</h2>
+            <p>Tài khoản này không có quyền upload. Nhập Import Job ID được Content Editor chuyển giao để mở report và preview.</p>
+          </section>
+        )}
 
         <section className="report-card" aria-live="polite">
+          {canReview && (
+            <form className="review-lookup" onSubmit={lookup}>
+              <label htmlFor="import-job-id">Mở Import Job theo ID</label>
+              <div>
+                <input id="import-job-id" value={lookupId} onChange={(event) => setLookupId(event.target.value)} placeholder="xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx" required />
+                <button type="submit">Mở</button>
+              </div>
+            </form>
+          )}
           {!result && !error && (
             <div className="empty-report">
               <span>01</span>
@@ -141,11 +188,15 @@ export default function ImportPanel() {
           )}
         </section>
       </div>
-      {['READY_FOR_REVIEW', 'TECHNICALLY_APPROVED', 'REJECTED'].includes(result?.status) && (
+      {canReview && ['READY_FOR_REVIEW', 'TECHNICALLY_APPROVED', 'REJECTED'].includes(result?.status) && (
         <ReviewerPreview
           job={result}
+          authUser={authUser}
           onJobUpdate={(updatedJob) => setResult((current) => ({ ...current, ...updatedJob }))}
         />
+      )}
+      {!canReview && result?.status === 'READY_FOR_REVIEW' && (
+        <section className="review-launch"><div><p className="eyebrow">Đã chuyển reviewer</p><h2>Package đang chờ ACADEMIC_REVIEWER</h2><p>Content Editor không được tải answer payload hoặc tự ghi quyết định.</p></div></section>
       )}
     </main>
   );

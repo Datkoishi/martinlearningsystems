@@ -7,7 +7,7 @@
 
 POST import nhận raw ZIP có giới hạn, đọc lazy và không extract entry ra filesystem. Security violation ở cấp ZIP bị từ chối trước lưu. Gói qua lớp an toàn được lưu nguyên bản, validate thành report và ghi `ImportJob`; package invalid vẫn được giữ để sửa/đối chiếu. `(packageId, SHA-256)` chống duplicate. Publish là workflow riêng và chưa được bật.
 
-Import API mặc định tắt ở production cho đến khi RBAC/audit hoàn chỉnh. Storage/repository dùng adapter để chuyển local volume sang S3-compatible mà không đổi domain validation.
+Import API mặc định tắt ở production để rollout có chủ đích, dù session/RBAC/audit foundation đã được bổ sung trong ADR-0004. Storage/repository dùng adapter để chuyển local volume sang S3-compatible mà không đổi domain validation.
 
 ## Consequences
 

@@ -13,7 +13,11 @@
 | question_groups / items | stimulus_version_id, selection_policy, position | atomic hoặc split-with-stimulus |
 | source_provenance | question_version, source, license, relation_type | hỗ trợ nhiều nguồn |
 | asset_references | asset, owner_type/id, json_path | kiểm tra asset trước publish |
-| import_jobs | package_id/hash, status, report | idempotency theo package + hash |
-| import_reviews | import_job_id, reviewer_id, scope, decision, reason, report hash, actor source | một quyết định kỹ thuật bất biến/job; FK tới import job |
+| users | email, display_name, password_hash, status | email unique; password scrypt hash, không lưu plaintext |
+| user_roles | user_id, role, scope_type | role phía server; slice hiện tại chỉ global scope |
+| auth_sessions | user_id, token/csrf hash, expires/revoked | opaque token chỉ lưu SHA-256; session revoke phía server |
+| audit_logs | actor, event/resource, outcome, details | audit auth/import/review; không chứa raw token/password |
+| import_jobs | package_id/hash, status, creator, report | idempotency theo package + hash; creator dùng chống self-review |
+| import_reviews | import_job_id, reviewer_id, scope, decision, reason, report hash, actor source | một quyết định kỹ thuật bất biến/job; authenticated reviewer |
 
 Retention/xóa mềm đầy đủ chưa triển khai; entity đã được tham chiếu không được hard-delete ở feature tương lai.

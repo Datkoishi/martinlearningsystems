@@ -22,4 +22,8 @@ Import API dùng feature flag và mặc định tắt ở production. ZIP nguy h
 
 ## D-006 Technical review không phải academic approval
 
-Trước khi có identity/RBAC, reviewer development ID chỉ tạo audit record scope `TECHNICAL`. Decision bind SHA-256 của validation report, unique theo ImportJob và không thể sửa/ghi đè. APPROVE chỉ đổi sang `TECHNICALLY_APPROVED`; không tạo nội dung live và không cho phép gọi `PUBLISHED`. Academic approval là gate riêng sau auth.
+Decision bind SHA-256 của validation report, unique theo ImportJob và không thể sửa/ghi đè. Reviewer identity lấy từ authenticated session; creator bị cấm tự review. APPROVE chỉ đổi sang `TECHNICALLY_APPROVED`; không tạo nội dung live và không cho phép gọi `PUBLISHED`. Academic approval là gate riêng.
+
+## D-007 Opaque server session cho backoffice đầu tiên
+
+Dùng session token ngẫu nhiên trong cookie `HttpOnly`, CSRF token bind với session và global role guard phía server. DB chỉ lưu token hash; password dùng scrypt. Lựa chọn này cho phép revoke tức thời và không đưa claims/role có tuổi thọ dài xuống client. Tenant scope, MFA/recovery và distributed rate limiting được để thành hardening riêng trước public production.

@@ -30,4 +30,4 @@ Upload nguyên gói → kiểm tra cấu trúc ZIP → tính package SHA-256 →
 - Hỗ trợ MIME: JSON, PNG, JPEG, WebP, SVG an toàn, MP3 và PDF preview.
 - Gói vi phạm bảo mật ZIP bị từ chối trước khi lưu; lỗi schema/nghiệp vụ được staging ở trạng thái `INVALID` để tải report.
 
-Package qua validation có reviewer preview dựng trực tiếp từ ZIP, gồm asset, answer key và explanation. Reviewer có thể ghi một quyết định kỹ thuật bất biến; reject yêu cầu package mới để sửa. Chưa triển khai normalize/editor, academic approval, object storage S3 và publish transaction.
+Package qua validation có reviewer preview dựng trực tiếp từ ZIP, gồm asset, answer key và explanation. Route yêu cầu authenticated Reviewer; reviewer identity lấy từ session và không được trùng creator. Reviewer có thể ghi một quyết định kỹ thuật bất biến; reject yêu cầu package mới để sửa. Chưa triển khai normalize/editor, academic approval, object storage S3 và publish transaction.

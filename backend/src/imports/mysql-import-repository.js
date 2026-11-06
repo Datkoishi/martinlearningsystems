@@ -5,6 +5,7 @@ const mapRow = (row) => row && ({
   status: row.status,
   schemaVersion: row.schema_version,
   sourceStorageKey: row.source_storage_key,
+  createdByUserId: row.created_by_user_id,
   report: typeof row.validation_report_json === 'string' ? JSON.parse(row.validation_report_json) : row.validation_report_json,
   createdAt: row.created_at,
   updatedAt: row.updated_at
@@ -17,7 +18,7 @@ export class MysqlImportRepository {
 
   async findByPackageHash(packageId, packageSha256) {
     const [rows] = await this.pool.execute(
-      `SELECT id, package_id, package_sha256, status, schema_version, source_storage_key,
+      `SELECT id, package_id, package_sha256, status, schema_version, source_storage_key, created_by_user_id,
               validation_report_json, created_at, updated_at
        FROM import_jobs
        WHERE package_id = ? AND package_sha256 = ?
@@ -29,7 +30,7 @@ export class MysqlImportRepository {
 
   async findById(id) {
     const [rows] = await this.pool.execute(
-      `SELECT id, package_id, package_sha256, status, schema_version, source_storage_key,
+      `SELECT id, package_id, package_sha256, status, schema_version, source_storage_key, created_by_user_id,
               validation_report_json, created_at, updated_at
        FROM import_jobs
        WHERE id = ?
@@ -40,13 +41,32 @@ export class MysqlImportRepository {
   }
 
   async create(job) {
-    await this.pool.execute(
-      `INSERT INTO import_jobs
-        (id, package_id, package_sha256, status, schema_version, source_storage_key, validation_report_json)
-       VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON))`,
-      [job.id, job.packageId, job.packageSha256, job.status, job.schemaVersion, job.sourceStorageKey, JSON.stringify(job.report)]
-    );
-    return this.findById(job.id);
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
+        `INSERT INTO import_jobs
+          (id, package_id, package_sha256, status, schema_version, source_storage_key,
+           created_by_user_id, validation_report_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON))`,
+        [job.id, job.packageId, job.packageSha256, job.status, job.schemaVersion, job.sourceStorageKey, job.createdByUserId, JSON.stringify(job.report)]
+      );
+      if (job.createdByUserId) {
+        await connection.execute(
+          `INSERT INTO audit_logs
+            (id, actor_user_id, event_type, resource_type, resource_id, outcome, details_json)
+           VALUES (?, ?, 'IMPORT_STAGED', 'IMPORT_JOB', ?, 'SUCCESS', CAST(? AS JSON))`,
+          [job.auditId, job.createdByUserId, job.id, JSON.stringify({ packageId: job.packageId, status: job.status })]
+        );
+      }
+      await connection.commit();
+      return this.findById(job.id);
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   async listReviews(importJobId) {
@@ -76,7 +96,7 @@ export class MysqlImportRepository {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.execute(
-        'SELECT status FROM import_jobs WHERE id = ? FOR UPDATE',
+        'SELECT status, created_by_user_id FROM import_jobs WHERE id = ? FOR UPDATE',
         [review.importJobId]
       );
       if (!rows[0]) {
@@ -91,17 +111,29 @@ export class MysqlImportRepository {
         error.statusCode = 409;
         throw error;
       }
+      if (rows[0].created_by_user_id && rows[0].created_by_user_id === review.reviewerId) {
+        const error = new Error('Người nhập package không được tự review package đó.');
+        error.code = 'SELF_REVIEW_FORBIDDEN';
+        error.statusCode = 409;
+        throw error;
+      }
       await connection.execute(
         `INSERT INTO import_reviews
           (id, import_job_id, reviewer_id, review_scope, decision, reason,
            validation_report_sha256, actor_source)
-         VALUES (?, ?, ?, 'TECHNICAL', ?, ?, ?, 'DEVELOPMENT_HEADER')`,
+         VALUES (?, ?, ?, 'TECHNICAL', ?, ?, ?, 'AUTHENTICATED_USER')`,
         [review.id, review.importJobId, review.reviewerId, review.decision, review.reason, review.validationReportSha256]
       );
       const nextStatus = review.decision === 'APPROVE' ? 'TECHNICALLY_APPROVED' : 'REJECTED';
       await connection.execute('UPDATE import_jobs SET status = ? WHERE id = ?', [nextStatus, review.importJobId]);
+      await connection.execute(
+        `INSERT INTO audit_logs
+          (id, actor_user_id, event_type, resource_type, resource_id, outcome, details_json)
+         VALUES (?, ?, 'IMPORT_TECHNICAL_REVIEW', 'IMPORT_JOB', ?, 'SUCCESS', CAST(? AS JSON))`,
+        [review.auditId, review.reviewerId, review.importJobId, JSON.stringify({ decision: review.decision, status: nextStatus })]
+      );
       await connection.commit();
-      return { ...review, scope: 'TECHNICAL', actorSource: 'DEVELOPMENT_HEADER', status: nextStatus };
+      return { ...review, scope: 'TECHNICAL', actorSource: 'AUTHENTICATED_USER', status: nextStatus };
     } catch (error) {
       await connection.rollback();
       if (error?.code === 'ER_DUP_ENTRY') {

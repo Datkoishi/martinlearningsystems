@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import RichContent from './RichContent.jsx';
 import ImportPanel from './ImportPanel.jsx';
+import { csrfHeaders } from './auth.js';
 
-const AppHeader = ({ view, onViewChange }) => (
+const AppHeader = ({ view, onViewChange, user, onLogout }) => (
   <header className="topbar">
     <button className="brand brand-button" type="button" onClick={() => onViewChange('exam')} aria-label="EduAssess — mở bài DEMO">
       <span className="brand-mark">E</span>
@@ -12,6 +13,12 @@ const AppHeader = ({ view, onViewChange }) => (
       <button className={view === 'exam' ? 'active' : ''} type="button" onClick={() => onViewChange('exam')}>Bài DEMO</button>
       <button className={view === 'imports' ? 'active' : ''} type="button" onClick={() => onViewChange('imports')}>Nhập gói đề</button>
     </nav>
+    {user && (
+      <div className="session-chip">
+        <span>{user.displayName}</span>
+        <button type="button" onClick={onLogout}>Đăng xuất</button>
+      </div>
+    )}
     <div className="demo-badge">BẢN DEMO KỸ THUẬT</div>
   </header>
 );
@@ -76,6 +83,7 @@ const Question = ({ question, assets, value, onChange }) => {
 
 export default function App() {
   const [view, setView] = useState(() => window.location.hash === '#imports' ? 'imports' : 'exam');
+  const [user, setUser] = useState(undefined);
   const [exam, setExam] = useState(null);
   const [error, setError] = useState('');
   const [answers, setAnswers] = useState({});
@@ -91,6 +99,17 @@ export default function App() {
       .then(setExam)
       .catch((requestError) => {
         if (requestError.name !== 'AbortError') setError(requestError.message);
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/auth/me', { signal: controller.signal })
+      .then(async (response) => response.ok ? (await response.json()).user : null)
+      .then(setUser)
+      .catch((requestError) => {
+        if (requestError.name !== 'AbortError') setUser(null);
       });
     return () => controller.abort();
   }, []);
@@ -114,11 +133,25 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const logout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST', headers: csrfHeaders() });
+      if (response.ok || response.status === 401) {
+        setUser(null);
+        return;
+      }
+    } catch {
+      // Keep the local identity visible until server-side revocation is confirmed.
+    }
+    setNotice('Không thể thu hồi phiên đăng nhập. Hãy thử lại.');
+  };
+
   if (view === 'imports') {
     return (
       <div className="app-shell">
-        <AppHeader view={view} onViewChange={changeView} />
-        <ImportPanel />
+        <AppHeader view={view} onViewChange={changeView} user={user} onLogout={logout} />
+        <ImportPanel authUser={user} onLogin={setUser} />
+        {notice && <div className="toast" role="status">{notice}</div>}
       </div>
     );
   }
@@ -139,7 +172,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <AppHeader view={view} onViewChange={changeView} />
+      <AppHeader view={view} onViewChange={changeView} user={user} onLogout={logout} />
 
       <main className="exam-layout" id="top">
         <aside className="exam-sidebar">

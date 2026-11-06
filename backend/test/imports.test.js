@@ -99,6 +99,12 @@ class MemoryImportRepository {
   async listReviews(importJobId) { return this.reviews.filter((review) => review.importJobId === importJobId); }
   async createTechnicalReview(review) {
     const job = await this.findById(review.importJobId);
+    if (job.createdByUserId && job.createdByUserId === review.reviewerId) {
+      const error = new Error('Người nhập package không được tự review package đó.');
+      error.code = 'SELF_REVIEW_FORBIDDEN';
+      error.statusCode = 409;
+      throw error;
+    }
     if (job.status !== 'READY_FOR_REVIEW' || this.reviews.some((item) => item.importJobId === review.importJobId)) {
       const error = new Error('Import job không còn ở trạng thái chờ review.');
       error.code = 'IMPORT_NOT_REVIEWABLE';
@@ -108,7 +114,7 @@ class MemoryImportRepository {
     const created = {
       ...review,
       scope: 'TECHNICAL',
-      actorSource: 'DEVELOPMENT_HEADER',
+      actorSource: 'AUTHENTICATED_USER',
       status: review.decision === 'APPROVE' ? 'TECHNICALLY_APPROVED' : 'REJECTED',
       createdAt: new Date('2026-11-07T00:00:00Z')
     };
@@ -242,5 +248,25 @@ test('invalid package cannot expose reviewer preview or answers', async (t) => {
   await assert.rejects(
     service.getReviewerPreview(staged.id),
     (error) => error.code === 'IMPORT_NOT_PREVIEWABLE' && error.statusCode === 409
+  );
+});
+
+test('authenticated editor cannot technically review the package they staged', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-self-review-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const repository = new MemoryImportRepository();
+  const service = new ImportService({ repository, storage: new LocalImportStorage(root) });
+  const actor = { user: { id: '00000000-0000-4000-8000-000000000201' } };
+  const staged = await service.stage(await buildValidPackage(), actor);
+
+  assert.equal(staged.createdByUserId, actor.user.id);
+  await assert.rejects(
+    service.createTechnicalReview({
+      importJobId: staged.id,
+      reviewerId: actor.user.id,
+      decision: 'APPROVE',
+      reason: 'Không được tự review package do chính mình nhập.'
+    }),
+    (error) => error.code === 'SELF_REVIEW_FORBIDDEN' && error.statusCode === 409
   );
 });

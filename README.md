@@ -62,17 +62,18 @@ npm run build --prefix frontend
 
 API demo: `GET /api/exams/demo-fixed`. Dữ liệu hiển thị có nhãn `[DEMO]`, chưa phải nội dung học thuật được duyệt và chưa có autosave/nộp bài phía server.
 
-Import Lab ở `/#imports`. Để thử trong môi trường kiểm soát, đặt `ENABLE_IMPORT_API=true`; production mặc định tắt vì chưa có auth/RBAC. Upload ZIP nhị phân:
+Import Lab ở `/#imports`. Backend yêu cầu session đăng nhập, role phía server và CSRF cho mọi thao tác ghi; production vẫn mặc định tắt import cho đến khi cấu hình vận hành được duyệt. Tạo user đầu tiên bằng password qua stdin, không đưa credential vào command history:
 
 ```bash
-curl -X POST http://localhost:3000/api/imports \
-  -H 'Content-Type: application/zip' \
-  --data-binary @exam-package.zip
+read -s EDUASSESS_NEW_PASSWORD
+printf '%s' "$EDUASSESS_NEW_PASSWORD" | docker compose exec -T backend npm run auth:create-user -- \
+  --email editor@example.com --display-name "Content Editor" --roles CONTENT_EDITOR
+unset EDUASSESS_NEW_PASSWORD
 ```
 
-Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
+Các role bootstrap hiện hỗ trợ `CONTENT_EDITOR`, `ACADEMIC_REVIEWER` và `SUPER_ADMIN`; nên cấp mỗi người đúng role cần thiết. Sau khi đăng nhập ở Import Lab, Editor có thể tải ZIP. Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
 
-Package `READY_FOR_REVIEW` có thể mở bằng chính Rich Content renderer trong Import Lab. Quyết định hiện chỉ là `TECHNICAL`, yêu cầu development reviewer ID, gắn hash validation report và không thể ghi đè. Nó không phải phê duyệt học thuật và không chuyển nội dung thành `PUBLISHED`.
+Package `READY_FOR_REVIEW` có thể mở bằng chính Rich Content renderer khi session có role `ACADEMIC_REVIEWER`. Reviewer ID lấy từ session, Editor không đọc được answer payload và người nhập package không thể tự review. Quyết định hiện chỉ là `TECHNICAL`, gắn hash validation report và không thể ghi đè; nó không phải phê duyệt học thuật và không chuyển nội dung thành `PUBLISHED`.
 
 Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
 

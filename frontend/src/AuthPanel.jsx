@@ -1,0 +1,58 @@
+import { useState } from 'react';
+
+export default function AuthPanel({ onLogin }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || 'Không thể đăng nhập.');
+      setPassword('');
+      onLogin(body.user);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="auth-panel">
+      <div className="auth-copy">
+        <p className="eyebrow">Khu vực được bảo vệ</p>
+        <h1>Đăng nhập để quản lý nội dung</h1>
+        <p>Import và reviewer preview chứa nguồn đề, đáp án và lời giải. Hệ thống kiểm tra role ở backend, không chỉ ẩn nút trên giao diện.</p>
+        <ul>
+          <li><strong>Content Editor</strong> — tải và kiểm tra package.</li>
+          <li><strong>Academic Reviewer</strong> — xem answer payload và quyết định kỹ thuật.</li>
+        </ul>
+      </div>
+      <form onSubmit={submit} className="login-card">
+        <div className="login-mark">E</div>
+        <h2>Đăng nhập EduAssess</h2>
+        <label>
+          <span>Email</span>
+          <input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
+        </label>
+        <label>
+          <span>Mật khẩu</span>
+          <input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+        </label>
+        {error && <p className="inline-error" role="alert">{error}</p>}
+        <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Đang xác minh…' : 'Đăng nhập'}</button>
+        <p className="login-note">Không có tài khoản tự đăng ký. User được bootstrap qua CLI bảo mật.</p>
+      </form>
+    </section>
+  );
+}

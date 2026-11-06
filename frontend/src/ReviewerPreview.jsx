@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import RichContent from './RichContent.jsx';
+import { csrfHeaders } from './auth.js';
 
 const AnswerSummary = ({ question }) => {
   const key = question.answerKey || {};
@@ -42,11 +43,10 @@ const ReviewQuestion = ({ question, assets }) => {
   );
 };
 
-export default function ReviewerPreview({ job, onJobUpdate }) {
+export default function ReviewerPreview({ job, authUser, onJobUpdate }) {
   const [payload, setPayload] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [reviewerId, setReviewerId] = useState('reviewer-demo-01');
   const [reason, setReason] = useState('Đã đối chiếu cấu trúc, rich content, asset và answer key trong gói này.');
   const [submitting, setSubmitting] = useState(false);
   const [decisionResult, setDecisionResult] = useState(null);
@@ -74,7 +74,7 @@ export default function ReviewerPreview({ job, onJobUpdate }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-reviewer-id': reviewerId
+          ...csrfHeaders()
         },
         body: JSON.stringify({ decision, reason })
       });
@@ -167,10 +167,7 @@ export default function ReviewerPreview({ job, onJobUpdate }) {
           </div>
         ) : (
           <div className="decision-form">
-            <label>
-              <span>Reviewer development ID</span>
-              <input value={reviewerId} onChange={(event) => setReviewerId(event.target.value)} />
-            </label>
+            <div className="reviewer-identity"><span>Reviewer xác thực</span><strong>{authUser.displayName}</strong><code>{authUser.id}</code></div>
             <label>
               <span>Lý do và bằng chứng đã kiểm tra</span>
               <textarea rows="4" value={reason} onChange={(event) => setReason(event.target.value)} />

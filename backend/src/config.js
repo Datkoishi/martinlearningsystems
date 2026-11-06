@@ -14,6 +14,8 @@ export const config = {
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
   importApiEnabled: process.env.ENABLE_IMPORT_API === 'true' || (process.env.ENABLE_IMPORT_API !== 'false' && (process.env.NODE_ENV || 'development') === 'development'),
   importStoragePath: path.resolve(process.env.IMPORT_STORAGE_PATH || path.join(process.cwd(), '.data/imports')),
+  authSessionHours: numberFromEnv(process.env.AUTH_SESSION_HOURS, 8),
+  cookieSecure: process.env.COOKIE_SECURE === 'true' || (process.env.COOKIE_SECURE !== 'false' && (process.env.NODE_ENV || 'development') === 'production'),
   database: {
     host: process.env.MYSQL_HOST || 'localhost',
     port: numberFromEnv(process.env.MYSQL_PORT, 3306),

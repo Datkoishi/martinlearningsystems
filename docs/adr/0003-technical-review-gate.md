@@ -7,7 +7,7 @@
 
 Package qua validation có thể được preview từ source ZIP và nhận đúng một decision scope `TECHNICAL`. Record lưu reviewer ID, reason, decision, actor source và SHA-256 validation report. Transaction khóa ImportJob; APPROVE → `TECHNICALLY_APPROVED`, REJECT → `REJECTED`. Không transition sang `PUBLISHED`.
 
-Development reviewer header chỉ dùng khi import feature được bật trong môi trường cô lập. Production vẫn fail-closed cho đến khi có identity/RBAC và academic reviewer role.
+Reviewer identity lấy từ authenticated session và route yêu cầu `ACADEMIC_REVIEWER` hoặc `SUPER_ADMIN`. ImportJob lưu creator; transaction từ chối creator tự review. Production vẫn fail-closed bằng feature flag cho đến khi rollout/configuration được duyệt.
 
 ## Consequences
 

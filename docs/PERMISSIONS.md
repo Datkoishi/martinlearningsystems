@@ -8,8 +8,8 @@
 | Duyệt/publish | no | no | no self-approve | yes | policy only |
 | Xem bài học sinh | own | assigned class | no | no | minimum scoped |
 
-RBAC/tenant/auth chưa có trong code; vì vậy endpoint hiện tại chỉ phục vụ dữ liệu DEMO và tuyệt đối không trả answer key. API có dữ liệu thật phải có server-side guard, negative IDOR tests, audit và guardian/school scope.
+Identity/session và global role guard đã có cho workflow import. Backend, không phải UI, enforce `CONTENT_EDITOR`, `ACADEMIC_REVIEWER` và `SUPER_ADMIN`; mọi thao tác ghi dùng CSRF và được bind với user session. Tenant/school scope, guardian/teacher scope và assignment vẫn chưa có.
 
-Import API là công cụ editor nhưng chưa có guard role hoàn chỉnh; do đó production mặc định `ENABLE_IMPORT_API=false`. Feature flag không thay thế auth và không được dùng để mở endpoint công khai.
+`CONTENT_EDITOR` được upload và đọc validation metadata nhưng không được gọi reviewer preview/assets/reviews. `ACADEMIC_REVIEWER` được xem answer payload và ghi technical decision; reviewer ID luôn lấy từ session. ImportJob lưu creator và transaction từ chối tự review. `SUPER_ADMIN` có cả hai quyền nhưng vẫn chịu self-review rule.
 
-Reviewer preview chứa answer key/lời giải. Development header chỉ dùng trong môi trường cô lập và không chứng minh danh tính. Trước production, GET preview/assets/reviews và POST decision phải yêu cầu authenticated Reviewer scope; Editor không được tự duyệt package của mình.
+Production vẫn mặc định `ENABLE_IMPORT_API=false` để rollout có chủ đích; feature flag không thay thế auth. Trước public deployment phải bổ sung tenant scope, account recovery/MFA theo rủi ro, session cleanup/rotation, distributed rate limit và negative IDOR tests khi có tài nguyên tenant.

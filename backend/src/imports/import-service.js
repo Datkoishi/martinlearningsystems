@@ -9,6 +9,7 @@ const publicJob = (job, duplicate = false) => ({
   packageSha256: job.packageSha256,
   status: job.status,
   schemaVersion: job.schemaVersion,
+  createdByUserId: job.createdByUserId,
   duplicate,
   report: job.report,
   createdAt: job.createdAt,
@@ -23,7 +24,7 @@ export class ImportService {
     this.storage = storage;
   }
 
-  async stage(zipBuffer) {
+  async stage(zipBuffer, actor = null) {
     const packageSha256 = sha256(zipBuffer);
     const files = await readZipEntries(zipBuffer);
     const report = validateExamPackage(files, packageSha256);
@@ -41,6 +42,8 @@ export class ImportService {
         status: report.status,
         schemaVersion: report.schemaVersion,
         sourceStorageKey,
+        createdByUserId: actor?.user?.id || null,
+        auditId: randomUUID(),
         report
       });
       return publicJob(created);
@@ -92,7 +95,8 @@ export class ImportService {
       reviewerId,
       decision,
       reason,
-      validationReportSha256
+      validationReportSha256,
+      auditId: randomUUID()
     });
     return {
       review,

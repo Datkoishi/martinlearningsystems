@@ -19,7 +19,11 @@ FIXED giữ đúng cấu trúc version đã phát hành. ASSEMBLED lọc pool ap
 
 Nguồn AI ngoài hệ thống phải vào ZIP staging gồm manifest, exam, questions, answers và assets. Không publish trực tiếp. Runtime nằm ở `backend/src/imports`: đọc ZIP lazy, áp giới hạn, lưu bản nguồn, validate rồi ghi `ImportJob`. Rich content dùng `{schemaVersion,nodes}`; chi tiết ở `RICH_CONTENT_SCHEMA.md`. Asset thiếu, answer key thiếu hoặc reference sai phải chặn publish.
 
-Reviewer preview luôn được dựng lại từ ZIP nguồn đã lưu và dùng cùng renderer với student UI. Reviewer payload có answer key/lời giải nên chỉ được cấp qua reviewer guard; production hiện fail-closed. `TECHNICALLY_APPROVED` chỉ xác nhận package kỹ thuật, không thay thế `ACADEMIC_APPROVAL_PENDING` và không publish.
+Reviewer preview luôn được dựng lại từ ZIP nguồn đã lưu và dùng cùng renderer với student UI. Reviewer payload có answer key/lời giải nên chỉ được cấp qua authenticated `ACADEMIC_REVIEWER`/`SUPER_ADMIN`; Editor chỉ đọc metadata/report. Reviewer ID lấy từ session và creator không được tự review. `TECHNICALLY_APPROVED` chỉ xác nhận package kỹ thuật, không thay thế academic approval và không publish.
+
+## Identity và quyền
+
+Session là opaque token lưu trong cookie `HttpOnly`; DB chỉ lưu hash. Request ghi yêu cầu CSRF token bind với session. Password dùng scrypt và user chỉ được bootstrap qua password stdin. Không nhận user/reviewer ID hoặc role từ header/body client. Role hiện global; feature mới có tenant/class ownership phải thêm scope + negative IDOR tests trước khi mở dữ liệu thật.
 
 ## Cách mở rộng
 

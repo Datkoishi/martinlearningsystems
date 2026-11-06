@@ -48,3 +48,23 @@ Lệnh đã chạy: `npm test --prefix backend` (lần đầu 6 pass/1 blocked d
 | DB-REV-02 repeated decision | PASS | real repository returns 409 IMPORT_NOT_REVIEWABLE |
 | HTTP/auth negative cases | BLOCKED | auth chưa triển khai; production API disabled |
 | Browser reviewer QA | BLOCKED | không có browser QA tool trong workflow |
+
+## 2026-11-07 — TASK-004
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-AUTH-01 password hashing | PASS | scrypt salt/hash; plaintext không xuất hiện; đúng/sai password được kiểm tra |
+| UT-AUTH-02 opaque session + CSRF + revoke | PASS | DB-side token hash; CSRF bind session; logout làm cookie cũ nhận 401 |
+| UT-AUTH-03 generic invalid credential + audit | PASS | 401 chung, audit outcome `DENIED` |
+| UT-AUTH-04 server-side role guard | PASS | Editor được phép upload, bị từ chối reviewer scope |
+| UT-AUTH-05 cookie parser + login throttle | PASS | malformed cookie fail-closed; vượt limit nhận 429 |
+| UT-REV-04 self-review | PASS | unit + MySQL transaction trả `SELF_REVIEW_FORBIDDEN`; reviewer khác ghi decision/audit thành công |
+| Backend regression | PASS | 23/23 tests |
+| Frontend production build | PASS | Vite, 34 modules |
+| DB-AUTH-01 migration/bootstrap | PASS | MySQL 8.4 temp, 23 tables, 2 user bằng production CLI; DB chỉ lưu scrypt hash |
+| HTTP-AUTH-01 authorization matrix | PASS | unauth preview 401; Editor upload thiếu CSRF 403, request hợp lệ tới validator 400, preview 403; Reviewer upload 403, preview 404, review thiếu CSRF 403, review 404; logout 204; revoked session 401 |
+| Runtime dependency audit | PASS | `npm audit --omit=dev`: 0 vulnerabilities |
+| Compose config / production image | PASS | Compose config hợp lệ; backend image chứa bootstrap CLI; health 200 |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+Các container, image và network MySQL/backend tạm dùng cho DB/HTTP test đã được dừng và xóa sau kiểm thử. Password thử nghiệm được truyền qua stdin; một lần PTY ban đầu có echo cục bộ nên flow đã được sửa và xác minh lại với echo tắt, không ghi credential vào source/commit.

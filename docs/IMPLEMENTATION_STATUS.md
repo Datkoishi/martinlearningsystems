@@ -11,15 +11,18 @@
 - Import Lab responsive hiển thị report theo field/path; publish bị khóa.
 - Reviewer preview dùng cùng Rich Content renderer, phục vụ asset từ ZIP và hiển thị answer key/explanation.
 - Technical review transaction bất biến, bind validation-report hash; trạng thái chỉ `TECHNICALLY_APPROVED`/`REJECTED`, không publish.
+- Identity foundation có user/role, opaque session token chỉ lưu hash, password scrypt, CSRF double-submit bind với session, login throttling và audit.
+- Import/reviewer APIs enforce role phía server; reviewer lấy từ session, Editor không đọc answer payload và không thể tự review package đã nhập.
 
 ## Partial / giới hạn
 
 - UI chỉ giữ câu trả lời trong React memory và nói rõ là DEMO; không phải autosave server.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
-- SVG DEMO là asset nội bộ tin cậy; upload sanitizer/storage chưa có.
+- SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
 - Chưa có browser visual QA trong sandbox.
-- Import API chưa có auth/RBAC nên mặc định tắt ở production; HTTP route integration chưa chạy trong sandbox.
+- Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
+- Production vẫn phải chạy HTTPS với `COOKIE_SECURE=true`; import feature flag mặc định tắt để rollout có chủ đích.
 
 ## Chưa làm
 
-Auth/RBAC/tenant, academic reviewer approval, S3 object storage, immutable publish transaction, attempts, scoring, ASSEMBLED, assessment/reporting.
+Tenant-scoped RBAC, account lifecycle/recovery/MFA, academic approval, S3 object storage, immutable publish transaction, attempts, scoring, ASSEMBLED, assessment/reporting.

@@ -9,6 +9,7 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package*.json ./
 COPY src ./src
+COPY scripts ./scripts
 RUN mkdir -p /app/.data/imports && chown -R node:node /app/.data
 USER node
 EXPOSE 3000
