@@ -1,6 +1,6 @@
-# Martin Learning Systems
+# EduAssess — Martin Learning Systems
 
-Môi trường phát triển full-stack gồm React + Vite, Node.js + Express + Socket.IO, MySQL và Docker Compose.
+Nền tảng web đánh giá năng lực học sinh, hiện đang ở vertical slice đầu tiên: hiển thị đề FIXED giàu nội dung với section, stimulus/nhóm câu, hình, công thức, bảng và payload học sinh không chứa đáp án. Stack hiện tại gồm React + Vite, Node.js + Express + Socket.IO, MySQL và Docker Compose.
 
 ## Yêu cầu
 
@@ -59,6 +59,10 @@ Vite tự proxy `/api` và `/socket.io` sang backend tại cổng 3000.
 npm test --prefix backend
 npm run build --prefix frontend
 ```
+
+API demo: `GET /api/exams/demo-fixed`. Dữ liệu hiển thị có nhãn `[DEMO]`, chưa phải nội dung học thuật được duyệt và chưa có autosave/nộp bài phía server.
+
+Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
 
 ## CI/CD
 

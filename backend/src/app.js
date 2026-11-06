@@ -3,6 +3,8 @@ import express from 'express';
 import helmet from 'helmet';
 import { checkDatabase } from './db.js';
 import { config } from './config.js';
+import { demoFixedExam } from './domain/demo-exam.js';
+import { toStudentExam } from './domain/exam-presentation.js';
 
 export const getApiInfo = () => ({
   message: 'Martin Learning Systems API'
@@ -12,6 +14,8 @@ export const getHealthStatus = async (databaseCheck = checkDatabase) => {
   await databaseCheck();
   return { status: 'ok', database: 'connected' };
 };
+
+export const getDemoStudentExam = () => toStudentExam(demoFixedExam);
 
 export const createApp = ({ databaseCheck = checkDatabase } = {}) => {
   const app = express();
@@ -34,6 +38,10 @@ export const createApp = ({ databaseCheck = checkDatabase } = {}) => {
         message: config.nodeEnv === 'development' ? error.message : undefined
       });
     }
+  });
+
+  app.get('/api/exams/demo-fixed', (_request, response) => {
+    response.json(getDemoStudentExam());
   });
 
   app.use((_request, response) => {
