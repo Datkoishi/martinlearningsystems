@@ -35,5 +35,5 @@
 - Known issues / trade-offs: ZIP giữ trong RAM tối đa 25 MiB; local storage chưa S3; concurrent duplicate có thể để orphan file; chưa RBAC/reviewer/publish.
 - Next actionable task: IMP-001b — reviewer preview/approval record bằng renderer thật.
 - Git branch: `feat/eduassess-rich-content`.
-- Commit SHA: pending.
+- Commit SHA: `a1be807` (`feat(import): stage and validate exam packages`).
 - Push status: `PUSH_BLOCKED` như TASK-001; không thử lại khi chưa có phê duyệt rõ remote.
