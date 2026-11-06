@@ -17,7 +17,7 @@ FIXED giữ đúng cấu trúc version đã phát hành. ASSEMBLED lọc pool ap
 
 ## Exam Package và rich content
 
-Nguồn AI ngoài hệ thống phải vào ZIP staging gồm manifest, exam, questions, answers và assets. Không publish trực tiếp. Rich content dùng `{schemaVersion,nodes}`; chi tiết ở `RICH_CONTENT_SCHEMA.md`. Asset thiếu, answer key thiếu hoặc reference sai phải chặn publish.
+Nguồn AI ngoài hệ thống phải vào ZIP staging gồm manifest, exam, questions, answers và assets. Không publish trực tiếp. Runtime nằm ở `backend/src/imports`: đọc ZIP lazy, áp giới hạn, lưu bản nguồn, validate rồi ghi `ImportJob`. Rich content dùng `{schemaVersion,nodes}`; chi tiết ở `RICH_CONTENT_SCHEMA.md`. Asset thiếu, answer key thiếu hoặc reference sai phải chặn publish.
 
 ## Cách mở rộng
 

@@ -15,3 +15,7 @@ Rich presentation ở JSON có version/validation; dữ liệu cần lọc (grad
 ## D-004 Source documentation
 
 `SOURCE_DOC_NOT_FOUND`; sử dụng master prompt V3 do người dùng cung cấp. Nội dung DEMO không có giá trị học thuật/chính thức.
+
+## D-005 Import fail-closed trước auth
+
+Import API dùng feature flag và mặc định tắt ở production. ZIP nguy hiểm bị từ chối trước khi lưu; package hợp lệ về cấu trúc hoặc lỗi nghiệp vụ mới được giữ để review. Publish không nằm trong slice. Runtime lưu nguồn trên local persistent volume qua adapter; interface cho phép thay S3-compatible storage sau này.

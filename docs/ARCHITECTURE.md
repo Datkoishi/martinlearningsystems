@@ -10,9 +10,15 @@ flowchart LR
   API -. slices kế tiếp .-> DB[(MySQL 8.4)]
   DB --> Versions[Exam / Question / Stimulus versions]
   Assets[Object storage adapter\nchưa triển khai] -. assetId .-> UI
+  Lab[Import Lab] -->|application/zip| Import[Import service]
+  Import --> SafeZip[Path/size/ratio/checksum/MIME validation]
+  Import --> Store[(Local import volume)]
+  Import --> Jobs[(MySQL import_jobs)]
 ```
 
 Backend được giữ modular monolith để phù hợp repo nhỏ. `backend/src/domain` chứa logic thuần; route chỉ chuyển HTTP. Frontend không render raw HTML/SVG từ payload. Asset DEMO là SVG nội bộ tin cậy; asset import tương lai phải sanitize/convert và phục vụ từ storage.
+
+`backend/src/imports` có repository/storage adapters. Runtime dùng MySQL + local persistent volume; tests dùng repository memory + thư mục tạm. ZIP được đọc trong bộ nhớ ở giới hạn request 25 MiB, giải nén logic tối đa 50 MiB và không ghi entry ra filesystem. Gói có path/symlink/encryption/tỷ lệ nén nguy hiểm bị từ chối trước staging.
 
 ## Boundaries kế tiếp
 

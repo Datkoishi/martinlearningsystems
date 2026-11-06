@@ -36,11 +36,15 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
+      ENABLE_IMPORT_API: ${ENABLE_IMPORT_API:-false}
+      IMPORT_STORAGE_PATH: /app/.data/imports
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     depends_on:
       mysql:
         condition: service_healthy
+    volumes:
+      - import_data:/app/.data/imports
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
       interval: 10s
@@ -64,6 +68,7 @@ services:
 
 volumes:
   mysql_data:
+  import_data:
 
 networks:
   app_network:

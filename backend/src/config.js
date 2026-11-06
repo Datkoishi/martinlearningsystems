@@ -12,6 +12,8 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: numberFromEnv(process.env.PORT || process.env.BACKEND_PORT, 3000),
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  importApiEnabled: process.env.ENABLE_IMPORT_API === 'true' || (process.env.ENABLE_IMPORT_API !== 'false' && (process.env.NODE_ENV || 'development') === 'development'),
+  importStoragePath: path.resolve(process.env.IMPORT_STORAGE_PATH || path.join(process.cwd(), '.data/imports')),
   database: {
     host: process.env.MYSQL_HOST || 'localhost',
     port: numberFromEnv(process.env.MYSQL_PORT, 3306),

@@ -62,6 +62,16 @@ npm run build --prefix frontend
 
 API demo: `GET /api/exams/demo-fixed`. Dữ liệu hiển thị có nhãn `[DEMO]`, chưa phải nội dung học thuật được duyệt và chưa có autosave/nộp bài phía server.
 
+Import Lab ở `/#imports`. Để thử trong môi trường kiểm soát, đặt `ENABLE_IMPORT_API=true`; production mặc định tắt vì chưa có auth/RBAC. Upload ZIP nhị phân:
+
+```bash
+curl -X POST http://localhost:3000/api/imports \
+  -H 'Content-Type: application/zip' \
+  --data-binary @exam-package.zip
+```
+
+Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
+
 Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
 
 ## CI/CD

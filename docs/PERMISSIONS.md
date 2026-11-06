@@ -9,3 +9,5 @@
 | Xem bài học sinh | own | assigned class | no | no | minimum scoped |
 
 RBAC/tenant/auth chưa có trong code; vì vậy endpoint hiện tại chỉ phục vụ dữ liệu DEMO và tuyệt đối không trả answer key. API có dữ liệu thật phải có server-side guard, negative IDOR tests, audit và guardian/school scope.
+
+Import API là công cụ editor nhưng chưa có guard role hoàn chỉnh; do đó production mặc định `ENABLE_IMPORT_API=false`. Feature flag không thay thế auth và không được dùng để mở endpoint công khai.

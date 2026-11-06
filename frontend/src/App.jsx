@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import RichContent from './RichContent.jsx';
+import ImportPanel from './ImportPanel.jsx';
+
+const AppHeader = ({ view, onViewChange }) => (
+  <header className="topbar">
+    <button className="brand brand-button" type="button" onClick={() => onViewChange('exam')} aria-label="EduAssess — mở bài DEMO">
+      <span className="brand-mark">E</span>
+      <span><strong>EduAssess</strong><small>Martin Learning Systems</small></span>
+    </button>
+    <nav className="app-nav" aria-label="Khu vực ứng dụng">
+      <button className={view === 'exam' ? 'active' : ''} type="button" onClick={() => onViewChange('exam')}>Bài DEMO</button>
+      <button className={view === 'imports' ? 'active' : ''} type="button" onClick={() => onViewChange('imports')}>Nhập gói đề</button>
+    </nav>
+    <div className="demo-badge">BẢN DEMO KỸ THUẬT</div>
+  </header>
+);
 
 const LoadingState = ({ message }) => (
   <div className="loading-state" role="status">
@@ -60,6 +75,7 @@ const Question = ({ question, assets, value, onChange }) => {
 };
 
 export default function App() {
+  const [view, setView] = useState(() => window.location.hash === '#imports' ? 'imports' : 'exam');
   const [exam, setExam] = useState(null);
   const [error, setError] = useState('');
   const [answers, setAnswers] = useState({});
@@ -92,6 +108,21 @@ export default function App() {
     window.setTimeout(() => setNotice(''), 3200);
   };
 
+  const changeView = (nextView) => {
+    setView(nextView);
+    window.history.replaceState(null, '', nextView === 'imports' ? '#imports' : window.location.pathname);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  if (view === 'imports') {
+    return (
+      <div className="app-shell">
+        <AppHeader view={view} onViewChange={changeView} />
+        <ImportPanel />
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <main className="center-page">
@@ -108,13 +139,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="#top" aria-label="EduAssess — đầu trang">
-          <span className="brand-mark">E</span>
-          <span><strong>EduAssess</strong><small>Martin Learning Systems</small></span>
-        </a>
-        <div className="demo-badge">BẢN DEMO KỸ THUẬT</div>
-      </header>
+      <AppHeader view={view} onViewChange={changeView} />
 
       <main className="exam-layout" id="top">
         <aside className="exam-sidebar">
