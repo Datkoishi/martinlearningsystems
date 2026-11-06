@@ -54,5 +54,5 @@
 - Known issues / trade-offs: ZIP reparsed per preview/asset request; no auth/RBAC; reviewer ID is development header; no academic approval; local storage remains.
 - Next actionable task: AUTH-001 — session identity và Editor/Reviewer server-side role guards.
 - Git branch: `feat/eduassess-rich-content`.
-- Commit SHA: pending.
+- Commit SHA: `5014189` (`feat(review): add immutable technical review gate`).
 - Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
