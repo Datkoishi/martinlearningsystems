@@ -6,7 +6,14 @@ Trả identity của service.
 
 ## `GET /api/health`
 
-`200` khi MySQL kết nối; `503` khi lỗi. Production không trả chi tiết lỗi DB.
+Endpoint tương thích cũ: `200` khi service còn nhận traffic và MySQL kết nối; `503` khi draining hoặc lỗi DB. Production không trả chi tiết lỗi DB.
+
+## Runtime probes
+
+- `GET /api/live`: chỉ kiểm tra process HTTP còn sống, không phụ thuộc MySQL; trả `200 {"status":"ok"}` kể cả khi service đang draining.
+- `GET /api/ready`: trả `200 {"status":"ready","database":"connected"}` chỉ khi service còn nhận traffic và MySQL truy cập được; trả `503 status=not_ready` khi shutdown đã bắt đầu hoặc DB lỗi.
+
+Hai endpoint luôn `Cache-Control: no-store`. Orchestrator không được dùng liveness để quyết định gửi traffic.
 
 ## `GET /api/exams/demo-fixed`
 

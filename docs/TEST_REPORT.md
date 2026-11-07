@@ -165,3 +165,21 @@ MySQL container chỉ chứa fixture kỹ thuật giả lập và đã bị xóa
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 Lệnh chính: `npm test`; focused Node tests; frontend build; Compose config; MySQL 8.4 migration 001–010 + governance/catalog/attempt script; `git diff --check`. MySQL container/script chỉ chứa fixture kỹ thuật và đã bị xóa; `.env` không được đọc hoặc chỉnh sửa.
+
+## 2026-11-07 — TASK-010
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-OPS-01 typed environment defaults | PASS | development giữ HTTP/local defaults; path/port/session/grace được parse xác định |
+| UT-OPS-02 production fail-closed | PASS | HTTPS + Secure + DB secret hợp lệ; HTTP origin, insecure cookie, password mẫu, malformed bool/int/path origin bị từ chối |
+| UT-OPS-03 live/ready drain semantics | PASS | live 200 độc lập DB; ready 200 khi DB ok; draining/DB outage trả 503 |
+| UT-OPS-04 trusted proxy config | PASS | Express nhận đúng hop count cấu hình |
+| HTTP-OPS-01 runtime routes | PASS | `/api/live` vẫn 200 trong khi `/api/ready` chuyển 503 khi drain |
+| IMG-OPS-01 frontend Nginx | PASS | image build + `nginx -T`; `/healthz` 200; CSP/Permissions/Referrer/nosniff; `client_max_body_size 26m` |
+| IMG-OPS-02 backend production | PASS | thiếu secret exit 1 `INVALID_CONFIGURATION`; cấu hình hợp lệ live 200/ready 503 khi DB vắng; SIGTERM kết thúc trong grace |
+| Backend regression | PASS | 59/59 tests |
+| Frontend production build | PASS | Vite, 38 modules; không còn request font CDN |
+| Compose config | PASS | `.env.example`; backend health dùng `/api/ready`, stop grace 15 giây |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+Lệnh chính: `npm test`; focused config/app tests; `docker compose --env-file .env.example config --quiet`; Docker build/run/curl/nginx runtime smoke cho frontend/backend; `git diff --check`. Một lần focused test trong sandbox nhận `listen EPERM`; cùng test trong full gate có quyền loopback PASS. Container/image smoke chỉ chứa cấu hình giả lập, đã dừng và xóa; không dùng dữ liệu người dùng.

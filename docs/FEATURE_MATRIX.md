@@ -17,3 +17,5 @@
 | ASM-001b | Blueprint approval/publish + Student ASSEMBLED attempt | Reviewer/Student | P0 | VERIFIED | `assembly-service.js`, `AssemblyReviewPanel.jsx`, `010_assembled_publication.sql` | UT-ASM-07–10 + HTTP-ASM-02 + DB-ASM-02 PASS | ASSEMBLY_ENGINE | ASM-001a + independent review |
 | ASM-001c | Blueprint authoring revisions + governance queue | Editor/Reviewer | P1 | NOT_STARTED | — | version immutability/list filtering | ROADMAP | ASM-001b |
 | ASMNT-001 | Evidence-based assessment | Student/Teacher | P0 | NOT_STARTED | — | AC-14 | ASSESSMENT_ENGINE | approved framework |
+| OPS-001a | Production config/runtime/reverse-proxy safety baseline | Operator | P0 | VERIFIED | `backend/src/config.js`, `backend/src/server.js`, `frontend/nginx.conf`, `docker-compose.yml` | UT-OPS-01–04 + HTTP/IMG-OPS-01 PASS | RUNBOOK, ADR-0010 | HTTPS edge + secret injection |
+| OPS-001b | Versioned migration ledger/runner + backup/restore rehearsal | Operator | P0 | NOT_STARTED | — | DB upgrade/lock/checksum/restore | RUNBOOK | OPS-001a + production DB copy |

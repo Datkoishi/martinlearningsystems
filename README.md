@@ -20,7 +20,8 @@ Sau khi các container sẵn sàng:
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:3000/api
-- Backend health: http://localhost:3000/api/health
+- Backend liveness: http://localhost:3000/api/live
+- Backend readiness: http://localhost:3000/api/ready
 - MySQL: `localhost:3307`, database `mls_db`
 
 Dừng hệ thống:
@@ -80,6 +81,21 @@ Catalog công khai không trả answer key/explanation hoặc asset chỉ xuất
 Assembly Lab ở `/#assembly`: Editor tạo deterministic technical run; Academic Reviewer mở snapshot có answer payload, ghi một quyết định bất biến và publish bản approved. Engine chỉ đọc QuestionVersion `PUBLISHED` trong graph FIXED non-formal, có metadata đầy đủ và license `derivative_assembly`; quota/source diversity/group policy là điều kiện cứng. Publication tạo `ExamVersion(mode=ASSEMBLED)` cùng student/scoring snapshot riêng; catalog và Student attempt dùng đúng snapshot đã publish, không reassemble khi reload. Formal assessment vẫn khóa.
 
 Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
+
+## Runtime production
+
+Compose mặc định dùng `NODE_ENV=development` để local HTTP hoạt động. Trước khi chạy public production, tối thiểu phải cấu hình:
+
+- `NODE_ENV=production`;
+- `CLIENT_ORIGIN` là origin HTTPS chính xác, không kèm path;
+- `COOKIE_SECURE=true`;
+- `MYSQL_PASSWORD` lấy từ secret manager và không còn giá trị mẫu;
+- `TRUST_PROXY` đúng số reverse proxy tin cậy (`1` khi backend chỉ nằm sau một proxy);
+- `SHUTDOWN_GRACE_MS` nằm trong 1–60 giây.
+
+Backend từ chối khởi động nếu cấu hình production không an toàn hoặc sai kiểu. Orchestrator dùng `/api/live` cho liveness và `/api/ready` cho readiness; khi nhận `SIGTERM`/`SIGINT`, readiness chuyển `503` trước khi đóng Socket.IO, HTTP và MySQL pool. Nginx frontend có CSP/security headers, health `/healthz`, giới hạn upload 26 MiB tương thích API ZIP 25 MiB và không tải font từ bên thứ ba.
+
+Đây mới là runtime safety baseline, chưa phải rollout production hoàn chỉnh. Database đang có dữ liệu vẫn cần migration runner/ledger, backup-restore rehearsal, TLS edge, tenant scope, S3/CDN và monitoring trước khi phục vụ dữ liệu thật.
 
 ## CI/CD
 

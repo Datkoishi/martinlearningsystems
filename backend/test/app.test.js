@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { createApp, getApiInfo, getDemoStudentExam, getHealthStatus } from '../src/app.js';
+import {
+  createApp,
+  getApiInfo,
+  getDemoStudentExam,
+  getHealthStatus,
+  getLivenessStatus,
+  getReadinessStatus
+} from '../src/app.js';
 import { demoFixedExam } from '../src/domain/demo-exam.js';
 import { toStudentExam } from '../src/domain/exam-presentation.js';
 import { validateRichContent } from '../src/domain/rich-content.js';
@@ -25,6 +32,56 @@ test('health status rejects when the database is unavailable', async () => {
     }),
     /database unavailable/
   );
+});
+
+test('liveness is process-only while readiness fails during drain or database outage', async () => {
+  assert.deepEqual(getLivenessStatus(), { status: 'ok' });
+  assert.deepEqual(
+    await getReadinessStatus(async () => true, () => true),
+    { status: 'ready', database: 'connected' }
+  );
+  await assert.rejects(
+    getReadinessStatus(async () => true, () => false),
+    (error) => error.code === 'SERVICE_DRAINING'
+  );
+  await assert.rejects(
+    getReadinessStatus(async () => { throw new Error('database unavailable'); }, () => true),
+    /database unavailable/
+  );
+});
+
+test('app applies the configured trusted proxy hop count', () => {
+  const app = createApp({ importsEnabled: false, trustProxy: 1 });
+  assert.equal(app.get('trust proxy'), 1);
+});
+
+test('runtime routes keep liveness up while readiness drains', async (context) => {
+  let ready = true;
+  const app = createApp({
+    databaseCheck: async () => true,
+    importsEnabled: false,
+    readinessCheck: () => ready
+  });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+
+  const live = await fetch(`${baseUrl}/api/live`);
+  assert.equal(live.status, 200);
+  assert.deepEqual(await live.json(), { status: 'ok' });
+
+  const available = await fetch(`${baseUrl}/api/ready`);
+  assert.equal(available.status, 200);
+  assert.deepEqual(await available.json(), { status: 'ready', database: 'connected' });
+
+  ready = false;
+  const draining = await fetch(`${baseUrl}/api/ready`);
+  assert.equal(draining.status, 503);
+  assert.equal((await draining.json()).status, 'not_ready');
+
+  const stillLive = await fetch(`${baseUrl}/api/live`);
+  assert.equal(stillLive.status, 200);
 });
 
 test('rich content validates image, math and merged table cells', () => {

@@ -4,7 +4,11 @@
 
 ```mermaid
 flowchart LR
-  UI[React/Vite\nRichContent renderer] -->|session cookie + CSRF| API[Express API]
+  Browser[Browser] --> Edge[Nginx static + reverse proxy\nCSP / 26 MiB upload / healthz]
+  Edge --> UI[React/Vite\nRichContent renderer]
+  Edge -->|/api + /socket.io| API[Express API]
+  UI -->|session cookie + CSRF| API
+  Runtime[Fail-fast config\nlive/ready + graceful drain] --> API
   API --> Identity[Identity/access\nopaque session + global RBAC]
   Identity --> IdentityDB[(users / roles / sessions / audit)]
   UI -->|GET /api/exams/demo-fixed| API
@@ -46,6 +50,8 @@ flowchart LR
 
 Backend được giữ modular monolith để phù hợp repo nhỏ. `backend/src/domain` chứa logic thuần; route chỉ chuyển HTTP. Frontend không render raw HTML/SVG từ payload. Asset DEMO là SVG nội bộ tin cậy; asset import tương lai phải sanitize/convert và phục vụ từ storage.
 
+Runtime production parse/validate toàn bộ boolean/integer/origin quan trọng trước khi listen. `NODE_ENV=production` bắt buộc HTTPS origin, secure cookie và database password không mặc định. Express chỉ tin số proxy hop được cấu hình; liveness không chạm DB, readiness phụ thuộc DB và trạng thái draining. SIGTERM/SIGINT chỉ xử lý một lần, ngừng readiness rồi đóng realtime/HTTP/pool trong deadline hữu hạn. Nginx phục vụ static cùng CSP/security headers và không gọi font CDN bên thứ ba.
+
 `backend/src/imports` có repository/storage adapters. Runtime dùng MySQL + local persistent volume; tests dùng repository memory + thư mục tạm. ZIP được đọc trong bộ nhớ ở giới hạn request 25 MiB, giải nén logic tối đa 50 MiB và không ghi entry ra filesystem. Gói có path/symlink/encryption/tỷ lệ nén nguy hiểm bị từ chối trước staging.
 
 `backend/src/auth` xác thực password scrypt, tạo opaque session/CSRF token và chỉ lưu hash token trong MySQL. Cookie session là `HttpOnly`, `SameSite=Strict`; role guard chạy phía server. Import ghi creator/audit trong transaction. Preview không lưu bản nội dung mới: service đọc lại `source.zip`, dựng projection reviewer và phục vụ asset theo `assetId` với `no-store`. Technical và academic decision khóa ImportJob bằng `SELECT ... FOR UPDATE`, cấm creator tự review và ghi hai scope bất biến trong `import_reviews`.
@@ -64,4 +70,4 @@ Submit khóa attempt, chỉ chấm response đã commit và tạo một immutabl
 
 ## Boundaries kế tiếp
 
-`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`. Attempt/scoring và ASSEMBLED publish/delivery đã có; identity vẫn mới global role. Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.
+`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED delivery và runtime safety baseline đã có; identity vẫn mới global role. Migration ledger/runner, backup-restore rehearsal, Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.

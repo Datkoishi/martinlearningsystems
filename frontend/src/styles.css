@@ -1,7 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Literata:opsz,wght@7..72,600;7..72,700&display=swap');
-
 :root {
-  font-family: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Avenir Next', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
   color: #18231f;
   background: #f5f2ea;
   font-synthesis: none;

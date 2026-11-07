@@ -29,6 +29,10 @@ Publish phải đọc và hash lại source ZIP, chạy validator lại, so cano
 
 Session là opaque token lưu trong cookie `HttpOnly`; DB chỉ lưu hash. Request ghi yêu cầu CSRF token bind với session. Password dùng scrypt và user chỉ được bootstrap qua password stdin. Không nhận user/reviewer ID hoặc role từ header/body client. Role hiện global; feature mới có tenant/class ownership phải thêm scope + negative IDOR tests trước khi mở dữ liệu thật.
 
+## Production runtime
+
+`backend/src/config.js` là gate typed/fail-fast: production bắt buộc HTTPS origin, secure cookie và DB password không mặc định; proxy hop phải khai đúng topology. `/api/live` chỉ phản ánh process, `/api/ready` phản ánh DB + trạng thái drain. Khi shutdown, readiness phải hạ trước khi đóng realtime/HTTP/pool và luôn có deadline. Frontend Nginx giữ CSP/security headers, `/healthz` và request limit tương thích API; không thêm CDN/third-party runtime nếu chưa đánh giá privacy. Các migration init chưa phải production runner: không chạy SQL thủ công trên DB thật nếu chưa backup/restore rehearsal và ledger/checksum.
+
 ## Catalog và attempt
 
 Catalog chỉ đọc ExamVersion `PUBLISHED + non-formal`: FIXED dựng từ relational graph, ASSEMBLED đọc publication snapshot. Student projection phải loại answer key, explanation, scoring fields và asset chỉ dùng trong lời giải. Public asset phải có reference student-visible từ published FIXED graph hoặc ASSEMBLED snapshot và bytes phải khớp metadata hash/size.
@@ -49,7 +53,7 @@ Autosave phải dùng `baseRevision`, exact-operation replay và server ACK; sta
 1. Đọc `AGENTS.md` và bộ tài liệu resume; kiểm tra Git status.
 2. Chọn một vertical slice nhỏ; ghi decision khi có giả định.
 3. Kiểm tra quyền, tenant scope, dữ liệu trẻ em, version bất biến và audit trước khi code.
-4. Code + happy/edge/negative test; chạy test/build thật.
+4. Code + happy/edge/negative test; chạy test/build/image/runtime smoke thật khi thay đổi production lifecycle.
 5. Cập nhật docs/status/progress, review diff và secret, commit/push an toàn.
 
 Done chỉ khi code thật, validation/permission phù hợp, test chạy, docs khớp và trạng thái Git được báo đúng. Lệnh chuẩn: `npm test --prefix backend`, `npm run build --prefix frontend`, `npm test`. Agent mới tiếp tục từ `PROGRESS.md` và `IMPLEMENTATION_STATUS.md`, không dựng lại app.

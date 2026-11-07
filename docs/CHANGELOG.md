@@ -27,3 +27,5 @@
 - Thêm migration 010 cho Blueprint identity/version, immutable assembly review và atomic ASSEMBLED publication snapshots.
 - Thêm reviewer workspace có answer/lời giải + asset scoped; chặn self-review và bind decision với selection/snapshot hashes.
 - Mở catalog/attempt dùng chung cho FIXED/ASSEMBLED; published assembly hash được xác minh và reload/retry không reassemble.
+- Thêm production runtime safety baseline: typed fail-fast config, live/ready probes, graceful drain deadline và Docker readiness health.
+- Harden Nginx bằng CSP/security headers, health endpoint, upload 26 MiB, static cache và loại font CDN bên thứ ba.

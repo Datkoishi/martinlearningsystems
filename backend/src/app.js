@@ -25,9 +25,17 @@ export const getApiInfo = () => ({
   message: 'Martin Learning Systems API'
 });
 
+export const getLivenessStatus = () => ({ status: 'ok' });
+
 export const getHealthStatus = async (databaseCheck = checkDatabase) => {
   await databaseCheck();
   return { status: 'ok', database: 'connected' };
+};
+
+export const getReadinessStatus = async (databaseCheck = checkDatabase, readinessCheck = () => true) => {
+  if (!readinessCheck()) throw Object.assign(new Error('Service đang dừng nhận traffic.'), { code: 'SERVICE_DRAINING' });
+  await databaseCheck();
+  return { status: 'ready', database: 'connected' };
 };
 
 export const getDemoStudentExam = () => toStudentExam(demoFixedExam);
@@ -43,9 +51,12 @@ export const createApp = ({
   catalogService = defaultCatalogService,
   attemptService = defaultAttemptService,
   assemblyService = defaultAssemblyService,
-  importsEnabled = config.importApiEnabled
+  importsEnabled = config.importApiEnabled,
+  readinessCheck = () => true,
+  trustProxy = config.trustProxy
 } = {}) => {
   const app = express();
+  app.set('trust proxy', trustProxy);
   const authenticate = createAuthenticate(authService);
   const requireCsrf = createRequireCsrf(authService);
   const importEnabled = (_request, response, next) => importsEnabled
@@ -114,11 +125,30 @@ export const createApp = ({
 
   app.get('/api/health', async (_request, response) => {
     try {
+      if (!readinessCheck()) throw new Error('service draining');
       response.json(await getHealthStatus(databaseCheck));
     } catch (error) {
       response.status(503).json({
         status: 'degraded',
         database: 'disconnected',
+        message: config.nodeEnv === 'development' ? error.message : undefined
+      });
+    }
+  });
+
+  app.get('/api/live', (_request, response) => {
+    response.set('Cache-Control', 'no-store');
+    response.json(getLivenessStatus());
+  });
+
+  app.get('/api/ready', async (_request, response) => {
+    response.set('Cache-Control', 'no-store');
+    try {
+      response.json(await getReadinessStatus(databaseCheck, readinessCheck));
+    } catch (error) {
+      response.status(503).json({
+        status: 'not_ready',
+        database: error?.code === 'SERVICE_DRAINING' ? 'unknown' : 'disconnected',
         message: config.nodeEnv === 'development' ? error.message : undefined
       });
     }

@@ -53,3 +53,9 @@ Successful run lưu student/scoring snapshot riêng, selection/source manifest, 
 Mỗi technical run có BlueprintVersion immutable. Reviewer độc lập duyệt đúng selection/source snapshot hashes; creator không được tự duyệt và decision không sửa. APPROVED mới được transactionally publish thành ExamVersion ASSEMBLED với student/scoring snapshots + hash riêng. Catalog/attempt đọc snapshot đã publish thay vì dựng lại selection; retry/reload không gọi engine.
 
 ASSEMBLED nhiều nguồn nên `exams.source_id` nullable; provenance vẫn ở selected QuestionVersions/manifest, không gán giả một source. Reviewer asset chỉ mở khi thuộc selected scoring snapshot; public asset chỉ khi student-visible trong FIXED graph hoặc ASSEMBLED publication. Chi tiết ở ADR-0009.
+
+## D-013 Runtime production fail-fast và probe tách biệt
+
+Local Compose mặc định development để HTTP/cookie local còn dùng được; production không được kế thừa mặc định đó. Backend parse typed env trước khi listen và từ chối production nếu origin không HTTPS, cookie không Secure hoặc DB secret trống/mặc định. Liveness không phụ thuộc DB; readiness phụ thuộc DB và trạng thái draining. SIGTERM/SIGINT hạ readiness trước, đóng realtime/HTTP/pool trong deadline hữu hạn.
+
+Nginx là static/reverse-proxy boundary: CSP/security headers, health riêng và upload 26 MiB phải khớp API 25 MiB. Font bên thứ ba bị loại để giảm outbound tracking surface. Đây không thay migration ledger, TLS edge, tenant scope, storage hay monitoring. Chi tiết ở ADR-0010.

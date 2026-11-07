@@ -15,6 +15,28 @@ unset EDUASSESS_NEW_PASSWORD
 
 Role bootstrap hợp lệ: `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SUPER_ADMIN`; ưu tiên tách tài khoản Editor/Reviewer để enforce four-eyes. Sau khi có account và HTTPS/cookie đúng, đặt `ENABLE_IMPORT_API=true` theo quy trình rollout. `IMPORT_STORAGE_PATH` phải trỏ thư mục chỉ backend đọc/ghi; Docker dùng named volume `import_data`. Backup đồng bộ `users`, `user_roles`, `auth_sessions`, `audit_logs`, `import_jobs`, `import_reviews`, `import_publications`, `exam_attempts`, `attempt_responses`, `attempt_operations`, `attempt_score_revisions`, `exam_blueprints`, `exam_blueprint_versions`, `assembly_runs`, `assembly_reviews`, `assembly_publications` và volume này. Thiết lập retention cho session/attempt/operation/assembly trước production.
 
+## Production runtime gate
+
+Compose local mặc định `NODE_ENV=development`. Public production phải inject secret từ môi trường/secret manager và đặt đồng thời:
+
+```text
+NODE_ENV=production
+CLIENT_ORIGIN=https://<origin-chính-xác>
+COOKIE_SECURE=true
+MYSQL_PASSWORD=<secret-không-mặc-định>
+TRUST_PROXY=<số-proxy-hop-tin-cậy>
+SHUTDOWN_GRACE_MS=10000
+```
+
+Backend fail-fast trước khi listen nếu enum/boolean/integer sai, origin production không HTTPS, cookie không Secure hoặc DB password trống/giá trị mẫu. Không đặt `TRUST_PROXY=1` nếu backend còn được truy cập trực tiếp từ Internet; production phải giới hạn network để chỉ reverse proxy tin cậy gọi backend.
+
+- Liveness: `GET /api/live`, không chạm DB.
+- Readiness: `GET /api/ready`, chỉ 200 khi chưa draining và DB kết nối.
+- Frontend/Nginx: `GET /healthz`; upload limit 26 MiB cho API ZIP tối đa 25 MiB.
+- SIGTERM/SIGINT: readiness chuyển 503, đóng Socket.IO/HTTP/pool; orchestrator phải có termination grace lớn hơn `SHUTDOWN_GRACE_MS` (Compose hiện 15 giây cho grace 10 giây).
+
+Nginx áp CSP và security headers cho UI, đồng thời dùng system font để không gửi IP/user-agent của trẻ em sang font CDN. TLS vẫn phải terminate tại edge/load balancer bên ngoài cấu hình repo hiện tại.
+
 ## Migration
 
 Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` technical review, `005` identity/session/audit, `006` academic publication, `007` attempt snapshots, `008` responses/scoring, `009` assembly metadata/runs và `010` blueprint review + ASSEMBLED publication. Migration 010 backfill run cũ thành BlueprintVersion 1 REJECTED vì thiếu frozen reviewer payload; tạo run mới để review/publish. Migration cũng nới `exams.source_id` nullable; kiểm tra ứng dụng không giả định source_id luôn có cho ASSEMBLED. Luôn thử restore/migration trên bản sao trước production; `ALTER TABLE` chỉ chạy một lần trên DB cũ.
@@ -54,4 +76,4 @@ Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới
 - Reviewer explanation asset phải đi qua `/api/assemblies/:id/assets/:assetId`; không đổi sang public catalog URL. Public ASSEMBLED asset phải thực sự có trong `student_snapshot_json.assets`.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
-Production deploy chưa cấu hình ngoài CI publish image GHCR. Không coi image publish là database migration hoặc production rollout.
+Production deploy chưa cấu hình ngoài CI publish image GHCR. Runtime safety gate không thay thế migration/backup/TLS/monitoring. Không coi image publish là database migration hoặc production rollout; task kế tiếp phải bổ sung migration ledger/runner và diễn tập restore trên bản sao.

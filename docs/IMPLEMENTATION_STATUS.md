@@ -26,6 +26,9 @@
 - Successful assembly run lưu immutable blueprint/seed/selection/source distribution cùng student/scoring snapshot tách biệt, hash toàn vẹn, idempotency và audit; Assembly Lab chỉ trả student-safe owner preview.
 - Mỗi run tạo Blueprint identity/version `NEEDS_REVIEW`; Reviewer độc lập xem answer/lời giải, asset scoped, ghi một decision bind hashes. APPROVED publish nguyên tử thành ExamVersion ASSEMBLED và published snapshot riêng.
 - Catalog chung hiển thị FIXED/ASSEMBLED; attempt từ ASSEMBLED sao chép đúng published snapshot, dùng chung autosave/submit/scoring và không reassemble khi reload/retry.
+- Production config fail-fast kiểm tra typed env, HTTPS origin, secure cookie và DB secret; Express trust proxy chỉ theo hop count cấu hình.
+- Runtime có liveness/readiness tách biệt, readiness chuyển not-ready khi drain và graceful shutdown có deadline; Docker health dùng readiness.
+- Frontend Nginx có CSP/security headers, `/healthz`, upload 26 MiB và static asset cache; browser không còn tải Google Fonts bên thứ ba.
 
 ## Partial / giới hạn
 
@@ -35,9 +38,10 @@
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
 - Chưa có browser visual QA trong sandbox.
 - Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
-- Production vẫn phải chạy HTTPS với `COOKIE_SECURE=true`; import feature flag mặc định tắt để rollout có chủ đích.
+- Production vẫn cần TLS edge/secret manager thực tế; import feature flag mặc định tắt để rollout có chủ đích.
 - Published media hiện được phục vụ từ entry trong source ZIP bất biến trên local volume; chưa có S3 promotion/CDN adapter.
+- Migration SQL vẫn chỉ auto-run trên MySQL volume mới; chưa có migration ledger/runner cho DB production đang tồn tại hay backup-restore rehearsal tự động.
 
 ## Chưa làm
 
-Tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, blueprint authoring revisions, manual essay/regrade, assessment/reporting.
+Migration runner + backup/restore rehearsal, tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, blueprint authoring revisions, manual essay/regrade, assessment/reporting.
