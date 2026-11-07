@@ -128,3 +128,21 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `4466d2f` (`feat(scoring): add idempotent attempt submission`).
 - Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
+
+## [2026-11-07 14:19 +07:00] TASK-008 — Approved pool và deterministic assembly snapshot
+
+- Mục tiêu / feature IDs: ASM-001a; AC-05–07/20 foundation.
+- Trạng thái: VERIFIED (unit/build/MySQL/HTTP authorization-idempotency hoàn thành; browser visual/a11y QA chưa có tooling).
+- Phạm vi thực hiện: metadata question bank indexed; approved/licensed pool; Blueprint 1.0.0; seeded SHA-256 candidate rank; hard-constraint backtracking; direct/atomic/split group handling; source diversity; immutable technical run và integrity hashes.
+- Files created: `backend/src/assembly/*`, `backend/test/assembly.test.js`, `database/init/009_assembly_foundation.sql`, `frontend/src/AssemblyLab.jsx`, `docs/adr/0008-deterministic-assembly-runs.md`.
+- Files modified: import validator/publication/repository, Express routes/tests, shared Student player, App/AuthPanel/styles, README và docs domain/status/test/runbook.
+- DB migration / data impact: bổ sung nullable curriculum/topic/skill/difficulty/estimated/family metadata + indexes trên `question_versions`; thêm `assembly_runs` owner/idempotency/blueprint/seed/selection/source/student+scoring snapshots/hashes. Additive; package cũ vẫn dùng FIXED nhưng không eligible assembly khi thiếu metadata.
+- API / UI behavior: `POST /api/assemblies` yêu cầu Editor/Admin + CSRF + idempotency; `GET /api/assemblies/:id` owner-only; `/#assembly` tạo/khôi phục technical preview student-safe. Run chưa publish vào catalog và Student không thể tạo attempt từ run.
+- Test commands actually run: `npm test`; focused Node tests; `docker compose --env-file .env.example config --quiet`; MySQL 8.4 migration/pool/run/retry smoke; `git diff --check`; `git diff --cached --check`. Runtime `npm audit` được thử nhưng không hoàn tất: sandbox không có DNS và yêu cầu gửi manifest ra npm registry bị policy từ chối do chưa có user authorization cụ thể.
+- Test results: backend 48/48 PASS; frontend build PASS (37 modules); Compose PASS; MySQL PASS (29 tables, 3 nguồn/license, atomic group, selection 4 câu, 1 run + 1 audit dưới retry); split-with-stimulus/insufficient-pool/tamper/answer-leakage/role-CSRF negative cases PASS.
+- Security/privacy considerations: pool chỉ PUBLISHED trong graph FIXED non-formal, metadata complete, derivative license còn hiệu lực và asset published; public response không scoring/answer/explanation; creator scoping; exact request hash; formal assessment fail-closed; `.env` không bị đọc, hiển thị hoặc chỉnh sửa. Container/script fixture tạm đã xóa.
+- Known issues / trade-offs: chưa blueprint identity/version/approval, failed-run persistence, Student publication/attempt integration, option shuffle, soft optimization/history, tenant scope hoặc browser QA; search giới hạn 100.000 node; dependency audit chưa có kết quả mới vì external registry bị chặn.
+- Next actionable task: ASM-001b — blueprint approval/publish gate và Student attempt từ immutable ASSEMBLED snapshot, không reassemble khi reload.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `f3ad3b1` (`feat(assembly): add deterministic question assembly`).
+- Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
