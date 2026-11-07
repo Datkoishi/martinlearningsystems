@@ -164,3 +164,22 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `f0edd5d` (`feat(assembly): publish approved assembled exams`).
 - Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
+
+## [2026-11-07 22:23 +07:00] TASK-010 — Production runtime safety baseline
+
+- Mục tiêu / feature IDs: OPS-001a; production fail-fast config, health lifecycle, reverse-proxy/upload/privacy hardening.
+- Trạng thái: VERIFIED (unit/full regression/build/Compose/image runtime smoke hoàn thành; browser visual/a11y QA chưa có tooling).
+- Phạm vi thực hiện: typed environment validation; HTTPS/Secure/DB-secret production gate; trusted proxy hop; liveness/readiness tách biệt; drain-aware graceful shutdown có deadline; Docker health; Nginx CSP/security headers, 26 MiB upload, health endpoint và bỏ font CDN.
+- Files created: `backend/test/config.test.js`, `docs/adr/0010-production-runtime-safety.md`.
+- Files modified: backend config/app/server/tests; frontend Nginx/CSS; Compose/env example; README và docs architecture/API/status/roadmap/runbook/test.
+- DB migration / data impact: không có migration, không thay schema/data. Migration ledger/runner cho volume hiện hữu được tách thành OPS-001b.
+- API / UI behavior: thêm `GET /api/live` process-only và `GET /api/ready` phụ thuộc DB + trạng thái drain; giữ `/api/health` tương thích. UI dùng system font, không phát request Google Fonts; Nginx nhận ZIP 25 MiB qua limit 26 MiB.
+- Test commands actually run: `npm test`; focused config/app tests; `docker compose --env-file .env.example config --quiet`; Docker build/run/curl/nginx smoke cho frontend/backend; `git diff --check`; `git diff --cached --check`.
+- Test results: backend 59/59 PASS; frontend build PASS (38 modules); Compose PASS; frontend image `/healthz` + CSP/headers + nginx syntax/upload PASS; backend image thiếu secret exit 1, production hợp lệ live 200/ready 503 khi DB vắng, SIGTERM kết thúc trong grace. Một focused run không quyền loopback bị sandbox `EPERM`; full gate có quyền phù hợp PASS.
+- Document files updated: README, PROJECT_OVERVIEW/SKILL, ARCHITECTURE, API_SPEC, FEATURE_MATRIX, ROADMAP, IMPLEMENTATION_STATUS, GAP_ANALYSIS, DECISIONS, RUNBOOK, TEST_PLAN/REPORT, CHANGELOG, ADR, PROGRESS.
+- Security/privacy considerations: production không chạy với HTTP origin/insecure cookie/password mẫu; proxy trust explicit; readiness hạ trước shutdown; CSP chặn nguồn ngoài mặc định; không gửi metadata trẻ em tới font CDN. Không đọc/hiển thị/chỉnh `.env`; Docker fixture không có dữ liệu người dùng và container/image tạm đã xóa.
+- Known issues / trade-offs: chưa TLS/secret-manager deployment, migration ledger/runner, backup-restore rehearsal, distributed rate limit/metrics, S3/CDN, tenant scope hoặc browser QA. `/api/live` cố ý không kiểm DB và không được dùng để route traffic.
+- Next actionable task: OPS-001b — versioned migration ledger/runner có advisory lock/checksum và diễn tập backup/restore trên MySQL copy.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `94b18aa` (`feat(ops): harden production runtime`).
+- Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `94b18aa`.
