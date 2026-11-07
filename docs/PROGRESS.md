@@ -110,3 +110,21 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `4a9d47d` (`feat(player): add published exam attempt snapshots`).
 - Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
+
+## [2026-11-07 13:41 +07:00] TASK-007 — Idempotent autosave, submit, scoring và reveal
+
+- Mục tiêu / feature IDs: PLAY-001b; AC-04/10–13.
+- Trạng thái: VERIFIED (unit/build/MySQL/HTTP authorization và idempotency hoàn thành; browser visual/a11y QA chưa có tooling).
+- Phạm vi thực hiện: response normalization theo type; autosave server ACK + revision conflict recovery; refresh restore; submit transaction; immutable score revision; scoring version; manual-essay pending; purpose/state reveal projection.
+- Files created: `backend/src/attempts/scoring-engine.js`, `database/init/008_attempt_scoring.sql`, `docs/adr/0007-idempotent-attempt-scoring.md`.
+- Files modified: attempt/catalog/presentation/routes/package validator, backend tests, published Student player/catalog/CSS, README và docs domain/status/test/runbook.
+- DB migration / data impact: thêm `answer_revision`, `last_saved_at`, `current_score_revision`; thêm `attempt_responses`, `attempt_operations`, `attempt_score_revisions`. Migration additive; response/operation/score có FK và unique keys; không sửa published content.
+- API / UI behavior: PATCH responses owner-only + CSRF/idempotency; submit owner-only + CSRF/idempotency; GET result owner-only; UI debounce chỉ báo saved sau ACK, retry exact request, merge khi conflict và khôi phục server responses sau refresh. PRACTICE final mở correct answer; mock/diagnostic/pending không mở; explanation/rubric luôn ẩn.
+- Test commands actually run: `npm test`; `docker compose --env-file .env.example config --quiet`; `npm audit --prefix backend --omit=dev`; MySQL 8.4 migration/repository smoke; `git diff --check`; `git diff --cached --check`; temporary credential/artifact scan.
+- Test results: backend 41/41 PASS; frontend build PASS (36 modules); runtime audit 0 vulnerabilities; Compose PASS; MySQL PASS (28 tables, scalar JSON upsert/reload/conflict, 1 score + 1 submit operation + 1 submit audit under retry); HTTP Student/Editor/CSRF/conflict/result matrix PASS.
+- Security/privacy considerations: lookup scope theo Student; scoring snapshot/raw result không map public; exact request hash chống key reuse; response/read dùng transaction snapshot; essay không AI-score; formal assessment vẫn khóa. Test containers/data đã xóa; `.env` không bị hiển thị hoặc ghi log.
+- Known issues / trade-offs: chưa timer/deadline, attempt limit/new-attempt policy, manual essay scoring/regrade, tenant scope hay browser visual/a11y QA; archive-backed asset chưa S3/CDN.
+- Next actionable task: ASM-001a — approved question pool, blueprint validation và deterministic assembly snapshot theo seed.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `4466d2f` (`feat(scoring): add idempotent attempt submission`).
+- Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
