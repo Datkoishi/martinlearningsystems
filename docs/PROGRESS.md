@@ -146,3 +146,21 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `f3ad3b1` (`feat(assembly): add deterministic question assembly`).
 - Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
+
+## [2026-11-07 21:54 +07:00] TASK-009 — Approved ASSEMBLED publication và immutable Student attempt
+
+- Mục tiêu / feature IDs: ASM-001b; AC-08/20 và nối ASM-001a vào shared catalog/PLAY-001.
+- Trạng thái: VERIFIED (unit/build/MySQL/HTTP authorization-idempotency hoàn thành; browser visual/a11y QA chưa có tooling).
+- Phạm vi thực hiện: Blueprint identity/version; reviewer projection và protected assets; independent immutable approval; snapshot/hash binding; atomic idempotent publish; shared FIXED/ASSEMBLED catalog; Student attempt từ frozen publication không reassemble khi reload/retry.
+- Files created: `database/init/010_assembled_publication.sql`, `frontend/src/AssemblyReviewPanel.jsx`, `docs/adr/0009-approved-assembled-publication.md`.
+- Files modified: assembly/catalog/attempt repositories và services; Express routes/tests; Assembly Lab/catalog/auth/CSS; README và docs architecture/domain/status/test/runbook.
+- DB migration / data impact: `exams.source_id` nullable cho multi-source assembly; thêm `exam_blueprints`, `exam_blueprint_versions`, `assembly_reviews`, `assembly_publications`; bind `assembly_runs.blueprint_version_id`. Run cũ được backfill version 1 ở `REJECTED` để buộc reassemble/review với payload mới; không tự nâng trạng thái.
+- API / UI behavior: Reviewer/Admin xem frozen preview + answer/explanation, đọc asset theo run, approve/reject một lần và publish; Editor không được review. Catalog công khai liệt kê FIXED/ASSEMBLED; Student tạo/reload attempt từ snapshot đã publish; formal assessment vẫn khóa.
+- Test commands actually run: `npm test`; focused Node tests; `docker compose --env-file .env.example config --quiet`; MySQL 8.4 migration 001–010 + repository/governance/catalog/attempt/public-asset smoke; `git diff --check`; `git diff --cached --check`.
+- Test results: backend 52/52 PASS; frontend build PASS (38 modules); Compose PASS; focused assembly/catalog 21/21 PASS; MySQL PASS (33 tables, blueprint version/review/publication/attempt transactions và JSON asset query); retry không duplicate/reassemble; tamper/self-review/role-CSRF/answer-asset leakage negative cases PASS.
+- Security/privacy considerations: student snapshot không chứa answer/explanation; scoring/reviewer projection chỉ server-side/role-protected; chỉ asset thuộc selected frozen graph; public asset cần student-visible reference và publication integrity; creator self-review bị cấm; hash mismatch fail-closed; `.env` không được đọc, hiển thị hoặc chỉnh sửa. Container/script fixture tạm đã xóa.
+- Known issues / trade-offs: blueprint authoring revision/list-filter queue, failed-run persistence, option shuffle, soft optimization/history, tenant scope và formal-assessment policy chưa có; browser visual/a11y QA vẫn BLOCKED; dependency audit không chạy lại vì không đổi dependency và external registry trước đó bị policy chặn.
+- Next actionable task: ASM-001c — authoring revision trên cùng blueprint identity + list/filter governance queue, không sửa version đã duyệt/publish.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `f0edd5d` (`feat(assembly): publish approved assembled exams`).
+- Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
