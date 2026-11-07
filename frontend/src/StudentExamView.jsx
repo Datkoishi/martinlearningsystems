@@ -163,7 +163,13 @@ const ResultPanel = ({ result, questions }) => (
   </section>
 );
 
-export default function StudentExamView({ exam, attempt, onAttemptChange }) {
+export default function StudentExamView({
+  exam,
+  attempt,
+  onAttemptChange,
+  previewLabel = 'Bản xem trước công khai',
+  previewMessage = 'Đăng nhập Student để autosave và nộp bài.'
+}) {
   const attemptId = attempt?.id;
   const [answers, setAnswers] = useState(attempt?.responses || {});
   const [revision, setRevision] = useState(attempt?.answerRevision || 0);
@@ -442,8 +448,8 @@ export default function StudentExamView({ exam, attempt, onAttemptChange }) {
 
       <div className="player-actions">
         <div>
-          <strong>{attemptId ? `Attempt ${attemptId}` : 'Bản xem trước công khai'}</strong>
-          <span>{attemptId ? 'Chỉ câu trả lời được server ACK mới được dùng khi nộp.' : 'Đăng nhập Student để autosave và nộp bài.'}</span>
+          <strong>{attemptId ? `Attempt ${attemptId}` : previewLabel}</strong>
+          <span>{attemptId ? 'Chỉ câu trả lời được server ACK mới được dùng khi nộp.' : previewMessage}</span>
         </div>
         {attemptId && !closed && (
           <button className="primary-button" type="button" onClick={submitAttempt} disabled={submitting || saveStatus === 'saving'}>

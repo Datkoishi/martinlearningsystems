@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import RichContent from './RichContent.jsx';
 import ImportPanel from './ImportPanel.jsx';
 import PublishedCatalog from './PublishedCatalog.jsx';
+import AssemblyLab from './AssemblyLab.jsx';
 import { csrfHeaders } from './auth.js';
 
 const AppHeader = ({ view, onViewChange, user, onLogout }) => (
@@ -14,6 +15,7 @@ const AppHeader = ({ view, onViewChange, user, onLogout }) => (
       <button className={view === 'exam' ? 'active' : ''} type="button" onClick={() => onViewChange('exam')}>Bài DEMO</button>
       <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => onViewChange('catalog')}>Đề đã publish</button>
       <button className={view === 'imports' ? 'active' : ''} type="button" onClick={() => onViewChange('imports')}>Nhập gói đề</button>
+      <button className={view === 'assembly' ? 'active' : ''} type="button" onClick={() => onViewChange('assembly')}>Assembly Lab</button>
     </nav>
     {user && (
       <div className="session-chip">
@@ -87,6 +89,7 @@ export default function App() {
   const [view, setView] = useState(() => {
     if (window.location.hash === '#imports') return 'imports';
     if (window.location.hash === '#catalog') return 'catalog';
+    if (window.location.hash === '#assembly') return 'assembly';
     return 'exam';
   });
   const [user, setUser] = useState(undefined);
@@ -135,7 +138,7 @@ export default function App() {
 
   const changeView = (nextView) => {
     setView(nextView);
-    const hash = nextView === 'imports' ? '#imports' : nextView === 'catalog' ? '#catalog' : '';
+    const hash = nextView === 'imports' ? '#imports' : nextView === 'catalog' ? '#catalog' : nextView === 'assembly' ? '#assembly' : '';
     window.history.replaceState(null, '', `${window.location.pathname}${hash}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -168,6 +171,16 @@ export default function App() {
       <div className="app-shell">
         <AppHeader view={view} onViewChange={changeView} user={user} onLogout={logout} />
         <PublishedCatalog authUser={user} onLogin={setUser} />
+        {notice && <div className="toast" role="status">{notice}</div>}
+      </div>
+    );
+  }
+
+  if (view === 'assembly') {
+    return (
+      <div className="app-shell">
+        <AppHeader view={view} onViewChange={changeView} user={user} onLogout={logout} />
+        <AssemblyLab authUser={user} onLogin={setUser} />
         {notice && <div className="toast" role="status">{notice}</div>}
       </div>
     );
@@ -256,7 +269,7 @@ export default function App() {
             </section>
           ))}
           <footer className="exam-footer">
-            <strong>Đây là dữ liệu DEMO.</strong> Chức năng nộp bài, chấm điểm và autosave phía server sẽ được triển khai ở vertical slice tiếp theo.
+            <strong>Đây là dữ liệu DEMO cục bộ.</strong> Luồng catalog thật đã có autosave, submit và scoring phía server; bài DEMO này chỉ minh họa rich content.
           </footer>
         </div>
       </main>

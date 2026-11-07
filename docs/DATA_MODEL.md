@@ -1,6 +1,6 @@
 # Data model
 
-Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`.
+Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`.
 
 ```mermaid
 erDiagram
@@ -34,6 +34,7 @@ erDiagram
   EXAM_ATTEMPT ||--o{ ATTEMPT_SCORE_REVISION : scores
   EXAM_ATTEMPT ||--o{ ATTEMPT_OPERATION : deduplicates
   USER ||--o{ ATTEMPT_OPERATION : owns
+  USER ||--o{ ASSEMBLY_RUN : creates
 ```
 
 Published versions phải bất biến ở application/service layer; thay đổi tạo version mới. `ExamItem` có check đúng một target. JSON dành cho rich content/answer config đã được validate; grade/subject/type/status là cột quan hệ để lọc.
@@ -47,3 +48,7 @@ Published versions phải bất biến ở application/service layer; thay đổ
 `exam_attempts` giữ owner Student, ExamVersion, state, idempotency key, monotonic `answer_revision`, score revision pointer và hai JSON snapshot riêng. Unique `(student_user_id, idempotency_key)` chống duplicate create. `student_snapshot_json` không có answer/explanation; `scoring_snapshot_json` có version/type/points/option IDs/answer key và không được map ra public response. `snapshot_sha256` bao phủ canonical JSON của cả hai.
 
 `attempt_responses` là response map hiện tại theo `(attempt, question_version)`; mỗi row ghi revision đã ACK. `attempt_operations` lưu request hash + exact JSON response cho AUTOSAVE/SUBMIT và unique theo `(student, operation_type, idempotency_key)`, nên retry không chạy side effect lần hai. `attempt_score_revisions` là lịch sử điểm bất biến theo `(attempt, revision_number)`, có scoring state/version/result và actor type; submit đầu tiên tạo revision 1, còn regrade chưa triển khai. Tạo attempt, autosave và submit đều ghi audit trong cùng transaction với thay đổi nghiệp vụ.
+
+Migration 009 bổ sung các cột relational/indexed trên `question_versions`: curriculum, topic, skill, difficulty, estimated time và family key. Metadata thiếu không làm hỏng FIXED, nhưng row không eligible cho assembly.
+
+`assembly_runs` lưu creator/idempotency request hash, canonical blueprint, seed, engine version, selection manifest/source distribution, student/scoring snapshot tách riêng và hai hash toàn vẹn. Unique `(created_by_user_id, idempotency_key)` chống duplicate retry; chỉ run `SUCCEEDED` được lưu. Lỗi pool trả có cấu trúc nhưng chưa persist rejection run. Assembly snapshot chưa là ExamVersion đã publish và chưa được attempt tham chiếu.

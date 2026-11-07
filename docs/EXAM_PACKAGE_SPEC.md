@@ -20,6 +20,21 @@ ZIP gồm `manifest.json`, `exam.json`, `questions.json`, `answers.json`, `asset
 
 `exam.json` chứa `id/title/grade/subject/durationMinutes/mode/purpose/sections`; mỗi section có `itemRefs` loại `GROUP` hoặc `QUESTION`. `questions.json` chứa `stimuli`, `groups`, `questions`; rich content tham chiếu `assetId` đã khai báo. `answers.json` chứa đúng một record cho mỗi câu và answer key phù hợp option/type. `MULTIPLE_CHOICE` mặc định exact-match; nếu cần partial credit, `answerKey.partialCredit.mode` duy nhất được hỗ trợ là `PER_OPTION_WITH_PENALTY`. Mode khác bị validator từ chối.
 
+Question có thể opt-in vào ASSEMBLED pool bằng bộ metadata all-or-none:
+
+```json
+{
+  "curriculumVersion": "vn-2018",
+  "topicKey": "geometry",
+  "skillKey": "reasoning",
+  "difficulty": "MEDIUM",
+  "estimatedSeconds": 90,
+  "familyKey": "rectangle-area-v1"
+}
+```
+
+Năm trường đầu là bắt buộc cùng nhau; `familyKey` tùy chọn. Difficulty chỉ nhận `EASY | MEDIUM | HARD`; estimated time từ 1–7200 giây. Metadata hợp lệ vẫn chưa đủ để được chọn: QuestionVersion phải published trong FIXED non-formal graph và provenance license phải cho `derivativeAssembly` tại thời điểm query. Package cũ không có metadata vẫn phục vụ FIXED nhưng không vào pool.
+
 ## Pipeline và giới hạn hiện tại
 
 Upload nguyên gói → kiểm tra cấu trúc ZIP → tính package SHA-256 → validate manifest/checksum/MIME/rich content/reference/answer/license → lưu `source.zip` + report → `READY_FOR_REVIEW` hoặc `INVALID`. `(packageId, packageSha256)` là idempotency key.

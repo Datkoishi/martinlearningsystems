@@ -302,11 +302,15 @@ export class MysqlImportRepository {
         await connection.execute(
           `INSERT INTO question_versions
             (id, question_id, version_number, question_type, content_json, answer_key_json,
-             explanation_json, points, grade, subject, schema_version, approval_status)
-           VALUES (?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), ?, ?, ?, ?, 'PUBLISHED')`,
+             explanation_json, points, grade, subject, curriculum_version, topic_key, skill_key,
+             difficulty, estimated_seconds, family_key, schema_version, approval_status)
+           VALUES (?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PUBLISHED')`,
           [question.versionId, questionId, versionNumber, question.type, JSON.stringify(question.content),
             JSON.stringify(question.answerKey), JSON.stringify(question.explanation), question.points,
-            question.grade, question.subject, question.content.schemaVersion]
+            question.grade, question.subject, question.curriculumVersion, question.topicKey,
+            question.skillKey, question.difficulty, question.estimatedSeconds, question.familyKey,
+            question.content.schemaVersion]
         );
         for (const option of question.options) {
           await connection.execute(

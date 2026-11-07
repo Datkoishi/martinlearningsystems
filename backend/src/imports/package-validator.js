@@ -7,6 +7,7 @@ const EXAM_MODES = new Set(['FIXED', 'ASSEMBLED']);
 const PURPOSES = new Set(['PRACTICE', 'MOCK_EXAM', 'DIAGNOSTIC', 'FORMAL_ASSESSMENT']);
 const QUESTION_TYPES = new Set(['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_NUMBER', 'SHORT_TEXT', 'ESSAY']);
 const GROUP_POLICIES = new Set(['ATOMIC_ALL', 'SPLIT_WITH_STIMULUS']);
+const DIFFICULTIES = new Set(['EASY', 'MEDIUM', 'HARD']);
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
 const shaPattern = /^[a-f0-9]{64}$/;
 
@@ -141,6 +142,30 @@ const validateQuestions = (document, answersDocument, assetIds, errors) => {
     if (typeof question?.points !== 'number' || question.points <= 0) errors.push(issue('INVALID_POINTS', `${base}.points`, 'Điểm phải lớn hơn 0.'));
     if (!Number.isInteger(question?.grade) || question.grade < 1 || question.grade > 12) errors.push(issue('INVALID_QUESTION_GRADE', `${base}.grade`, 'Lớp của câu phải từ 1 đến 12.'));
     if (typeof question?.subject !== 'string' || question.subject.trim() === '') errors.push(issue('INVALID_QUESTION_SUBJECT', `${base}.subject`, 'Câu hỏi phải có môn học.'));
+    const assemblyFields = ['curriculumVersion', 'topicKey', 'skillKey', 'difficulty', 'estimatedSeconds'];
+    const providedAssemblyFields = assemblyFields.filter((field) => question?.[field] !== undefined && question[field] !== null);
+    if (providedAssemblyFields.length > 0 && providedAssemblyFields.length !== assemblyFields.length) {
+      errors.push(issue('INCOMPLETE_ASSEMBLY_METADATA', base, 'Metadata assembly phải có đủ curriculumVersion, topicKey, skillKey, difficulty và estimatedSeconds.'));
+    } else if (providedAssemblyFields.length === assemblyFields.length) {
+      if (typeof question.curriculumVersion !== 'string'
+        || !idPattern.test(question.curriculumVersion) || question.curriculumVersion.length > 80) {
+        errors.push(issue('INVALID_CURRICULUM_VERSION', `${base}.curriculumVersion`, 'curriculumVersion không hợp lệ.'));
+      }
+      if (typeof question.topicKey !== 'string' || !idPattern.test(question.topicKey)) {
+        errors.push(issue('INVALID_TOPIC_KEY', `${base}.topicKey`, 'topicKey không hợp lệ.'));
+      }
+      if (typeof question.skillKey !== 'string' || !idPattern.test(question.skillKey)) {
+        errors.push(issue('INVALID_SKILL_KEY', `${base}.skillKey`, 'skillKey không hợp lệ.'));
+      }
+      if (!DIFFICULTIES.has(question.difficulty)) errors.push(issue('INVALID_DIFFICULTY', `${base}.difficulty`, 'difficulty phải là EASY, MEDIUM hoặc HARD.'));
+      if (!Number.isInteger(question.estimatedSeconds) || question.estimatedSeconds < 1 || question.estimatedSeconds > 7200) {
+        errors.push(issue('INVALID_ESTIMATED_SECONDS', `${base}.estimatedSeconds`, 'estimatedSeconds phải từ 1 đến 7200.'));
+      }
+    }
+    if (question?.familyKey !== undefined && question.familyKey !== null
+      && (typeof question.familyKey !== 'string' || !idPattern.test(question.familyKey))) {
+      errors.push(issue('INVALID_FAMILY_KEY', `${base}.familyKey`, 'familyKey không hợp lệ.'));
+    }
     validateRich(question?.content, `${base}.content`, errors, assetIds);
     const optionIds = new Set();
     const options = Array.isArray(question?.options) ? question.options : [];

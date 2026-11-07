@@ -117,6 +117,12 @@ export const buildPublicationPlan = ({ files, importJob }) => {
       points: question.points,
       grade: question.grade,
       subject: question.subject,
+      curriculumVersion: question.curriculumVersion || null,
+      topicKey: question.topicKey || null,
+      skillKey: question.skillKey || null,
+      difficulty: question.difficulty || null,
+      estimatedSeconds: question.estimatedSeconds || null,
+      familyKey: question.familyKey || null,
       options
     };
     assetReferences.push(...collectFigureReferences(record.content, 'QUESTION_VERSION', record.versionId, '$.content'));

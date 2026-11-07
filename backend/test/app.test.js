@@ -198,3 +198,87 @@ test('attempt response, submit and result routes enforce student auth, CSRF and 
   assert.equal((await result.json()).scoreRevision, 1);
   assert.deepEqual(calls.at(-1), ['result', { id: attemptId, ownerId: studentId }]);
 });
+
+test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads', async (context) => {
+  const editorId = '00000000-0000-4000-8000-000000000511';
+  const assemblyId = '00000000-0000-4000-8000-000000000512';
+  const calls = [];
+  const authService = {
+    async authenticate(token) {
+      return {
+        expiresAt: new Date('2026-11-08T00:00:00Z'),
+        csrfTokenHash: 'test-only',
+        user: {
+          id: editorId,
+          roles: token === 'student-session' ? ['STUDENT'] : ['CONTENT_EDITOR']
+        }
+      };
+    },
+    validateCsrf: (_auth, token) => token === 'csrf-token'
+  };
+  const assemblyService = {
+    async create(command) {
+      calls.push(['create', command]);
+      return { id: assemblyId, status: 'SUCCEEDED', duplicate: false };
+    },
+    async getOwned(id, ownerId) {
+      calls.push(['get', { id, ownerId }]);
+      return { id, status: 'SUCCEEDED' };
+    }
+  };
+  const app = createApp({ authService, assemblyService, importsEnabled: false });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const editorCookie = 'eduassess_session=editor-session; eduassess_csrf=csrf-token';
+  const body = JSON.stringify({ blueprint: { schemaVersion: '1.0.0' }, seed: 'assembly-seed-001' });
+
+  const student = await fetch(`${baseUrl}/api/assemblies`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: 'eduassess_session=student-session; eduassess_csrf=csrf-token',
+      'X-CSRF-Token': 'csrf-token',
+      'Idempotency-Key': 'assembly-key-001'
+    },
+    body
+  });
+  assert.equal(student.status, 403);
+  assert.equal(calls.length, 0);
+
+  const missingCsrf = await fetch(`${baseUrl}/api/assemblies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: editorCookie, 'Idempotency-Key': 'assembly-key-001' },
+    body
+  });
+  assert.equal(missingCsrf.status, 403);
+  assert.equal(calls.length, 0);
+
+  const missingKey = await fetch(`${baseUrl}/api/assemblies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: editorCookie, 'X-CSRF-Token': 'csrf-token' },
+    body
+  });
+  assert.equal(missingKey.status, 400);
+  assert.equal((await missingKey.json()).code, 'INVALID_IDEMPOTENCY_KEY');
+  assert.equal(calls.length, 0);
+
+  const created = await fetch(`${baseUrl}/api/assemblies`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: editorCookie,
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'assembly-key-001'
+    },
+    body
+  });
+  assert.equal(created.status, 201);
+  assert.equal(calls[0][1].creatorUserId, editorId);
+  assert.equal(calls[0][1].idempotencyKey, 'assembly-key-001');
+
+  const restored = await fetch(`${baseUrl}/api/assemblies/${assemblyId}`, {
+    headers: { Cookie: editorCookie }
+  });
+  assert.equal(restored.status, 200);
+  assert.deepEqual(calls.at(-1), ['get', { id: assemblyId, ownerId: editorId }]);
+});

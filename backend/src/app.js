@@ -10,6 +10,7 @@ import { PackageReadError } from './imports/package-reader.js';
 import { authService as defaultAuthService } from './auth/index.js';
 import { catalogService as defaultCatalogService } from './catalog/index.js';
 import { attemptService as defaultAttemptService } from './attempts/index.js';
+import { assemblyService as defaultAssemblyService } from './assembly/index.js';
 import { ROLE } from './auth/auth-service.js';
 import {
   clearAuthCookies,
@@ -41,6 +42,7 @@ export const createApp = ({
   authService = defaultAuthService,
   catalogService = defaultCatalogService,
   attemptService = defaultAttemptService,
+  assemblyService = defaultAssemblyService,
   importsEnabled = config.importApiEnabled
 } = {}) => {
   const app = express();
@@ -159,6 +161,36 @@ export const createApp = ({
         'Content-Disposition': 'inline'
       });
       return response.send(asset.data);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assemblies', authenticate, editorOnly, requireCsrf, async (request, response, next) => {
+    const { blueprint, seed } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    try {
+      const run = await assemblyService.create({
+        creatorUserId: request.auth.user.id,
+        idempotencyKey,
+        blueprint,
+        seed
+      });
+      response.set('Cache-Control', 'no-store');
+      return response.status(run.duplicate ? 200 : 201).json(run);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assemblies/:id', authenticate, editorOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
+    try {
+      const run = await assemblyService.getOwned(request.params.id, request.auth.user.id);
+      if (!run) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run.' });
+      response.set('Cache-Control', 'no-store');
+      return response.json(run);
     } catch (error) {
       return next(error);
     }

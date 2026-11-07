@@ -48,6 +48,12 @@ const buildValidPackage = async ({ corruptChecksum = false, unsafeSvg = false, p
       points: 1,
       grade: 5,
       subject: 'Toán',
+      curriculumVersion: 'vn-2018',
+      topicKey: 'geometry',
+      skillKey: 'reasoning',
+      difficulty: 'MEDIUM',
+      estimatedSeconds: 90,
+      familyKey: 'shape-identification',
       content: rich(paragraph('Đây là hình gì?')),
       options: [
         { id: 'option-a', content: rich(paragraph('Hình vuông')) },
@@ -250,6 +256,45 @@ test('invalid binary is rejected before staging', async () => {
   ));
 });
 
+test('assembly metadata is all-or-none and field validated', async () => {
+  const zip = await buildValidPackage();
+  const files = await readZipEntries(zip);
+  const manifest = JSON.parse(files.get('manifest.json').toString('utf8'));
+  const questions = JSON.parse(files.get('questions.json').toString('utf8'));
+  delete questions.questions[0].skillKey;
+  const changed = jsonBuffer(questions);
+  files.set('questions.json', changed);
+  const declared = manifest.files.find((file) => file.path === 'questions.json');
+  declared.sha256 = sha256(changed);
+  declared.sizeBytes = changed.length;
+  files.set('manifest.json', jsonBuffer(manifest));
+  const report = validateExamPackage(files, sha256(zip));
+
+  assert.equal(report.status, 'INVALID');
+  assert.ok(report.errors.some((error) => (
+    error.code === 'INCOMPLETE_ASSEMBLY_METADATA'
+    && error.path === 'questions.json.questions[0]'
+  )));
+
+  const wrongTypeFiles = await readZipEntries(await buildValidPackage());
+  const wrongTypeManifest = JSON.parse(wrongTypeFiles.get('manifest.json').toString('utf8'));
+  const wrongTypeQuestions = JSON.parse(wrongTypeFiles.get('questions.json').toString('utf8'));
+  wrongTypeQuestions.questions[0].topicKey = 123;
+  const wrongTypeDocument = jsonBuffer(wrongTypeQuestions);
+  wrongTypeFiles.set('questions.json', wrongTypeDocument);
+  const wrongTypeDeclared = wrongTypeManifest.files.find((file) => file.path === 'questions.json');
+  wrongTypeDeclared.sha256 = sha256(wrongTypeDocument);
+  wrongTypeDeclared.sizeBytes = wrongTypeDocument.length;
+  wrongTypeFiles.set('manifest.json', jsonBuffer(wrongTypeManifest));
+  const wrongTypeReport = validateExamPackage(wrongTypeFiles, sha256(zip));
+
+  assert.equal(wrongTypeReport.status, 'INVALID');
+  assert.ok(wrongTypeReport.errors.some((error) => (
+    error.code === 'INVALID_TOPIC_KEY'
+    && error.path === 'questions.json.questions[0].topicKey'
+  )));
+});
+
 test('import service stores the original once and returns the existing id for an identical package', async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-import-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -437,6 +482,9 @@ test('publish normalizes the approved package atomically and retry is idempotent
   assert.deepEqual(plan.source.generatorMetadata, { provider: 'DEMO', model: 'fixture-v1' });
   assert.equal(plan.stimuli.length, 1);
   assert.equal(plan.questions.length, 1);
+  assert.equal(plan.questions[0].curriculumVersion, 'vn-2018');
+  assert.equal(plan.questions[0].topicKey, 'geometry');
+  assert.equal(plan.questions[0].difficulty, 'MEDIUM');
   assert.deepEqual(plan.questions[0].answerKey.correctOptionIds, [plan.questions[0].options[0].id]);
   assert.equal(plan.stimuli[0].content.nodes[0].assetId, plan.assets[0].id);
   assert.equal(plan.groups[0].questionVersionIds[0], plan.questions[0].versionId);

@@ -21,10 +21,14 @@
 - Submit khóa attempt trong transaction, tạo đúng một immutable score revision và đóng quyền sửa. Scorer versioned hỗ trợ choice, multiple partial-credit opt-in, đúng/sai theo mệnh đề, số có tolerance, short text normalize; essay đã trả lời chờ chấm thủ công.
 - Reveal fail-closed: chỉ `PRACTICE + FINAL` mở đáp án đúng; `MOCK_EXAM`, `DIAGNOSTIC` và pending manual chỉ trả tổng điểm/trạng thái; không mở explanation/rubric.
 - UI `/#catalog` khôi phục attempt từ server, autosave debounced với trạng thái ACK/retry/conflict và hiển thị kết quả theo reveal policy.
+- QuestionVersion có metadata assembly relational/indexed; Exam Package validator giữ metadata all-or-none và publication lưu nguyên metadata đã duyệt.
+- Assembly engine `eduassess-assembly-v1` lọc published FIXED non-formal graph + derivative license, giải exact quota/source/points/time/group/family constraints theo seed và fail có cấu trúc khi pool thiếu.
+- Successful assembly run lưu immutable blueprint/seed/selection/source distribution cùng student/scoring snapshot tách biệt, hash toàn vẹn, idempotency và audit; Assembly Lab chỉ trả student-safe owner preview.
 
 ## Partial / giới hạn
 
 - Chưa có timer/deadline server-side, attempt limit/new-attempt policy, manual essay scoring UI hay score regrade workflow.
+- Assembly chưa có blueprint identity/version/approval, failed-run persistence, publish vào Student catalog hoặc attempt integration; chưa shuffle option/soft optimization/student history.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
 - Chưa có browser visual QA trong sandbox.
@@ -34,4 +38,4 @@
 
 ## Chưa làm
 
-Tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, ASSEMBLED, manual essay/regrade, assessment/reporting.
+Tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, ASSEMBLED blueprint governance + Student delivery, manual essay/regrade, assessment/reporting.

@@ -338,6 +338,31 @@ td .rich-content, th .rich-content { font-size: inherit; }
 .result-questions li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .8rem; align-items: center; padding: .75rem; border: 1px solid #c8d8ce; border-radius: 9px; background: white; font-size: .7rem; }
 .result-questions strong { color: var(--forest); }
 .result-questions small { color: var(--muted); text-align: right; }
+.assembly-page { width: min(1240px, 94vw); margin: 0 auto; padding: clamp(2.5rem, 6vw, 5rem) 0 6rem; }
+.assembly-page > .auth-panel { min-height: calc(100vh - 180px); }
+.assembly-hero { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr); gap: 4rem; align-items: end; margin-bottom: 2rem; }
+.assembly-hero h1 { max-width: 850px; margin: 0; font-size: clamp(2.5rem, 5.5vw, 5rem); line-height: 1; letter-spacing: -.055em; }
+.assembly-hero > p { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.75; }
+.assembly-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, .55fr); gap: 1rem; align-items: start; }
+.assembly-form, .assembly-evidence { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.68); box-shadow: 0 16px 44px rgba(32,47,41,.06); }
+.assembly-form { display: grid; gap: 1rem; padding: clamp(1.2rem, 3vw, 2rem); }
+.assembly-form h2, .assembly-evidence h2, .assembly-evidence h3 { margin: 0; }
+.assembly-form label { display: grid; gap: .4rem; color: var(--muted); font-size: .68rem; }
+.assembly-form input, .assembly-form select { width: 100%; min-width: 0; padding: .75rem; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: white; }
+.assembly-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+.assembly-form-row.triple { grid-template-columns: repeat(3, 1fr); }
+.quota-fields { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: 0; padding: 1rem; border: 1px solid #c7d5cc; border-radius: 11px; }
+.quota-fields legend { padding: 0 .4rem; color: var(--forest); font-size: .65rem; font-weight: 800; }
+.range-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+.assembly-evidence { position: sticky; top: 92px; padding: 1.3rem; }
+.assembly-evidence > p:last-child { color: var(--muted); font-size: .72rem; line-height: 1.65; }
+.assembly-evidence dl { display: grid; gap: 1px; overflow: hidden; margin: 1rem 0; border: 1px solid var(--line); border-radius: 10px; background: var(--line); }
+.assembly-evidence dl div { min-width: 0; padding: .7rem; background: white; }
+.assembly-evidence dt { color: var(--muted); font-size: .58rem; text-transform: uppercase; }
+.assembly-evidence dd { overflow-wrap: anywhere; margin: .25rem 0 0; font-size: .68rem; }
+.assembly-evidence ul { display: grid; gap: .45rem; margin: .7rem 0 0; padding: 0; list-style: none; }
+.assembly-evidence li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; padding: .6rem; border: 1px solid var(--line); border-radius: 8px; background: white; font-size: .65rem; }
+.assembly-evidence li code { overflow: hidden; text-overflow: ellipsis; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 850px) {
@@ -357,6 +382,8 @@ td .rich-content, th .rich-content { font-size: inherit; }
   .player-heading { grid-template-columns: 1fr; }
   .result-panel { grid-template-columns: 1fr; }
   .reveal-policy { text-align: left; }
+  .assembly-hero, .assembly-layout { grid-template-columns: 1fr; gap: 1.5rem; }
+  .assembly-evidence { position: static; }
 }
 
 @media (max-width: 580px) {
@@ -395,6 +422,10 @@ td .rich-content, th .rich-content { font-size: inherit; }
   .player-save-error { align-items: flex-start; }
   .result-questions li { grid-template-columns: 1fr; gap: .3rem; }
   .result-questions small { text-align: left; }
+  .assembly-page { width: min(100% - 1.25rem, 1240px); padding-top: 2rem; }
+  .assembly-form-row, .assembly-form-row.triple, .quota-fields { grid-template-columns: 1fr; }
+  .app-nav { max-width: 56vw; overflow-x: auto; border-radius: 12px; }
+  .app-nav button { flex: 0 0 auto; }
 }
 
 @media (max-width: 430px) {

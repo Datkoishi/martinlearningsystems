@@ -1,6 +1,6 @@
 # EduAssess — Martin Learning Systems
 
-Nền tảng web đánh giá năng lực học sinh. Repo hiện có luồng import → technical review → academic review → atomic publish, catalog đề FIXED đã publish, attempt snapshot bất biến, autosave có server ACK và submit/chấm điểm có version cho Student. Stack gồm React + Vite, Node.js + Express + Socket.IO, MySQL và Docker Compose.
+Nền tảng web đánh giá năng lực học sinh. Repo hiện có luồng import → technical review → academic review → atomic publish, catalog đề FIXED đã publish, attempt/scoring cho Student và nền tảng tạo đề ASSEMBLED deterministic từ question pool đã duyệt/cấp quyền. Stack gồm React + Vite, Node.js + Express + Socket.IO, MySQL và Docker Compose.
 
 ## Yêu cầu
 
@@ -76,6 +76,8 @@ Các role bootstrap hiện hỗ trợ `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REV
 Package `READY_FOR_REVIEW` có thể mở bằng chính Rich Content renderer khi session có role `ACADEMIC_REVIEWER`. Reviewer ID lấy từ session, Editor không đọc được answer payload và người nhập package không thể tự review. Workflow tách technical review, academic approval và publish. Publish đọc lại ZIP, kiểm tra hash/report rồi ghi source, license, asset, question/stimulus/group và `ExamVersion` trong một transaction; retry trả publication cũ thay vì nhân đôi. `FORMAL_ASSESSMENT` vẫn bị khóa cho đến khi có formal approval policy.
 
 Catalog công khai không trả answer key/explanation hoặc asset chỉ xuất hiện trong lời giải. Các API ghi attempt yêu cầu session `STUDENT`, CSRF và `Idempotency-Key`; server lưu riêng student snapshot và scoring snapshot, kèm SHA-256 toàn vẹn. Chỉ chủ sở hữu đọc được attempt và API không bao giờ trả scoring snapshot. Scoring hiện hỗ trợ choice, đúng/sai, số có tolerance và short text; bài tự luận đã trả lời chuyển `PENDING_MANUAL_SCORING`, không dùng AI để kết luận. Chỉ bài `PRACTICE` đã chấm `FINAL` mới mở đáp án đúng; lời giải và rubric không được mở ở slice này.
+
+Assembly Lab ở `/#assembly`, yêu cầu `CONTENT_EDITOR` hoặc `SUPER_ADMIN`. Engine chỉ đọc QuestionVersion `PUBLISHED` nằm trong graph FIXED non-formal đã publish, có metadata assembly đầy đủ và license `derivative_assembly`; quota/source diversity/group policy là điều kiện cứng. Cùng blueprint + seed tạo cùng selection, và run thành công được đóng băng với selection/snapshot hash. Slice hiện tại chỉ là Editor preview owner-scoped; chưa publish ASSEMBLED vào catalog Student.
 
 Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
 

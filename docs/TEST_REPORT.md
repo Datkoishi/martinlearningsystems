@@ -130,3 +130,21 @@ Container MySQL và backend process tạm chỉ dùng fixture giả lập đã �
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 Lệnh đã chạy: `npm test` (cần quyền loopback trong sandbox cho HTTP test), MySQL 8.4 container smoke, `git diff --check`. Container test chỉ có fixture giả lập và đã bị xóa sau kiểm thử; không có dữ liệu thật.
+
+## 2026-11-07 — TASK-008
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-ASM-01 blueprint validation/formal lock | PASS | quota sum lỗi có details; formal trả `FORMAL_ASSESSMENT_DISABLED` |
+| UT-ASM-02 deterministic hard constraints | PASS | cùng seed không phụ thuộc pool order; 4 câu, 3 nguồn, exact quotas và atomic group |
+| UT-ASM-03 insufficient pool | PASS | 409 `INSUFFICIENT_POOL` với required/compatible counts, không relax quota |
+| UT-ASM-04 immutable run/idempotency/privacy | PASS | exact retry, owner scope, tamper fail-closed; public payload không answer key |
+| UT-ASM-05 package assembly metadata | PASS | all-or-none validation và publication plan giữ curriculum/topic/difficulty |
+| UT-ASM-06 split group stimulus | PASS | câu thuộc `SPLIT_WITH_STIMULUS` được chọn độc lập nhưng snapshot vẫn mang đúng stimulus đã publish |
+| HTTP-ASM-01 authorization | PASS | Student 403, Editor thiếu CSRF 403, valid create 201, owner ID lấy từ session |
+| Backend regression | PASS | 48/48 tests |
+| Frontend production build | PASS | Vite, 37 modules |
+| DB-ASM-01 migration/pool/run | PASS | MySQL 8.4, 29 tables; 3 sources, derivative licenses, atomic group; 1 run + 1 audit under retry; scoring snapshot 4 câu |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+MySQL container chỉ chứa fixture kỹ thuật giả lập và đã bị xóa sau smoke test; không có dữ liệu người dùng.

@@ -21,3 +21,6 @@
 - Thêm autosave server-ACK/retry/conflict recovery, refresh restore và idempotent submit trong published Student player.
 - Thêm deterministic scorer `eduassess-scoring-v1` cho choice/true-false/number/text; essay đã trả lời chờ manual scoring.
 - Thêm reveal projection fail-closed: chỉ PRACTICE final mở correct answer; mock/diagnostic/pending không mở answer, explanation hoặc rubric.
+- Thêm migration `009_assembly_foundation.sql` với indexed curriculum/topic/skill/difficulty/time/family metadata và immutable `assembly_runs`.
+- Thêm `eduassess-assembly-v1`: published/licensed pool, seeded SHA rank, hard-quota backtracking, atomic/split group policy, source diversity và structured insufficient-pool errors.
+- Thêm Editor-only idempotent assembly API và `/#assembly` technical preview; student/scoring snapshots tách riêng và formal assessment vẫn khóa.

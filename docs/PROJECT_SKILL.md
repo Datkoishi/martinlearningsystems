@@ -15,6 +15,8 @@
 
 FIXED giữ đúng cấu trúc version đã phát hành. ASSEMBLED lọc pool approved/licensed, giải constraints bằng seed, rồi tạo snapshot bất biến. Không gọi lại assembly khi reload. Cả hai đi qua cùng player và scoring service.
 
+Assembly foundation dùng metadata relational curriculum/topic/skill/difficulty/estimated/family. Chỉ QuestionVersion published trong graph FIXED non-formal, có provenance/license derivative hợp lệ mới vào pool. Quota là hard constraints; atomic group không được tách, split group phải mang stimulus; duplicate question/family bị chặn. Candidate order dùng seeded hash, run lưu engine/selection/snapshot hash. Technical run chưa được đưa thẳng cho Student nếu chưa có blueprint approval/publish gate.
+
 ## Exam Package và rich content
 
 Nguồn AI ngoài hệ thống phải vào ZIP staging gồm manifest, exam, questions, answers và assets. Không publish trực tiếp. Runtime nằm ở `backend/src/imports`: đọc ZIP lazy, áp giới hạn, lưu bản nguồn, validate rồi ghi `ImportJob`. Rich content dùng `{schemaVersion,nodes}`; chi tiết ở `RICH_CONTENT_SCHEMA.md`. Asset thiếu, answer key thiếu hoặc reference sai phải chặn publish.

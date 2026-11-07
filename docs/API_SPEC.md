@@ -86,6 +86,29 @@ Yêu cầu owner `STUDENT`, không cần CSRF vì read-only. Trước submit tr�
 
 Điểm số không phải kết luận năng lực. Formal assessment vẫn không thể publish/tạo attempt qua slice này.
 
+## Deterministic assembly
+
+### `POST /api/assemblies`
+
+Yêu cầu `CONTENT_EDITOR` hoặc `SUPER_ADMIN`, CSRF và `Idempotency-Key`. Body:
+
+```json
+{
+  "seed": "assembly-demo-001",
+  "blueprint": {"schemaVersion": "1.0.0", "...": "xem ASSEMBLY_ENGINE.md"}
+}
+```
+
+Engine chỉ đọc question pool eligible/licensed, giải exact quotas + source diversity + points/time + group/family dependency. Thành công lần đầu trả `201`; retry cùng creator/key/canonical request trả `200`, `duplicate: true` và đúng run cũ. Key dùng cho blueprint/seed khác trả `409 IDEMPOTENCY_KEY_REUSED`.
+
+Response gồm metadata blueprint, seed, `eduassess-assembly-v1`, selection/snapshot hash, selection manifest, source distribution và student-safe snapshot. Không trả scoring snapshot, answer key hoặc explanation. `INSUFFICIENT_POOL` trả 409 với counts; engine không tự nới quota. `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
+
+### `GET /api/assemblies/:id`
+
+Yêu cầu Editor/Admin và chỉ creator đọc được; resource của creator khác trả 404. Backend xác minh selection/snapshot hash trước khi trả và dùng `Cache-Control: no-store`.
+
+Assembly run hiện là owner-scoped technical preview, chưa được publish vào Student catalog và chưa dùng để tạo attempt.
+
 ## Identity/session
 
 - `POST /api/auth/login`: nhận `{email, password}`, trả public user và đặt cookie session `HttpOnly` cùng cookie CSRF. Credential sai luôn trả thông báo chung; login bị giới hạn theo IP trong process.
@@ -122,4 +145,4 @@ Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Nhận cùng decision/rea
 
 Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Chỉ publish job `ACADEMICALLY_APPROVED`; source hash, validation report và approval phải khớp. Trả `201` cho publication mới, `200` và `duplicate: true` khi retry job đã publish. Transaction ghi toàn bộ versioned content hoặc rollback; purpose `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
 
-Assembly, manual essay scoring/regrade và assessment APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.
+Blueprint approval/publish, Student attempt từ assembly, manual essay scoring/regrade và assessment APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.

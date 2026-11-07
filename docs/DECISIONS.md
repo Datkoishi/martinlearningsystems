@@ -41,3 +41,9 @@ Khi Student bắt đầu, server lưu riêng projection hiển thị và project
 Autosave dùng một global monotonic answer revision cho mỗi attempt và exact operation replay theo request hash, thay vì last-write-wins âm thầm. Client chỉ báo “đã lưu” sau server ACK; conflict phải reload/merge local dirty answers. Submit chấm đúng response map đã commit, tạo immutable score revision và retry không tạo side effect mới.
 
 Scoring rule có version độc lập với assessment interpretation. PRACTICE chỉ mở correct answer sau trạng thái FINAL; MOCK_EXAM/DIAGNOSTIC và manual-pending chỉ có summary. Explanation và essay rubric chưa mở. Essay đã trả lời không AI-score mà chuyển manual pending. Formal assessment vẫn khóa. Chi tiết ở ADR-0007.
+
+## D-011 Assembly dùng hard constraints + immutable technical run trước publish
+
+Question pool không phải mọi QuestionVersion published: candidate phải có metadata assembly đầy đủ, thuộc published FIXED non-formal graph và có provenance/license derivative còn hiệu lực. Direct/atomic/split group được chuẩn hóa thành selection unit; exact quota, source diversity, points/time, duplicate family là hard constraints. Candidate order dùng SHA-256 của seed thay vì random DB; backtracking fail có cấu trúc thay vì phá blueprint.
+
+Successful run lưu student/scoring snapshot riêng, selection/source manifest, engine version và hashes. API chỉ trả student-safe projection cho creator Editor/Admin. Run kỹ thuật chưa được coi là ExamVersion published hoặc giao cho Student; blueprint approval/publish là gate riêng. Formal assessment vẫn khóa. Chi tiết ở ADR-0008.
