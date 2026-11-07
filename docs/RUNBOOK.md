@@ -13,11 +13,11 @@ printf '%s' "$EDUASSESS_NEW_PASSWORD" | docker compose exec -T backend npm run a
 unset EDUASSESS_NEW_PASSWORD
 ```
 
-Role bootstrap hợp lệ: `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SUPER_ADMIN`; ưu tiên tách tài khoản Editor/Reviewer để enforce four-eyes. Sau khi có account và HTTPS/cookie đúng, đặt `ENABLE_IMPORT_API=true` theo quy trình rollout. `IMPORT_STORAGE_PATH` phải trỏ thư mục chỉ backend đọc/ghi; Docker dùng named volume `import_data`. Backup đồng bộ `users`, `user_roles`, `auth_sessions`, `audit_logs`, `import_jobs`, `import_reviews`, `import_publications`, `exam_attempts` và volume này. Thiết lập job xóa session hết hạn theo retention policy trước production.
+Role bootstrap hợp lệ: `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SUPER_ADMIN`; ưu tiên tách tài khoản Editor/Reviewer để enforce four-eyes. Sau khi có account và HTTPS/cookie đúng, đặt `ENABLE_IMPORT_API=true` theo quy trình rollout. `IMPORT_STORAGE_PATH` phải trỏ thư mục chỉ backend đọc/ghi; Docker dùng named volume `import_data`. Backup đồng bộ `users`, `user_roles`, `auth_sessions`, `audit_logs`, `import_jobs`, `import_reviews`, `import_publications`, `exam_attempts`, `attempt_responses`, `attempt_operations`, `attempt_score_revisions` và volume này. Thiết lập job xóa session hết hạn cùng retention policy cho attempt/operation trước production.
 
 ## Migration
 
-Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` thêm technical review, `005` thêm identity/session/audit, `006` mở academic scope/status + publication marker và `007` thêm immutable attempt snapshots. Luôn thử restore/migration trên bản sao trước production; các `ALTER TABLE` chỉ chạy một lần trên DB cũ.
+Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` thêm technical review, `005` thêm identity/session/audit, `006` mở academic scope/status + publication marker, `007` thêm immutable attempt snapshots và `008` thêm revision/responses/idempotent operations/score revisions. Luôn thử restore/migration trên bản sao trước production; các `ALTER TABLE` chỉ chạy một lần trên DB cũ.
 
 ## Kiểm tra và sự cố
 
@@ -39,6 +39,11 @@ Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới
 - `IDEMPOTENCY_KEY_REUSED`: client đã dùng cùng key cho đề khác; tạo key mới cho hành động mới, không sửa row cũ.
 - `ATTEMPT_SNAPSHOT_INTEGRITY_FAILED`: cô lập attempt và kiểm tra DB/storage/audit; không cập nhật hash để bypass.
 - Attempt retry sau timeout phải giữ cùng `Idempotency-Key`. Chủ sở hữu khác luôn nhận 404; không dùng query unscoped để hỗ trợ thủ công.
+- `ATTEMPT_REVISION_CONFLICT`: GET attempt mới nhất, giữ local edits chưa ACK, merge theo question ID rồi PATCH với revision/key mới; không sửa revision trực tiếp trong DB.
+- `ATTEMPT_NOT_EDITABLE`: attempt đã submit/void; client phải chuyển read-only và GET result, không reopen bằng SQL.
+- Submit timeout: retry đúng payload với cùng key. Một score revision và một `ATTEMPT_SUBMITTED` audit là invariant; khác biệt phải được cô lập trước khi retry thủ công.
+- `PENDING_MANUAL_SCORING` là trạng thái hợp lệ khi có essay đã trả lời. Không hiển thị earned total cuối, đáp án hoặc rubric; manual scoring/regrade chưa có trong slice hiện tại.
+- Reveal sai purpose/state là incident dữ liệu nhạy cảm: tắt client path liên quan, giữ audit/operation rows và kiểm tra public result mapper; không trả raw `result_json` trực tiếp.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
 Production deploy chưa cấu hình ngoài CI publish image GHCR. Không coi image publish là database migration hoặc production rollout.

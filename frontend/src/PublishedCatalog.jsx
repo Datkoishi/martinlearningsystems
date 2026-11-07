@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import AuthPanel from './AuthPanel.jsx';
 import StudentExamView from './StudentExamView.jsx';
 import { csrfHeaders, hasRole } from './auth.js';
@@ -8,6 +8,17 @@ const readError = async (response, fallback) => {
   return new Error(body.message || fallback);
 };
 
+const sessionKey = (kind, userId, examId) => `eduassess:${kind}:${userId}:${examId}`;
+const readSession = (key) => {
+  try { return window.sessionStorage.getItem(key); } catch { return null; }
+};
+const writeSession = (key, value) => {
+  try { window.sessionStorage.setItem(key, value); } catch { /* Server remains the source of truth. */ }
+};
+const removeSession = (key) => {
+  try { window.sessionStorage.removeItem(key); } catch { /* Ignore unavailable browser storage. */ }
+};
+
 export default function PublishedCatalog({ authUser, onLogin }) {
   const [exams, setExams] = useState([]);
   const [selectedId, setSelectedId] = useState('');
@@ -15,8 +26,9 @@ export default function PublishedCatalog({ authUser, onLogin }) {
   const [attempt, setAttempt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState('');
-  const idempotencyKeys = useRef(new Map());
+  const isStudent = hasRole(authUser, 'STUDENT');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,16 +68,46 @@ export default function PublishedCatalog({ authUser, onLogin }) {
   }, [selectedId]);
 
   useEffect(() => {
-    setAttempt(null);
-  }, [authUser?.id]);
+    if (!isStudent || !selectedId || !authUser?.id) {
+      setAttempt(null);
+      return undefined;
+    }
+    const key = sessionKey('attempt', authUser.id, selectedId);
+    const storedAttemptId = readSession(key);
+    if (!storedAttemptId) {
+      setAttempt(null);
+      return undefined;
+    }
+    const controller = new AbortController();
+    setRestoring(true);
+    fetch(`/api/attempts/${encodeURIComponent(storedAttemptId)}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (response.status === 404) {
+          removeSession(key);
+          return null;
+        }
+        if (!response.ok) throw await readError(response, 'Không thể khôi phục attempt.');
+        return response.json();
+      })
+      .then((restored) => {
+        if (restored?.examVersionId === selectedId) setAttempt(restored);
+        else if (restored) removeSession(key);
+      })
+      .catch((requestError) => {
+        if (requestError.name !== 'AbortError') setError(requestError.message);
+      })
+      .finally(() => setRestoring(false));
+    return () => controller.abort();
+  }, [authUser?.id, isStudent, selectedId]);
 
   const startAttempt = async () => {
     setStarting(true);
     setError('');
-    let idempotencyKey = idempotencyKeys.current.get(selectedId);
+    const idempotencyStorageKey = sessionKey('attempt-key', authUser.id, selectedId);
+    let idempotencyKey = readSession(idempotencyStorageKey);
     if (!idempotencyKey) {
       idempotencyKey = crypto.randomUUID();
-      idempotencyKeys.current.set(selectedId, idempotencyKey);
+      writeSession(idempotencyStorageKey, idempotencyKey);
     }
     try {
       const response = await fetch('/api/attempts', {
@@ -78,7 +120,9 @@ export default function PublishedCatalog({ authUser, onLogin }) {
         body: JSON.stringify({ examVersionId: selectedId })
       });
       if (!response.ok) throw await readError(response, 'Không thể tạo attempt.');
-      setAttempt(await response.json());
+      const created = await response.json();
+      writeSession(sessionKey('attempt', authUser.id, selectedId), created.id);
+      setAttempt(created);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -86,7 +130,9 @@ export default function PublishedCatalog({ authUser, onLogin }) {
     }
   };
 
-  const isStudent = hasRole(authUser, 'STUDENT');
+  const updateAttempt = (nextAttempt) => {
+    setAttempt((current) => current?.id === nextAttempt.id ? { ...current, ...nextAttempt } : nextAttempt);
+  };
 
   return (
     <main className="catalog-page">
@@ -116,6 +162,8 @@ export default function PublishedCatalog({ authUser, onLogin }) {
 
       {error && <p className="request-error" role="alert">{error}</p>}
 
+      {restoring && <div className="catalog-state compact" role="status">Đang khôi phục câu trả lời đã được server xác nhận…</div>}
+
       {preview && !attempt && (
         <section className="attempt-launch">
           <div>
@@ -138,7 +186,14 @@ export default function PublishedCatalog({ authUser, onLogin }) {
       )}
 
       {authUser === null && preview && <AuthPanel mode="student" onLogin={onLogin} />}
-      {(attempt?.snapshot || preview) && <StudentExamView exam={attempt?.snapshot || preview} attemptId={attempt?.id} />}
+      {(attempt?.snapshot || preview) && (
+        <StudentExamView
+          key={attempt?.id || preview.id}
+          exam={attempt?.snapshot || preview}
+          attempt={attempt}
+          onAttemptChange={updateAttempt}
+        />
+      )}
     </main>
   );
 }

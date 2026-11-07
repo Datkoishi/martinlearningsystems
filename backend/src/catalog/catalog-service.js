@@ -33,6 +33,7 @@ export class CatalogService {
           questionVersionId: question.versionId,
           type: question.type,
           points: question.points,
+          optionIds: question.options.map((option) => option.id),
           answerKey: question.answerKey
         }))
       )))

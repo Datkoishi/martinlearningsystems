@@ -187,6 +187,10 @@ const validateQuestions = (document, answersDocument, assetIds, errors) => {
         } else if (questionType === 'SINGLE_CHOICE' && correctIds.length !== 1) {
           errors.push(issue('INVALID_SINGLE_ANSWER', `${base}.answerKey.correctOptionIds`, 'Single choice phải có đúng một đáp án.'));
         }
+        if (questionType === 'MULTIPLE_CHOICE' && answer.answerKey.partialCredit !== undefined
+          && answer.answerKey.partialCredit?.mode !== 'PER_OPTION_WITH_PENALTY') {
+          errors.push(issue('INVALID_PARTIAL_CREDIT', `${base}.answerKey.partialCredit`, 'Partial credit chỉ hỗ trợ mode PER_OPTION_WITH_PENALTY.'));
+        }
       } else if (questionType === 'SHORT_NUMBER') {
         if (!Number.isFinite(answer.answerKey.numericValue) || !Number.isFinite(answer.answerKey.tolerance) || answer.answerKey.tolerance < 0) {
           errors.push(issue('INVALID_NUMERIC_ANSWER', `${base}.answerKey`, 'Đáp án số cần numericValue và tolerance không âm.'));

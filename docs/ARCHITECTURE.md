@@ -30,7 +30,9 @@ flowchart LR
   CatalogAPI --> Store
   UI -->|Student session + CSRF + idempotency| Attempt[Attempt service]
   Attempt --> CatalogAPI
-  Attempt --> AttemptDB[(exam_attempts\nstudent/scoring snapshots)]
+  Attempt --> AttemptDB[(exam_attempts + responses\nstudent/scoring snapshots)]
+  Attempt --> Score[Deterministic scoring v1\nreveal projection]
+  Score --> ScoreDB[(score revisions +\nidempotent operations)]
   Attempt --> Audit
 ```
 
@@ -46,6 +48,10 @@ Publish đọc lại archive, xác minh source SHA-256, revalidate và so canoni
 
 `backend/src/attempts` tạo hai snapshot tách biệt: student snapshot được trả cho player, scoring snapshot chứa answer key chỉ nằm server-side. Cả hai được canonical-hash; create transaction khóa lại ExamVersion, ghi attempt + audit nguyên tử và unique `(student_user_id, idempotency_key)`. Service đọc idempotency record trước khi dựng snapshot để retry luôn nhận đúng bản cũ dù catalog đã thay đổi. Lookup luôn scope theo owner.
 
+Autosave dùng optimistic concurrency với `answer_revision`: repository khóa owned attempt, replay operation cũ theo `(student, operation type, idempotency key, request hash)`, rồi patch response map + tăng revision + ghi ACK/audit trong cùng transaction. Read attempt/result dùng một repeatable-read transaction để metadata, responses và score không bị xé giữa hai commit.
+
+Submit khóa attempt, chỉ chấm response đã commit và tạo một immutable `attempt_score_revisions` row bằng `eduassess-scoring-v1`. Public result là projection riêng: PRACTICE final mới có correct answer; mock/diagnostic/pending chỉ có summary, không bao giờ map raw scoring snapshot, explanation hoặc essay rubric. Answered essay chuyển sang manual pending; assessment/competency interpretation vẫn là boundary khác.
+
 ## Boundaries kế tiếp
 
-`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`. Identity hiện mới global role; tenant/school scope, autosave/submit và reveal policy là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.
+`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`. Attempt/scoring core đã có; identity vẫn mới global role. Tenant/school scope, deterministic assembly và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.

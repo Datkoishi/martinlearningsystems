@@ -32,11 +32,59 @@ Yêu cầu session có role `STUDENT`, CSRF header và `Idempotency-Key` 8–100
 
 Chỉ nhận đề `PUBLISHED + FIXED + non-formal`. Lần đầu trả `201`; retry cùng `(student, Idempotency-Key, examVersionId)` trả `200`, `duplicate: true` và đúng attempt/snapshot cũ. Dùng cùng key cho đề khác trả `409 IDEMPOTENCY_KEY_REUSED`.
 
-Response chỉ gồm `id`, `examVersionId`, `status`, `snapshot` student-safe, `snapshotSha256`, timestamps và `duplicate`. Scoring snapshot không bao giờ được trả. Server ghi riêng student/scoring JSON, hash canonical của cả hai và audit `ATTEMPT_STARTED` trong transaction.
+Response chỉ gồm `id`, `examVersionId`, `status`, `snapshot` student-safe, `snapshotSha256`, `responses`, `answerRevision`, timestamps và `duplicate`. Scoring snapshot không bao giờ được trả. Server ghi riêng student/scoring JSON, hash canonical của cả hai và audit `ATTEMPT_STARTED` trong transaction.
 
 ### `GET /api/attempts/:id`
 
-Yêu cầu role `STUDENT`; chỉ chủ sở hữu đọc được. Attempt không thuộc user cũng trả `404 ATTEMPT_NOT_FOUND` để tránh IDOR enumeration. Backend kiểm tra hash toàn vẹn trước khi trả và dùng `Cache-Control: no-store`.
+Yêu cầu role `STUDENT`; chỉ chủ sở hữu đọc được. Attempt không thuộc user cũng trả `404 ATTEMPT_NOT_FOUND` để tránh IDOR enumeration. Backend kiểm tra hash toàn vẹn trước khi trả, trả response map đã ACK cùng revision hiện tại và dùng `Cache-Control: no-store`.
+
+### `PATCH /api/attempts/:id/responses`
+
+Yêu cầu owner `STUDENT`, CSRF và `Idempotency-Key`. Body là patch không rỗng:
+
+```json
+{
+  "baseRevision": 3,
+  "responses": [
+    {"questionVersionId": "uuid", "answer": ["option-uuid-a", "option-uuid-c"]}
+  ]
+}
+```
+
+`answer` phải khớp type và option trong scoring snapshot; gửi `null` để xóa câu trả lời. Server khóa attempt, chỉ nhận `IN_PROGRESS` và đúng `baseRevision`, áp dụng cả patch trong một transaction, tăng revision đúng một lần rồi trả full response map đã commit. Retry byte-semantically cùng key/request trả đúng ACK cũ với `duplicate: true`; tái sử dụng key cho payload/attempt khác trả `409 IDEMPOTENCY_KEY_REUSED`. Stale revision trả:
+
+```json
+{
+  "code": "ATTEMPT_REVISION_CONFLICT",
+  "message": "Attempt có bản trả lời mới hơn.",
+  "details": {"currentRevision": 4}
+}
+```
+
+Client phải GET lại attempt, merge thay đổi local chưa ACK và gửi một request/key mới. Không được tăng revision ở client trước server ACK.
+
+### `POST /api/attempts/:id/submit`
+
+Yêu cầu owner `STUDENT`, CSRF, `Idempotency-Key` và body `{ "baseRevision": 4 }`. Transaction khóa attempt, xác minh revision, chấm từ scoring snapshot + response map đã commit, tạo score revision 1 bất biến rồi đổi status sang `SCORED` hoặc `PENDING_MANUAL_SCORING`. Retry đúng key/request trả response cũ; submit lại attempt đã đóng không tạo score/audit mới.
+
+Response gồm public attempt và result. Scoring version hiện là `eduassess-scoring-v1`:
+
+- single choice: exact;
+- multiple choice: exact mặc định; chỉ dùng partial credit khi answer key khai `PER_OPTION_WITH_PENALTY`, điểm không âm;
+- true/false: điểm theo số mệnh đề đúng;
+- short number: `abs(response - numericValue) <= tolerance`;
+- short text: NFKC + trim/collapse whitespace + case-insensitive;
+- essay đã trả lời: `PENDING_MANUAL`, không AI-score. Essay bỏ trống là `UNANSWERED`.
+
+### `GET /api/attempts/:id/result`
+
+Yêu cầu owner `STUDENT`, không cần CSRF vì read-only. Trước submit trả `409 RESULT_NOT_READY`; attempt của Student khác trả 404. Result có `scoreRevision`, `scoringVersion`, `scoringState`, `summary` và `revealPolicy`:
+
+- `PRACTICE` + `FINAL`: có per-question outcome/điểm/submitted answer/correct answer; không có explanation hay rubric.
+- `MOCK_EXAM` hoặc `DIAGNOSTIC`: chỉ tổng điểm, không correct answer.
+- `PENDING_MANUAL_SCORING`: chỉ điểm auto + số câu/điểm đang chờ, không correct answer.
+
+Điểm số không phải kết luận năng lực. Formal assessment vẫn không thể publish/tạo attempt qua slice này.
 
 ## Identity/session
 
@@ -74,4 +122,4 @@ Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Nhận cùng decision/rea
 
 Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Chỉ publish job `ACADEMICALLY_APPROVED`; source hash, validation report và approval phải khớp. Trả `201` cho publication mới, `200` và `duplicate: true` khi retry job đã publish. Transaction ghi toàn bộ versioned content hoặc rollback; purpose `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
 
-Autosave answer, submit, scoring, reveal và assembly APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.
+Assembly, manual essay scoring/regrade và assessment APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.

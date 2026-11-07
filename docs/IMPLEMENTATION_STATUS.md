@@ -17,11 +17,14 @@
 - Published question/option/rich asset references được đổi sang UUID nội bộ; version cũ không bị update. `FORMAL_ASSESSMENT` fail-closed.
 - Catalog công khai chỉ trả đề `PUBLISHED + FIXED + non-formal`, student-safe projection và asset thực sự xuất hiện trong phần học sinh nhìn thấy; bytes asset được kiểm tra size/SHA-256 từ archive gốc.
 - Student có thể tạo/đọc attempt của chính mình. Retry theo `(student, Idempotency-Key)` trả đúng snapshot cũ; student/scoring snapshot lưu riêng, có hash toàn vẹn và audit `ATTEMPT_STARTED`.
-- UI `/#catalog` có catalog responsive, preview an toàn, đăng nhập Student và player từ snapshot; hỗ trợ choice/true-false/number/text/essay trong React memory.
+- Autosave ghi patch câu trả lời theo monotonic `answerRevision`, server ACK toàn bộ response map, retry cùng request trả đúng ACK và stale revision trả `409` để client merge rồi lưu lại.
+- Submit khóa attempt trong transaction, tạo đúng một immutable score revision và đóng quyền sửa. Scorer versioned hỗ trợ choice, multiple partial-credit opt-in, đúng/sai theo mệnh đề, số có tolerance, short text normalize; essay đã trả lời chờ chấm thủ công.
+- Reveal fail-closed: chỉ `PRACTICE + FINAL` mở đáp án đúng; `MOCK_EXAM`, `DIAGNOSTIC` và pending manual chỉ trả tổng điểm/trạng thái; không mở explanation/rubric.
+- UI `/#catalog` khôi phục attempt từ server, autosave debounced với trạng thái ACK/retry/conflict và hiển thị kết quả theo reveal policy.
 
 ## Partial / giới hạn
 
-- UI chỉ giữ câu trả lời trong React memory; attempt hiện chưa autosave/submit lên server.
+- Chưa có timer/deadline server-side, attempt limit/new-attempt policy, manual essay scoring UI hay score regrade workflow.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
 - Chưa có browser visual QA trong sandbox.
@@ -31,4 +34,4 @@
 
 ## Chưa làm
 
-Tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, attempt autosave/submit/scoring/reveal, ASSEMBLED, assessment/reporting.
+Tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, ASSEMBLED, manual essay/regrade, assessment/reporting.

@@ -112,3 +112,21 @@ Container API/MySQL, image và network thử nghiệm TASK-005 chỉ chứa dữ
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 Container MySQL và backend process tạm chỉ dùng fixture giả lập đã được dừng/xóa. Cookie/response tạm dưới `/tmp` cũng đã xóa; không có dữ liệu người dùng.
+
+## 2026-11-07 — TASK-007
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-PLAY-08 deterministic scoring types | PASS | multiple partial penalty, true/false subparts, numeric tolerance, normalized text và answered essay pending |
+| UT-PLAY-09 autosave/recovery/conflict | PASS | exact retry, persisted reload, key misuse và stale revision/currentRevision |
+| UT-PLAY-10 submit idempotency/close | PASS | retry cùng result; autosave sau submit bị chặn; PRACTICE final mở correct answer |
+| UT-PLAY-11 manual essay privacy | PASS | `PENDING_MANUAL_SCORING`; không answer/rubric trong public result |
+| UT-PLAY-12 restricted reveal | PASS | MOCK_EXAM final chỉ có summary, không correct answer |
+| UT-IMP-07 partial-credit schema | PASS | package multiple choice từ chối mode ngoài `PER_OPTION_WITH_PENALTY` |
+| HTTP-PLAY-03 response/submit/result routes | PASS | Student role + CSRF, Editor 403, missing CSRF 403, structured conflict 409 và owner ID truyền từ session |
+| Backend regression | PASS | 41/41 tests |
+| Frontend production build | PASS | Vite, 36 modules |
+| DB-PLAY-04 migration 008 + repository smoke | PASS | MySQL 8.4, 28 tables; JSON scalar upsert, reload, exact retry, stale conflict, close, owner isolation; 1 score revision và 1 submit audit |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+Lệnh đã chạy: `npm test` (cần quyền loopback trong sandbox cho HTTP test), MySQL 8.4 container smoke, `git diff --check`. Container test chỉ có fixture giả lập và đã bị xóa sau kiểm thử; không có dữ liệu thật.

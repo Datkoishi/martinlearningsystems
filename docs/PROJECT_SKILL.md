@@ -31,7 +31,9 @@ Session là opaque token lưu trong cookie `HttpOnly`; DB chỉ lưu hash. Reque
 
 Catalog chỉ đọc graph `PUBLISHED + FIXED + non-formal`; không dùng DEMO draft làm nội dung thật. Student projection phải loại answer key, explanation, scoring fields và asset chỉ dùng trong lời giải. Public asset phải có reference student-visible từ published graph và bytes phải khớp metadata hash/size.
 
-Attempt đóng băng `student_snapshot_json` và `scoring_snapshot_json` riêng, hash canonical cả hai. API chỉ map student snapshot; query đọc luôn scope theo authenticated Student. Create yêu cầu CSRF + Idempotency-Key unique theo Student, retry trả record cũ trước khi đọc lại catalog. Không thêm autosave/submit/scoring/reveal nếu chưa có transaction/idempotency/reveal tests tương ứng.
+Attempt đóng băng `student_snapshot_json` và `scoring_snapshot_json` riêng, hash canonical cả hai. API chỉ map student snapshot; query đọc luôn scope theo authenticated Student. Create yêu cầu CSRF + Idempotency-Key unique theo Student, retry trả record cũ trước khi đọc lại catalog.
+
+Autosave phải dùng `baseRevision`, exact-operation replay và server ACK; stale client GET/merge rồi gửi key mới. Submit chỉ chấm response đã commit, tạo immutable score revision trong cùng transaction và không tạo thêm score/audit khi retry. Scoring rule phải có version. Public result luôn đi qua reveal mapper: PRACTICE final mới có correct answer; mock/diagnostic/pending không có; explanation/rubric không mở. Essay đã trả lời chờ manual scoring, không dùng AI làm kết luận.
 
 ## Cách mở rộng
 

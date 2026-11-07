@@ -1,6 +1,6 @@
 # Data model
 
-Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `database/init/007_attempt_snapshots.sql`.
+Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`.
 
 ```mermaid
 erDiagram
@@ -29,6 +29,11 @@ erDiagram
   EXAM_VERSION ||--o| IMPORT_PUBLICATION : produced
   USER ||--o{ EXAM_ATTEMPT : owns
   EXAM_VERSION ||--o{ EXAM_ATTEMPT : snapshots
+  EXAM_ATTEMPT ||--o{ ATTEMPT_RESPONSE : saves
+  QUESTION_VERSION ||--o{ ATTEMPT_RESPONSE : answers
+  EXAM_ATTEMPT ||--o{ ATTEMPT_SCORE_REVISION : scores
+  EXAM_ATTEMPT ||--o{ ATTEMPT_OPERATION : deduplicates
+  USER ||--o{ ATTEMPT_OPERATION : owns
 ```
 
 Published versions phải bất biến ở application/service layer; thay đổi tạo version mới. `ExamItem` có check đúng một target. JSON dành cho rich content/answer config đã được validate; grade/subject/type/status là cột quan hệ để lọc.
@@ -39,4 +44,6 @@ Published versions phải bất biến ở application/service layer; thay đổ
 
 `import_publications` unique theo ImportJob và ExamVersion, lưu publisher cùng hai hash đã duyệt. Publication transaction tạo content source/license/media, các identity + version rows, section/item/group/provenance/asset reference, rồi mới đổi job sang `PUBLISHED`. Stable exam/question/stimulus key nhận version number kế tiếp; published rows không update. Formal assessment vẫn bị khóa ở service policy.
 
-`exam_attempts` giữ owner Student, ExamVersion, state, idempotency key và hai JSON snapshot riêng. Unique `(student_user_id, idempotency_key)` chống duplicate retry. `student_snapshot_json` không có answer/explanation; `scoring_snapshot_json` có version/type/points/answer key và không được map ra public response. `snapshot_sha256` bao phủ canonical JSON của cả hai; tạo attempt và `ATTEMPT_STARTED` audit cùng transaction. Slice hiện tại mới có `IN_PROGRESS`; các status còn lại dành cho submit/scoring kế tiếp.
+`exam_attempts` giữ owner Student, ExamVersion, state, idempotency key, monotonic `answer_revision`, score revision pointer và hai JSON snapshot riêng. Unique `(student_user_id, idempotency_key)` chống duplicate create. `student_snapshot_json` không có answer/explanation; `scoring_snapshot_json` có version/type/points/option IDs/answer key và không được map ra public response. `snapshot_sha256` bao phủ canonical JSON của cả hai.
+
+`attempt_responses` là response map hiện tại theo `(attempt, question_version)`; mỗi row ghi revision đã ACK. `attempt_operations` lưu request hash + exact JSON response cho AUTOSAVE/SUBMIT và unique theo `(student, operation_type, idempotency_key)`, nên retry không chạy side effect lần hai. `attempt_score_revisions` là lịch sử điểm bất biến theo `(attempt, revision_number)`, có scoring state/version/result và actor type; submit đầu tiên tạo revision 1, còn regrade chưa triển khai. Tạo attempt, autosave và submit đều ghi audit trong cùng transaction với thay đổi nghiệp vụ.

@@ -216,6 +216,34 @@ test('missing structured answer key is reported with its exact field path', asyn
   assert.ok(report.errors.some((error) => error.code === 'MISSING_ANSWER_KEY' && error.path === 'answers.json.answers[0].answerKey'));
 });
 
+test('multiple choice rejects an unknown partial-credit mode', async () => {
+  const zip = await buildValidPackage();
+  const files = await readZipEntries(zip);
+  const manifest = JSON.parse(files.get('manifest.json').toString('utf8'));
+  const questions = JSON.parse(files.get('questions.json').toString('utf8'));
+  const answers = JSON.parse(files.get('answers.json').toString('utf8'));
+  questions.questions[0].type = 'MULTIPLE_CHOICE';
+  answers.answers[0].answerKey.partialCredit = { mode: 'UNBOUNDED_BONUS' };
+  const changed = {
+    'questions.json': jsonBuffer(questions),
+    'answers.json': jsonBuffer(answers)
+  };
+  Object.entries(changed).forEach(([name, data]) => {
+    files.set(name, data);
+    const declared = manifest.files.find((file) => file.path === name);
+    declared.sha256 = sha256(data);
+    declared.sizeBytes = data.length;
+  });
+  files.set('manifest.json', jsonBuffer(manifest));
+  const report = validateExamPackage(files, sha256(zip));
+
+  assert.equal(report.status, 'INVALID');
+  assert.ok(report.errors.some((error) => (
+    error.code === 'INVALID_PARTIAL_CREDIT'
+    && error.path === 'answers.json.answers[0].answerKey.partialCredit'
+  )));
+});
+
 test('invalid binary is rejected before staging', async () => {
   await assert.rejects(readZipEntries(Buffer.from('not a zip')), (error) => (
     error instanceof PackageReadError && error.code === 'INVALID_ZIP'

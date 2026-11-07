@@ -16,10 +16,13 @@
 | users | email, display_name, password_hash, status | email unique; password scrypt hash, không lưu plaintext |
 | user_roles | user_id, role, scope_type | role phía server; slice hiện tại chỉ global scope |
 | auth_sessions | user_id, token/csrf hash, expires/revoked | opaque token chỉ lưu SHA-256; session revoke phía server |
-| audit_logs | actor, event/resource, outcome, details | audit auth/import/review; không chứa raw token/password |
+| audit_logs | actor, event/resource, outcome, details | audit auth/import/review/attempt; không chứa raw token/password hay answer payload |
 | import_jobs | package_id/hash, status, creator, report | idempotency theo package + hash; creator dùng chống self-review |
 | import_reviews | import_job_id, reviewer_id, scope, decision, reason, report/package hash, actor source | tối đa một decision bất biến cho mỗi scope TECHNICAL/ACADEMIC |
 | import_publications | import_job_id, exam_version_id, publisher, report/package hash | idempotency marker và provenance của atomic publish |
-| exam_attempts | student, exam_version, status, idempotency_key, student/scoring snapshot, snapshot_sha256 | snapshot bất biến; unique key theo Student; scoring JSON không trả client |
+| exam_attempts | student, exam_version, status, create idempotency key, snapshots/hash, answer_revision, current_score_revision | snapshot bất biến; optimistic concurrency; scoring JSON không trả client |
+| attempt_responses | attempt, question_version, answer_json, saved_revision | response map đã server ACK; FK tới attempt/question version |
+| attempt_operations | student, attempt, operation_type, idempotency_key, request_sha256, response_json | exact replay cho AUTOSAVE/SUBMIT; key không được dùng lại với request khác |
+| attempt_score_revisions | attempt, revision_number, scoring_state/version, result_json, actor | immutable score history; revision 1 do submit, regrade/manual scoring chưa có |
 
 Retention/xóa mềm đầy đủ chưa triển khai; entity đã được tham chiếu không được hard-delete ở feature tương lai.

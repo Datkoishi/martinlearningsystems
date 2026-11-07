@@ -34,4 +34,10 @@ Technical và academic decision dùng hai immutable scope trên cùng ImportJob;
 
 ## D-009 Attempt đóng băng hai projection riêng
 
-Khi Student bắt đầu, server lưu riêng projection hiển thị và projection chấm điểm thay vì tham chiếu live content hoặc trả answer payload xuống client. Hash canonical bao phủ cả hai; idempotency unique theo Student; owner scoping nằm trong repository query. Cách này giữ đúng đề/đáp án tại thời điểm bắt đầu và cho phép autosave/submit/scoring tiếp theo mà không phụ thuộc content version đang live. Formal assessment và reveal vẫn khóa.
+Khi Student bắt đầu, server lưu riêng projection hiển thị và projection chấm điểm thay vì tham chiếu live content hoặc trả answer payload xuống client. Hash canonical bao phủ cả hai; idempotency unique theo Student; owner scoping nằm trong repository query. Cách này giữ đúng đề/đáp án tại thời điểm bắt đầu và cho phép autosave/submit/scoring tiếp theo mà không phụ thuộc content version đang live. Formal assessment vẫn khóa; reveal được quyết định riêng ở D-010.
+
+## D-010 Revision + operation log cho attempt, reveal theo purpose/state
+
+Autosave dùng một global monotonic answer revision cho mỗi attempt và exact operation replay theo request hash, thay vì last-write-wins âm thầm. Client chỉ báo “đã lưu” sau server ACK; conflict phải reload/merge local dirty answers. Submit chấm đúng response map đã commit, tạo immutable score revision và retry không tạo side effect mới.
+
+Scoring rule có version độc lập với assessment interpretation. PRACTICE chỉ mở correct answer sau trạng thái FINAL; MOCK_EXAM/DIAGNOSTIC và manual-pending chỉ có summary. Explanation và essay rubric chưa mở. Essay đã trả lời không AI-score mà chuyển manual pending. Formal assessment vẫn khóa. Chi tiết ở ADR-0007.

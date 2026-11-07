@@ -18,7 +18,7 @@ ZIP gồm `manifest.json`, `exam.json`, `questions.json`, `answers.json`, `asset
 }
 ```
 
-`exam.json` chứa `id/title/grade/subject/durationMinutes/mode/purpose/sections`; mỗi section có `itemRefs` loại `GROUP` hoặc `QUESTION`. `questions.json` chứa `stimuli`, `groups`, `questions`; rich content tham chiếu `assetId` đã khai báo. `answers.json` chứa đúng một record cho mỗi câu và answer key phù hợp option/type.
+`exam.json` chứa `id/title/grade/subject/durationMinutes/mode/purpose/sections`; mỗi section có `itemRefs` loại `GROUP` hoặc `QUESTION`. `questions.json` chứa `stimuli`, `groups`, `questions`; rich content tham chiếu `assetId` đã khai báo. `answers.json` chứa đúng một record cho mỗi câu và answer key phù hợp option/type. `MULTIPLE_CHOICE` mặc định exact-match; nếu cần partial credit, `answerKey.partialCredit.mode` duy nhất được hỗ trợ là `PER_OPTION_WITH_PENALTY`. Mode khác bị validator từ chối.
 
 ## Pipeline và giới hạn hiện tại
 

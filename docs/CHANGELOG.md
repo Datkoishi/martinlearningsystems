@@ -17,3 +17,7 @@
 - Normalize Exam Package sang versioned content bằng transaction nguyên tử, hash/report revalidation, UUID reference remap và idempotent retry; formal assessment vẫn khóa.
 - Thêm published FIXED catalog/student-safe asset delivery, role Student và UI catalog/player responsive.
 - Thêm migration `007_attempt_snapshots.sql`, student/scoring snapshots tách biệt, hash toàn vẹn, owner scoping, audit và idempotent attempt creation.
+- Thêm migration `008_attempt_scoring.sql`, response revision, exact-operation idempotency và immutable score revisions.
+- Thêm autosave server-ACK/retry/conflict recovery, refresh restore và idempotent submit trong published Student player.
+- Thêm deterministic scorer `eduassess-scoring-v1` cho choice/true-false/number/text; essay đã trả lời chờ manual scoring.
+- Thêm reveal projection fail-closed: chỉ PRACTICE final mở correct answer; mock/diagnostic/pending không mở answer, explanation hoặc rubric.

@@ -183,6 +183,64 @@ export const createApp = ({
     }
   });
 
+  app.patch('/api/attempts/:id/responses', authenticate, studentOnly, requireCsrf, async (request, response, next) => {
+    const { baseRevision, responses } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ATTEMPT_ID', message: 'Attempt id không hợp lệ.' });
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    if (!Number.isInteger(baseRevision) || baseRevision < 0) return response.status(400).json({ code: 'INVALID_ANSWER_REVISION', message: 'baseRevision phải là số nguyên không âm.' });
+    if (!Array.isArray(responses) || responses.length === 0 || responses.length > 500) {
+      return response.status(400).json({ code: 'INVALID_RESPONSES', message: 'responses phải có từ 1 đến 500 phần tử.' });
+    }
+    try {
+      const result = await attemptService.saveResponses({
+        id: request.params.id,
+        studentUserId: request.auth.user.id,
+        idempotencyKey,
+        baseRevision,
+        responses
+      });
+      if (!result) return response.status(404).json({ code: 'ATTEMPT_NOT_FOUND', message: 'Không tìm thấy attempt.' });
+      response.set('Cache-Control', 'no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/attempts/:id/submit', authenticate, studentOnly, requireCsrf, async (request, response, next) => {
+    const { baseRevision } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ATTEMPT_ID', message: 'Attempt id không hợp lệ.' });
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    if (!Number.isInteger(baseRevision) || baseRevision < 0) return response.status(400).json({ code: 'INVALID_ANSWER_REVISION', message: 'baseRevision phải là số nguyên không âm.' });
+    try {
+      const result = await attemptService.submit({
+        id: request.params.id,
+        studentUserId: request.auth.user.id,
+        idempotencyKey,
+        baseRevision
+      });
+      if (!result) return response.status(404).json({ code: 'ATTEMPT_NOT_FOUND', message: 'Không tìm thấy attempt.' });
+      response.set('Cache-Control', 'no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/attempts/:id/result', authenticate, studentOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ATTEMPT_ID', message: 'Attempt id không hợp lệ.' });
+    try {
+      const result = await attemptService.getResult(request.params.id, request.auth.user.id);
+      if (!result) return response.status(404).json({ code: 'ATTEMPT_NOT_FOUND', message: 'Không tìm thấy attempt.' });
+      response.set('Cache-Control', 'no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   app.get('/api/attempts/:id', authenticate, studentOnly, async (request, response, next) => {
     if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ATTEMPT_ID', message: 'Attempt id không hợp lệ.' });
     try {
@@ -312,7 +370,11 @@ export const createApp = ({
   app.use((error, _request, response, _next) => {
     if (error instanceof PackageReadError) return response.status(error.statusCode).json({ code: error.code, message: error.message });
     if (error?.type === 'entity.too.large') return response.status(413).json({ code: 'PACKAGE_TOO_LARGE', message: 'ZIP vượt quá giới hạn tải lên 25 MiB.' });
-    if (error?.statusCode && error?.code) return response.status(error.statusCode).json({ code: error.code, message: error.message });
+    if (error?.statusCode && error?.code) return response.status(error.statusCode).json({
+      code: error.code,
+      message: error.message,
+      ...(error.details ? { details: error.details } : {})
+    });
     return response.status(500).json({ code: 'INTERNAL_ERROR', message: 'Không thể xử lý yêu cầu.' });
   });
 

@@ -3,7 +3,8 @@
 | Hành động | Student | Teacher | Editor | Reviewer | Admin |
 |---|---:|---:|---:|---:|---:|
 | Xem catalog FIXED đã publish | yes | future | yes | yes | yes |
-| Tạo/đọc attempt | own only | no | no | no | audited support only |
+| Tạo/đọc/autosave/submit attempt | own only | no | no | no | audited support only |
+| Xem kết quả/đáp án sau reveal | own, theo purpose/state | policy only | no | no | audited support only |
 | Xem đề student-safe được giao | own | scoped class | preview draft | review scope | scoped |
 | Xem answer key trước reveal | no | policy only | own draft | yes | audited only |
 | Tạo/sửa draft | no | no | yes | comment | yes |
@@ -12,7 +13,7 @@
 
 Identity/session và global role guard đã có cho workflow import. Backend, không phải UI, enforce `CONTENT_EDITOR`, `ACADEMIC_REVIEWER` và `SUPER_ADMIN`; mọi thao tác ghi dùng CSRF và được bind với user session. Tenant/school scope, guardian/teacher scope và assignment vẫn chưa có.
 
-Catalog metadata/projection student-safe là public. Tạo attempt yêu cầu `STUDENT` + CSRF; Editor/Reviewer nhận 403. Attempt query luôn có cả `id` và authenticated `student_user_id`; tài nguyên của Student khác trả 404. Student không có API lấy scoring snapshot, answer key hay explanation.
+Catalog metadata/projection student-safe là public. Tạo attempt, autosave và submit yêu cầu `STUDENT` + CSRF; Editor/Reviewer nhận 403. GET attempt/result là read-only nhưng vẫn yêu cầu Student session. Mọi query luôn có cả `id` và authenticated `student_user_id`; tài nguyên của Student khác trả 404. Student không có API lấy scoring snapshot. Correct answer chỉ xuất hiện trong result PRACTICE đã FINAL; explanation/rubric không được trả.
 
 `CONTENT_EDITOR` được upload và đọc validation metadata nhưng không được gọi reviewer preview/assets/reviews/publish. `ACADEMIC_REVIEWER` được xem answer payload, ghi technical decision, academic approval và kích hoạt publish sau đủ gate; reviewer/publisher ID luôn lấy từ session. ImportJob lưu creator và mọi review transaction từ chối tự review. `SUPER_ADMIN` có cả hai quyền nhưng vẫn chịu self-review rule.
 

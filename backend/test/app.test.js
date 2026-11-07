@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { test } from 'node:test';
-import { getApiInfo, getDemoStudentExam, getHealthStatus } from '../src/app.js';
+import { createApp, getApiInfo, getDemoStudentExam, getHealthStatus } from '../src/app.js';
 import { demoFixedExam } from '../src/domain/demo-exam.js';
 import { toStudentExam } from '../src/domain/exam-presentation.js';
 import { validateRichContent } from '../src/domain/rich-content.js';
@@ -82,4 +83,118 @@ test('demo exam controller returns a student-safe payload for the API route', ()
   const payload = getDemoStudentExam();
   assert.equal(payload.mode, 'FIXED');
   assert.equal(JSON.stringify(payload).includes('correctOptionIds'), false);
+});
+
+test('attempt response, submit and result routes enforce student auth, CSRF and structured conflicts', async (context) => {
+  const studentId = '00000000-0000-4000-8000-000000000501';
+  const attemptId = '00000000-0000-4000-8000-000000000502';
+  const questionVersionId = '00000000-0000-4000-8000-000000000503';
+  const calls = [];
+  const authService = {
+    async authenticate(token) {
+      return {
+        expiresAt: new Date('2026-11-08T00:00:00Z'),
+        csrfTokenHash: 'test-only',
+        user: {
+          id: studentId,
+          roles: token === 'editor-session' ? ['CONTENT_EDITOR'] : ['STUDENT']
+        }
+      };
+    },
+    validateCsrf: (_auth, token) => token === 'csrf-token'
+  };
+  const attemptService = {
+    async saveResponses(command) {
+      calls.push(['save', command]);
+      if (command.idempotencyKey === 'conflict-key-001') {
+        throw Object.assign(new Error('Revision conflict.'), {
+          code: 'ATTEMPT_REVISION_CONFLICT',
+          statusCode: 409,
+          details: { currentRevision: 2 }
+        });
+      }
+      return { id: command.id, answerRevision: 1, responses: { [questionVersionId]: 'option-a' } };
+    },
+    async submit(command) {
+      calls.push(['submit', command]);
+      return { attempt: { id: command.id, status: 'SCORED' }, result: { scoreRevision: 1 } };
+    },
+    async getResult(id, ownerId) {
+      calls.push(['result', { id, ownerId }]);
+      return { attemptId: id, scoreRevision: 1 };
+    }
+  };
+  const app = createApp({ authService, attemptService, importsEnabled: false });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const address = server.address();
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const studentCookie = 'eduassess_session=student-session; eduassess_csrf=csrf-token';
+  const requestBody = JSON.stringify({
+    baseRevision: 0,
+    responses: [{ questionVersionId, answer: 'option-a' }]
+  });
+
+  const missingCsrf = await fetch(`${baseUrl}/api/attempts/${attemptId}/responses`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Cookie: studentCookie, 'Idempotency-Key': 'save-key-0001' },
+    body: requestBody
+  });
+  assert.equal(missingCsrf.status, 403);
+  assert.equal(calls.length, 0);
+
+  const forbiddenRole = await fetch(`${baseUrl}/api/attempts/${attemptId}/responses`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: 'eduassess_session=editor-session; eduassess_csrf=csrf-token',
+      'X-CSRF-Token': 'csrf-token',
+      'Idempotency-Key': 'save-key-0001'
+    },
+    body: requestBody
+  });
+  assert.equal(forbiddenRole.status, 403);
+  assert.equal(calls.length, 0);
+
+  const saved = await fetch(`${baseUrl}/api/attempts/${attemptId}/responses`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json', Cookie: studentCookie,
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'save-key-0001'
+    },
+    body: requestBody
+  });
+  assert.equal(saved.status, 200);
+  assert.equal((await saved.json()).answerRevision, 1);
+  assert.equal(calls[0][1].studentUserId, studentId);
+
+  const conflict = await fetch(`${baseUrl}/api/attempts/${attemptId}/responses`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json', Cookie: studentCookie,
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'conflict-key-001'
+    },
+    body: requestBody
+  });
+  assert.equal(conflict.status, 409);
+  assert.deepEqual((await conflict.json()).details, { currentRevision: 2 });
+
+  const submitted = await fetch(`${baseUrl}/api/attempts/${attemptId}/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: studentCookie,
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'submit-key-001'
+    },
+    body: JSON.stringify({ baseRevision: 1 })
+  });
+  assert.equal(submitted.status, 200);
+  assert.equal((await submitted.json()).attempt.status, 'SCORED');
+
+  const result = await fetch(`${baseUrl}/api/attempts/${attemptId}/result`, {
+    headers: { Cookie: studentCookie }
+  });
+  assert.equal(result.status, 200);
+  assert.equal((await result.json()).scoreRevision, 1);
+  assert.deepEqual(calls.at(-1), ['result', { id: attemptId, ownerId: studentId }]);
 });

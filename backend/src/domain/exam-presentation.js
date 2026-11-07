@@ -81,7 +81,12 @@ const validateExamContent = (exam) => {
   }
 };
 
-const studentQuestion = ({ answerKey: _answerKey, explanation: _explanation, ...question }) => question;
+const studentQuestion = ({ answerKey, explanation: _explanation, ...question }) => ({
+  ...question,
+  ...(question.type === 'TRUE_FALSE' ? {
+    responseConfig: { statementCount: answerKey.correctValues.length }
+  } : {})
+});
 
 const collectStudentAssetIds = (exam) => {
   const assetIds = new Set();
