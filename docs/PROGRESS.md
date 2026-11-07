@@ -92,3 +92,21 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `9bd80d9` (`feat(import): add academic atomic publication`).
 - Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
+
+## [2026-11-07 08:46 +07:00] TASK-006 — Published FIXED catalog và immutable Attempt snapshot
+
+- Mục tiêu / feature IDs: PLAY-001a; AC-04/10 foundation và answer-leakage/IDOR negative cases.
+- Trạng thái: VERIFIED (unit/build/MySQL/HTTP authorization-idempotency hoàn thành; browser visual QA vẫn chưa có tooling).
+- Phạm vi thực hiện: catalog chỉ PUBLISHED+FIXED+non-formal; student-safe projection/asset delivery; Student role; tách student/scoring snapshots; canonical integrity hash; owner scoping; atomic audit; idempotent create/read API; responsive catalog/snapshot player.
+- Files created: `backend/src/catalog/*`, `backend/src/attempts/*`, `backend/test/catalog-attempts.test.js`, `database/init/007_attempt_snapshots.sql`, `frontend/src/PublishedCatalog.jsx`, `frontend/src/StudentExamView.jsx`, `docs/adr/0006-immutable-attempt-snapshots.md`.
+- Files modified: app/auth/presentation/import storage/tests, App/AuthPanel/styles, README và docs architecture/domain/status/test/runbook.
+- DB migration / data impact: thêm `exam_attempts` với FK Student/ExamVersion, lifecycle enum, unique `(student_user_id,idempotency_key)`, hai JSON snapshot và SHA-256. Create ghi attempt + `ATTEMPT_STARTED` trong một transaction; không sửa published content.
+- API / UI behavior: public `GET /api/catalog/exams[/:id]` và student-visible asset; `POST /api/attempts` yêu cầu Student+CSRF+Idempotency-Key; `GET /api/attempts/:id` owner-only; `/#catalog` preview/login/start/player. Chưa autosave/submit/scoring/reveal.
+- Test commands actually run: `npm test`; `docker compose --env-file .env.example config --quiet`; `npm audit --prefix backend --omit=dev`; MySQL 8.4 migration + repository/asset/snapshot smoke; localhost HTTP catalog/auth/CSRF/idempotency/IDOR matrix; `git diff --cached --check`; staged secret fixture scan.
+- Test results: backend 34/34 PASS; frontend build PASS (36 modules); runtime audit 0 vulnerabilities; Compose PASS; MySQL PASS (25 tables, snapshot/audit separation, explanation-only asset denied); HTTP first/retry 201/200 cùng ID/hash, unauth 401, Editor/CSRF 403, cross-owner 404, no answer/scoring leakage.
+- Security/privacy considerations: public projection loại answer/explanation và answer-only assets; bytes kiểm tra size/hash; scoring snapshot chỉ server-side; tamper fail-closed; lookup scope theo Student; formal assessment vẫn khóa. Container/process/cookie fixture tạm đã xóa; không đọc hoặc log `.env`.
+- Known issues / trade-offs: câu trả lời mới ở React memory; chưa autosave/submit/scoring/reveal/retention; archive-backed asset chưa S3/CDN; role vẫn global; browser visual/a11y QA chưa chạy.
+- Next actionable task: PLAY-001b — idempotent answer autosave, submit transaction, scoring theo type và reveal policy.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `4a9d47d` (`feat(player): add published exam attempt snapshots`).
+- Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
