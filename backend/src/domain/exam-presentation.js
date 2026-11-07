@@ -36,6 +36,23 @@ const validateAnswerKey = (question) => {
       throw new Error(`Answer key số của ${question.versionId} không hợp lệ.`);
     }
   }
+  if (question.type === 'SHORT_TEXT') {
+    const acceptedValues = question.answerKey?.acceptedValues;
+    if (!Array.isArray(acceptedValues) || acceptedValues.length === 0 || acceptedValues.some((value) => typeof value !== 'string')) {
+      throw new Error(`Answer key text của ${question.versionId} không hợp lệ.`);
+    }
+  }
+  if (question.type === 'TRUE_FALSE') {
+    const correctValues = question.answerKey?.correctValues;
+    if (!Array.isArray(correctValues) || correctValues.length === 0 || correctValues.some((value) => typeof value !== 'boolean')) {
+      throw new Error(`Answer key đúng/sai của ${question.versionId} không hợp lệ.`);
+    }
+  }
+  if (question.type === 'ESSAY') {
+    if (!Array.isArray(question.answerKey?.rubric?.criteria) || question.answerKey.rubric.criteria.length === 0) {
+      throw new Error(`Rubric tự luận của ${question.versionId} không hợp lệ.`);
+    }
+  }
 };
 
 const validateExamContent = (exam) => {
@@ -66,10 +83,28 @@ const validateExamContent = (exam) => {
 
 const studentQuestion = ({ answerKey: _answerKey, explanation: _explanation, ...question }) => question;
 
+const collectStudentAssetIds = (exam) => {
+  const assetIds = new Set();
+  const collect = (content) => visitBlocks(content?.nodes || [], (node) => {
+    if (node.type === 'figure') assetIds.add(node.assetId);
+  });
+  exam.stimuli.forEach((stimulus) => collect(stimulus.content));
+  exam.sections.forEach((section) => {
+    collect(section.instruction);
+    section.groups.forEach((group) => group.questions.forEach((question) => {
+      collect(question.content);
+      question.options.forEach((option) => collect(option.content));
+    }));
+  });
+  return assetIds;
+};
+
 export const toStudentExam = (exam) => {
   validateExamContent(exam);
+  const studentAssetIds = collectStudentAssetIds(exam);
   return {
     ...exam,
+    assets: Object.fromEntries(Object.entries(exam.assets).filter(([id]) => studentAssetIds.has(id))),
     sections: exam.sections.map((section) => ({
       ...section,
       groups: section.groups.map((group) => ({

@@ -88,3 +88,27 @@ Các container, image và network MySQL/backend tạm dùng cho DB/HTTP test đ�
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 Container API/MySQL, image và network thử nghiệm TASK-005 chỉ chứa dữ liệu giả lập; tất cả đã được dừng và xóa, không thể khôi phục nhưng không có dữ liệu người dùng.
+
+## 2026-11-07 — TASK-006
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-PLAY-01 catalog projection | PASS | không answer/explanation/correctOptionIds; lọc asset chỉ dùng trong lời giải |
+| UT-PLAY-02 snapshot separation | PASS | student snapshot sạch; scoring snapshot giữ answer key server-side |
+| UT-PLAY-03 idempotent retry | PASS | cùng key trả cùng attempt/snapshot dù catalog object đổi |
+| UT-PLAY-04 key misuse | PASS | cùng Student/key cho đề khác trả `IDEMPOTENCY_KEY_REUSED` |
+| UT-PLAY-05 ownership + integrity | PASS | Student khác nhận null/404; tamper scoring snapshot fail-closed |
+| UT-PLAY-06 formal lock | PASS | `FORMAL_ASSESSMENT_DISABLED` |
+| UT-PLAY-07 asset integrity | PASS | size/SHA-256 mismatch bị chặn |
+| Backend regression | PASS | 34/34 tests |
+| Frontend production build | PASS | Vite, 36 modules |
+| DB-PLAY-01 migration 007 | PASS | MySQL 8.4 temp, 25 tables; FK/index/enum đúng |
+| DB-PLAY-02 snapshot transaction | PASS | 1 attempt, student JSON 0 answer key, scoring JSON 1 answer key, 1 `ATTEMPT_STARTED` audit |
+| DB-PLAY-03 student-visible asset query | PASS | visible stimulus asset được trả; explanation-only asset trả null trên MySQL 8.4 |
+| HTTP-PLAY-01 catalog/authorization | PASS | public catalog 200; unauth 401; Editor 403; Student thiếu CSRF 403 |
+| HTTP-PLAY-02 idempotency/IDOR | PASS | first 201, retry 200 cùng ID/hash; owner 200; Student khác 404; public body không scoring/answer |
+| Runtime dependency audit | PASS | `npm audit --omit=dev`: 0 vulnerabilities |
+| Compose config | PASS | `docker compose config --quiet` |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+Container MySQL và backend process tạm chỉ dùng fixture giả lập đã được dừng/xóa. Cookie/response tạm dưới `/tmp` cũng đã xóa; không có dữ liệu người dùng.

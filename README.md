@@ -1,6 +1,6 @@
 # EduAssess — Martin Learning Systems
 
-Nền tảng web đánh giá năng lực học sinh, hiện đang ở vertical slice đầu tiên: hiển thị đề FIXED giàu nội dung với section, stimulus/nhóm câu, hình, công thức, bảng và payload học sinh không chứa đáp án. Stack hiện tại gồm React + Vite, Node.js + Express + Socket.IO, MySQL và Docker Compose.
+Nền tảng web đánh giá năng lực học sinh. Repo hiện có luồng import → technical review → academic review → atomic publish, catalog đề FIXED đã publish và nền tảng attempt snapshot bất biến cho Student. Stack gồm React + Vite, Node.js + Express + Socket.IO, MySQL và Docker Compose.
 
 ## Yêu cầu
 
@@ -60,7 +60,7 @@ npm test --prefix backend
 npm run build --prefix frontend
 ```
 
-API demo: `GET /api/exams/demo-fixed`. Dữ liệu hiển thị có nhãn `[DEMO]`, chưa phải nội dung học thuật được duyệt và chưa có autosave/nộp bài phía server.
+API demo: `GET /api/exams/demo-fixed`. Dữ liệu hiển thị có nhãn `[DEMO]`, chưa phải nội dung học thuật được duyệt. Catalog thật ở `/#catalog`; chỉ liệt kê `PUBLISHED + FIXED + non-formal`, và Student có thể tạo attempt snapshot. Autosave/nộp bài/chấm điểm chưa có ở lát cắt này.
 
 Import Lab ở `/#imports`. Backend yêu cầu session đăng nhập, role phía server và CSRF cho mọi thao tác ghi; production vẫn mặc định tắt import cho đến khi cấu hình vận hành được duyệt. Tạo user đầu tiên bằng password qua stdin, không đưa credential vào command history:
 
@@ -71,9 +71,11 @@ printf '%s' "$EDUASSESS_NEW_PASSWORD" | docker compose exec -T backend npm run a
 unset EDUASSESS_NEW_PASSWORD
 ```
 
-Các role bootstrap hiện hỗ trợ `CONTENT_EDITOR`, `ACADEMIC_REVIEWER` và `SUPER_ADMIN`; nên cấp mỗi người đúng role cần thiết. Sau khi đăng nhập ở Import Lab, Editor có thể tải ZIP. Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
+Các role bootstrap hiện hỗ trợ `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER` và `SUPER_ADMIN`; nên cấp mỗi người đúng role cần thiết. Sau khi đăng nhập ở Import Lab, Editor có thể tải ZIP. Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
 
 Package `READY_FOR_REVIEW` có thể mở bằng chính Rich Content renderer khi session có role `ACADEMIC_REVIEWER`. Reviewer ID lấy từ session, Editor không đọc được answer payload và người nhập package không thể tự review. Workflow tách technical review, academic approval và publish. Publish đọc lại ZIP, kiểm tra hash/report rồi ghi source, license, asset, question/stimulus/group và `ExamVersion` trong một transaction; retry trả publication cũ thay vì nhân đôi. `FORMAL_ASSESSMENT` vẫn bị khóa cho đến khi có formal approval policy.
+
+Catalog công khai không trả answer key/explanation hoặc asset chỉ xuất hiện trong lời giải. `POST /api/attempts` yêu cầu session `STUDENT`, CSRF và `Idempotency-Key`; server lưu riêng student snapshot và scoring snapshot, kèm SHA-256 toàn vẹn. Chỉ chủ sở hữu đọc được attempt và API không bao giờ trả scoring snapshot.
 
 Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
 

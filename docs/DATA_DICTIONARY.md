@@ -20,5 +20,6 @@
 | import_jobs | package_id/hash, status, creator, report | idempotency theo package + hash; creator dùng chống self-review |
 | import_reviews | import_job_id, reviewer_id, scope, decision, reason, report/package hash, actor source | tối đa một decision bất biến cho mỗi scope TECHNICAL/ACADEMIC |
 | import_publications | import_job_id, exam_version_id, publisher, report/package hash | idempotency marker và provenance của atomic publish |
+| exam_attempts | student, exam_version, status, idempotency_key, student/scoring snapshot, snapshot_sha256 | snapshot bất biến; unique key theo Student; scoring JSON không trả client |
 
 Retention/xóa mềm đầy đủ chưa triển khai; entity đã được tham chiếu không được hard-delete ở feature tương lai.

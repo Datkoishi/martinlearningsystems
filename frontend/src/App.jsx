@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import RichContent from './RichContent.jsx';
 import ImportPanel from './ImportPanel.jsx';
+import PublishedCatalog from './PublishedCatalog.jsx';
 import { csrfHeaders } from './auth.js';
 
 const AppHeader = ({ view, onViewChange, user, onLogout }) => (
@@ -11,6 +12,7 @@ const AppHeader = ({ view, onViewChange, user, onLogout }) => (
     </button>
     <nav className="app-nav" aria-label="Khu vực ứng dụng">
       <button className={view === 'exam' ? 'active' : ''} type="button" onClick={() => onViewChange('exam')}>Bài DEMO</button>
+      <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => onViewChange('catalog')}>Đề đã publish</button>
       <button className={view === 'imports' ? 'active' : ''} type="button" onClick={() => onViewChange('imports')}>Nhập gói đề</button>
     </nav>
     {user && (
@@ -82,7 +84,11 @@ const Question = ({ question, assets, value, onChange }) => {
 };
 
 export default function App() {
-  const [view, setView] = useState(() => window.location.hash === '#imports' ? 'imports' : 'exam');
+  const [view, setView] = useState(() => {
+    if (window.location.hash === '#imports') return 'imports';
+    if (window.location.hash === '#catalog') return 'catalog';
+    return 'exam';
+  });
   const [user, setUser] = useState(undefined);
   const [exam, setExam] = useState(null);
   const [error, setError] = useState('');
@@ -129,7 +135,8 @@ export default function App() {
 
   const changeView = (nextView) => {
     setView(nextView);
-    window.history.replaceState(null, '', nextView === 'imports' ? '#imports' : window.location.pathname);
+    const hash = nextView === 'imports' ? '#imports' : nextView === 'catalog' ? '#catalog' : '';
+    window.history.replaceState(null, '', `${window.location.pathname}${hash}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -151,6 +158,16 @@ export default function App() {
       <div className="app-shell">
         <AppHeader view={view} onViewChange={changeView} user={user} onLogout={logout} />
         <ImportPanel authUser={user} onLogin={setUser} />
+        {notice && <div className="toast" role="status">{notice}</div>}
+      </div>
+    );
+  }
+
+  if (view === 'catalog') {
+    return (
+      <div className="app-shell">
+        <AppHeader view={view} onViewChange={changeView} user={user} onLogout={logout} />
+        <PublishedCatalog authUser={user} onLogin={setUser} />
         {notice && <div className="toast" role="status">{notice}</div>}
       </div>
     );

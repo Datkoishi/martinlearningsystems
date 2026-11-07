@@ -15,3 +15,5 @@
 - Bảo vệ Import Lab bằng Editor/Reviewer role phía server; reviewer identity lấy từ session và transaction chặn self-review.
 - Thêm academic approval bất biến, migration `006_academic_publish.sql` và endpoint publish có CSRF/RBAC.
 - Normalize Exam Package sang versioned content bằng transaction nguyên tử, hash/report revalidation, UUID reference remap và idempotent retry; formal assessment vẫn khóa.
+- Thêm published FIXED catalog/student-safe asset delivery, role Student và UI catalog/player responsive.
+- Thêm migration `007_attempt_snapshots.sql`, student/scoring snapshots tách biệt, hash toàn vẹn, owner scoping, audit và idempotent attempt creation.

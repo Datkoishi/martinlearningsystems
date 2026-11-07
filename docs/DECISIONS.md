@@ -31,3 +31,7 @@ Dùng session token ngẫu nhiên trong cookie `HttpOnly`, CSRF token bind với
 ## D-008 Academic approval tách biệt và DB publish nguyên tử
 
 Technical và academic decision dùng hai immutable scope trên cùng ImportJob; cả hai bind package/report hash và creator không được tự duyệt. Publish revalidate archive rồi normalize sang UUID/version nội bộ trong một MySQL transaction, có `import_publications` làm idempotency/provenance marker. Media tạm thời dùng archive-backed storage key để tránh file copy ngoài transaction; source ZIP published phải được giữ. Formal assessment không được mở bởi gate này.
+
+## D-009 Attempt đóng băng hai projection riêng
+
+Khi Student bắt đầu, server lưu riêng projection hiển thị và projection chấm điểm thay vì tham chiếu live content hoặc trả answer payload xuống client. Hash canonical bao phủ cả hai; idempotency unique theo Student; owner scoping nằm trong repository query. Cách này giữ đúng đề/đáp án tại thời điểm bắt đầu và cho phép autosave/submit/scoring tiếp theo mà không phụ thuộc content version đang live. Formal assessment và reveal vẫn khóa.

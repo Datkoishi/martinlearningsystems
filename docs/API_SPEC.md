@@ -12,6 +12,32 @@ Trả identity của service.
 
 Trả một `ExamVersion` FIXED DEMO gồm assets, stimuli, sections, groups, questions và rich options. Projection student-safe xóa `answerKey` và `explanation` ở mọi câu. Endpoint chưa cần auth vì chỉ có fixture DEMO.
 
+## Published catalog
+
+- `GET /api/catalog/exams`: public, liệt kê metadata của `PUBLISHED + FIXED + non-formal`; cache 60 giây.
+- `GET /api/catalog/exams/:id`: public, trả student-safe projection giữ nguyên section/group/question order. Không chứa `answerKey`, `explanation`, scoring snapshot hoặc asset chỉ được dùng trong lời giải.
+- `GET /api/catalog/assets/:id`: public chỉ khi asset đã `PUBLISHED` và có reference trong phần student-visible của ít nhất một đề FIXED non-formal đã publish. Backend đọc entry từ source ZIP bất biến, kiểm tra size/SHA-256 và trả cache immutable; explanation-only asset nhận `404`.
+
+Catalog fail-closed với ExamVersion/group/question/stimulus/asset thiếu hoặc chưa publish. `FORMAL_ASSESSMENT` không xuất hiện trong catalog.
+
+## Attempts
+
+### `POST /api/attempts`
+
+Yêu cầu session có role `STUDENT`, CSRF header và `Idempotency-Key` 8–100 ký tự. Body:
+
+```json
+{ "examVersionId": "uuid" }
+```
+
+Chỉ nhận đề `PUBLISHED + FIXED + non-formal`. Lần đầu trả `201`; retry cùng `(student, Idempotency-Key, examVersionId)` trả `200`, `duplicate: true` và đúng attempt/snapshot cũ. Dùng cùng key cho đề khác trả `409 IDEMPOTENCY_KEY_REUSED`.
+
+Response chỉ gồm `id`, `examVersionId`, `status`, `snapshot` student-safe, `snapshotSha256`, timestamps và `duplicate`. Scoring snapshot không bao giờ được trả. Server ghi riêng student/scoring JSON, hash canonical của cả hai và audit `ATTEMPT_STARTED` trong transaction.
+
+### `GET /api/attempts/:id`
+
+Yêu cầu role `STUDENT`; chỉ chủ sở hữu đọc được. Attempt không thuộc user cũng trả `404 ATTEMPT_NOT_FOUND` để tránh IDOR enumeration. Backend kiểm tra hash toàn vẹn trước khi trả và dùng `Cache-Control: no-store`.
+
 ## Identity/session
 
 - `POST /api/auth/login`: nhận `{email, password}`, trả public user và đặt cookie session `HttpOnly` cùng cookie CSRF. Credential sai luôn trả thông báo chung; login bị giới hạn theo IP trong process.
@@ -48,4 +74,4 @@ Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Nhận cùng decision/rea
 
 Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Chỉ publish job `ACADEMICALLY_APPROVED`; source hash, validation report và approval phải khớp. Trả `201` cho publication mới, `200` và `duplicate: true` khi retry job đã publish. Transaction ghi toàn bộ versioned content hoặc rollback; purpose `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
 
-Published catalog/player, attempt/scoring/assembly APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.
+Autosave answer, submit, scoring, reveal và assembly APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.

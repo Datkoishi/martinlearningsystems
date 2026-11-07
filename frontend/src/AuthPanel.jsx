@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function AuthPanel({ onLogin }) {
+export default function AuthPanel({ onLogin, mode = 'content' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -27,16 +27,27 @@ export default function AuthPanel({ onLogin }) {
     }
   };
 
+  const studentMode = mode === 'student';
+
   return (
     <section className="auth-panel">
       <div className="auth-copy">
         <p className="eyebrow">Khu vực được bảo vệ</p>
-        <h1>Đăng nhập để quản lý nội dung</h1>
-        <p>Import và reviewer preview chứa nguồn đề, đáp án và lời giải. Hệ thống kiểm tra role ở backend, không chỉ ẩn nút trên giao diện.</p>
-        <ul>
-          <li><strong>Content Editor</strong> — tải và kiểm tra package.</li>
-          <li><strong>Academic Reviewer</strong> — xem answer payload và quyết định kỹ thuật.</li>
-        </ul>
+        <h1>{studentMode ? 'Đăng nhập để bắt đầu lượt làm bài' : 'Đăng nhập để quản lý nội dung'}</h1>
+        {studentMode ? (
+          <>
+            <p>Catalog có thể xem công khai, nhưng chỉ tài khoản Student mới được tạo attempt gắn với danh tính của mình.</p>
+            <ul><li><strong>Student</strong> — chỉ nhận snapshot không chứa đáp án và lời giải.</li></ul>
+          </>
+        ) : (
+          <>
+            <p>Import và reviewer preview chứa nguồn đề, đáp án và lời giải. Hệ thống kiểm tra role ở backend, không chỉ ẩn nút trên giao diện.</p>
+            <ul>
+              <li><strong>Content Editor</strong> — tải và kiểm tra package.</li>
+              <li><strong>Academic Reviewer</strong> — xem answer payload và quyết định kỹ thuật.</li>
+            </ul>
+          </>
+        )}
       </div>
       <form onSubmit={submit} className="login-card">
         <div className="login-mark">E</div>

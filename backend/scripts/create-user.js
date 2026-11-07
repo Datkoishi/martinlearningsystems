@@ -3,7 +3,7 @@ import { db } from '../src/db.js';
 import { MysqlAuthRepository } from '../src/auth/mysql-auth-repository.js';
 import { createPasswordHash } from '../src/auth/password.js';
 
-const allowedRoles = new Set(['CONTENT_EDITOR', 'ACADEMIC_REVIEWER', 'SUPER_ADMIN']);
+const allowedRoles = new Set(['STUDENT', 'CONTENT_EDITOR', 'ACADEMIC_REVIEWER', 'SUPER_ADMIN']);
 const args = process.argv.slice(2);
 const valueFor = (name) => {
   const index = args.indexOf(name);

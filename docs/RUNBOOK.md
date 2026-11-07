@@ -13,11 +13,11 @@ printf '%s' "$EDUASSESS_NEW_PASSWORD" | docker compose exec -T backend npm run a
 unset EDUASSESS_NEW_PASSWORD
 ```
 
-Role bootstrap hợp lệ: `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SUPER_ADMIN`; ưu tiên tách tài khoản Editor/Reviewer để enforce four-eyes. Sau khi có account và HTTPS/cookie đúng, đặt `ENABLE_IMPORT_API=true` theo quy trình rollout. `IMPORT_STORAGE_PATH` phải trỏ thư mục chỉ backend đọc/ghi; Docker dùng named volume `import_data`. Backup đồng bộ `users`, `user_roles`, `auth_sessions`, `audit_logs`, `import_jobs`, `import_reviews` và volume này. Thiết lập job xóa session hết hạn theo retention policy trước production.
+Role bootstrap hợp lệ: `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SUPER_ADMIN`; ưu tiên tách tài khoản Editor/Reviewer để enforce four-eyes. Sau khi có account và HTTPS/cookie đúng, đặt `ENABLE_IMPORT_API=true` theo quy trình rollout. `IMPORT_STORAGE_PATH` phải trỏ thư mục chỉ backend đọc/ghi; Docker dùng named volume `import_data`. Backup đồng bộ `users`, `user_roles`, `auth_sessions`, `audit_logs`, `import_jobs`, `import_reviews`, `import_publications`, `exam_attempts` và volume này. Thiết lập job xóa session hết hạn theo retention policy trước production.
 
 ## Migration
 
-Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` thêm technical review, `005` thêm identity/session/audit và `006` mở academic scope/status + publication marker. Luôn thử restore/migration trên bản sao trước production; các `ALTER TABLE` chỉ chạy một lần trên DB cũ.
+Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` thêm technical review, `005` thêm identity/session/audit, `006` mở academic scope/status + publication marker và `007` thêm immutable attempt snapshots. Luôn thử restore/migration trên bản sao trước production; các `ALTER TABLE` chỉ chạy một lần trên DB cũ.
 
 ## Kiểm tra và sự cố
 
@@ -35,6 +35,10 @@ Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới
 - `FORMAL_ASSESSMENT_DISABLED`: đúng theo policy mặc định; không đổi purpose trực tiếp trong DB.
 - Publish retry sau timeout là an toàn: cùng ImportJob trả `import_publications` cũ. Không chạy SQL thủ công để đổi job sang `PUBLISHED`.
 - Source ZIP của job đã publish đang giữ asset bytes cho archive-backed storage key; không cleanup cho đến khi S3/object promotion và reference rewrite đã commit.
+- Catalog không thấy đề: kiểm tra `ExamVersion`, mọi question/stimulus/asset reference đều `PUBLISHED`, mode `FIXED` và purpose không phải formal; không nới query để bỏ gate.
+- `IDEMPOTENCY_KEY_REUSED`: client đã dùng cùng key cho đề khác; tạo key mới cho hành động mới, không sửa row cũ.
+- `ATTEMPT_SNAPSHOT_INTEGRITY_FAILED`: cô lập attempt và kiểm tra DB/storage/audit; không cập nhật hash để bypass.
+- Attempt retry sau timeout phải giữ cùng `Idempotency-Key`. Chủ sở hữu khác luôn nhận 404; không dùng query unscoped để hỗ trợ thủ công.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
 Production deploy chưa cấu hình ngoài CI publish image GHCR. Không coi image publish là database migration hoặc production rollout.

@@ -226,13 +226,15 @@ test('import service stores the original once and returns the existing id for an
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-import-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const repository = new MemoryImportRepository();
-  const service = new ImportService({ repository, storage: new LocalImportStorage(root) });
+  const storage = new LocalImportStorage(root);
+  const service = new ImportService({ repository, storage });
   const zip = await buildValidPackage();
 
   const first = await service.stage(zip);
   const second = await service.stage(zip);
   const stored = await fs.readFile(path.join(root, first.id, 'source.zip'));
   const report = JSON.parse(await fs.readFile(path.join(root, first.id, 'validation-report.json'), 'utf8'));
+  const archivedAsset = await storage.readArchiveEntry(`${first.id}/source.zip#assets/shape.svg`);
 
   assert.equal(first.status, 'READY_FOR_REVIEW');
   assert.equal(first.duplicate, false);
@@ -241,6 +243,7 @@ test('import service stores the original once and returns the existing id for an
   assert.equal(repository.jobs.length, 1);
   assert.equal(sha256(stored), sha256(zip));
   assert.equal(report.packageId, 'pkg-demo-import-001');
+  assert.match(archivedAsset.toString('utf8'), /<svg/);
 });
 
 test('reviewer preview is rebuilt from the stored package with assets and answer keys', async (t) => {

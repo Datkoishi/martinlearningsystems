@@ -27,6 +27,12 @@ Publish phải đọc và hash lại source ZIP, chạy validator lại, so cano
 
 Session là opaque token lưu trong cookie `HttpOnly`; DB chỉ lưu hash. Request ghi yêu cầu CSRF token bind với session. Password dùng scrypt và user chỉ được bootstrap qua password stdin. Không nhận user/reviewer ID hoặc role từ header/body client. Role hiện global; feature mới có tenant/class ownership phải thêm scope + negative IDOR tests trước khi mở dữ liệu thật.
 
+## Catalog và attempt
+
+Catalog chỉ đọc graph `PUBLISHED + FIXED + non-formal`; không dùng DEMO draft làm nội dung thật. Student projection phải loại answer key, explanation, scoring fields và asset chỉ dùng trong lời giải. Public asset phải có reference student-visible từ published graph và bytes phải khớp metadata hash/size.
+
+Attempt đóng băng `student_snapshot_json` và `scoring_snapshot_json` riêng, hash canonical cả hai. API chỉ map student snapshot; query đọc luôn scope theo authenticated Student. Create yêu cầu CSRF + Idempotency-Key unique theo Student, retry trả record cũ trước khi đọc lại catalog. Không thêm autosave/submit/scoring/reveal nếu chưa có transaction/idempotency/reveal tests tương ứng.
+
 ## Cách mở rộng
 
 - Loại câu: thêm enum DB, validator/scorer, student renderer, reviewer renderer và test answer leakage.

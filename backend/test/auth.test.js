@@ -89,8 +89,10 @@ test('invalid credentials return a generic error and create a denied audit event
 
 test('role guard permits configured roles and denies unrelated roles', () => {
   const editorAuth = { user: { roles: [ROLE.CONTENT_EDITOR] } };
+  const studentAuth = { user: { roles: [ROLE.STUDENT] } };
   assert.equal(hasAnyRole(editorAuth, [ROLE.CONTENT_EDITOR]), true);
   assert.equal(hasAnyRole(editorAuth, [ROLE.ACADEMIC_REVIEWER]), false);
+  assert.equal(hasAnyRole(studentAuth, [ROLE.STUDENT]), true);
 
   let observed;
   requireRoles(ROLE.ACADEMIC_REVIEWER)({ auth: editorAuth }, {}, (error) => { observed = error; });

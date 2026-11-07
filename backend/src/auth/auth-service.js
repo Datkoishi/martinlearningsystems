@@ -2,6 +2,7 @@ import crypto, { randomUUID } from 'node:crypto';
 import { createPasswordHash, verifyPassword } from './password.js';
 
 export const ROLE = Object.freeze({
+  STUDENT: 'STUDENT',
   CONTENT_EDITOR: 'CONTENT_EDITOR',
   ACADEMIC_REVIEWER: 'ACADEMIC_REVIEWER',
   SUPER_ADMIN: 'SUPER_ADMIN'

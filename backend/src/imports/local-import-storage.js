@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readZipEntries } from './package-reader.js';
 
 export class LocalImportStorage {
   constructor(rootPath) {
@@ -32,5 +33,16 @@ export class LocalImportStorage {
   async readOriginal(jobId) {
     const filePath = path.join(this.resolveJobPath(jobId), 'source.zip');
     return fs.readFile(filePath);
+  }
+
+  async readArchiveEntry(storageKey) {
+    const separator = String(storageKey).indexOf('#');
+    if (separator <= 0) throw new Error('Published asset storage key không hợp lệ.');
+    const sourceKey = storageKey.slice(0, separator);
+    const entryPath = storageKey.slice(separator + 1);
+    const match = sourceKey.match(/^([a-f0-9-]{36})\/source\.zip$/);
+    if (!match || !entryPath) throw new Error('Published asset storage key không hợp lệ.');
+    const files = await readZipEntries(await this.readOriginal(match[1]));
+    return files.get(entryPath) || null;
   }
 }

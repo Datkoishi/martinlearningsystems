@@ -8,6 +8,8 @@ import { toStudentExam } from './domain/exam-presentation.js';
 import { importService as defaultImportService } from './imports/index.js';
 import { PackageReadError } from './imports/package-reader.js';
 import { authService as defaultAuthService } from './auth/index.js';
+import { catalogService as defaultCatalogService } from './catalog/index.js';
+import { attemptService as defaultAttemptService } from './attempts/index.js';
 import { ROLE } from './auth/auth-service.js';
 import {
   clearAuthCookies,
@@ -30,11 +32,15 @@ export const getHealthStatus = async (databaseCheck = checkDatabase) => {
 export const getDemoStudentExam = () => toStudentExam(demoFixedExam);
 
 const validImportId = (value) => /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
+const validUuid = (value) => /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value);
+const validIdempotencyKey = (value) => /^[A-Za-z0-9][A-Za-z0-9._:-]{7,99}$/.test(value || '');
 
 export const createApp = ({
   databaseCheck = checkDatabase,
   importService = defaultImportService,
   authService = defaultAuthService,
+  catalogService = defaultCatalogService,
+  attemptService = defaultAttemptService,
   importsEnabled = config.importApiEnabled
 } = {}) => {
   const app = express();
@@ -46,6 +52,7 @@ export const createApp = ({
   const editorOnly = requireRoles(ROLE.CONTENT_EDITOR, ROLE.SUPER_ADMIN);
   const reviewerOnly = requireRoles(ROLE.ACADEMIC_REVIEWER, ROLE.SUPER_ADMIN);
   const editorOrReviewer = requireRoles(ROLE.CONTENT_EDITOR, ROLE.ACADEMIC_REVIEWER, ROLE.SUPER_ADMIN);
+  const studentOnly = requireRoles(ROLE.STUDENT);
 
   app.use(helmet());
   app.use(cors({ origin: config.clientOrigin, credentials: true }));
@@ -117,6 +124,75 @@ export const createApp = ({
 
   app.get('/api/exams/demo-fixed', (_request, response) => {
     response.json(getDemoStudentExam());
+  });
+
+  app.get('/api/catalog/exams', async (_request, response, next) => {
+    try {
+      response.set('Cache-Control', 'public, max-age=60');
+      return response.json({ exams: await catalogService.listPublishedFixed() });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/catalog/exams/:id', async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_EXAM_VERSION_ID', message: 'ExamVersion id không hợp lệ.' });
+    try {
+      const exam = await catalogService.getPublishedFixed(request.params.id);
+      if (!exam) return response.status(404).json({ code: 'EXAM_NOT_FOUND', message: 'Không tìm thấy đề đã publish.' });
+      response.set('Cache-Control', 'public, max-age=60');
+      return response.json(exam);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/catalog/assets/:id', async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSET_ID', message: 'Asset id không hợp lệ.' });
+    try {
+      const asset = await catalogService.getPublishedAsset(request.params.id);
+      if (!asset) return response.status(404).json({ code: 'ASSET_NOT_FOUND', message: 'Không tìm thấy asset đã publish.' });
+      response.set({
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Type': asset.mimeType,
+        'Content-Length': String(asset.data.length),
+        'Content-Disposition': 'inline'
+      });
+      return response.send(asset.data);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/attempts', authenticate, studentOnly, requireCsrf, async (request, response, next) => {
+    const { examVersionId } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validUuid(examVersionId)) return response.status(400).json({ code: 'INVALID_EXAM_VERSION_ID', message: 'ExamVersion id không hợp lệ.' });
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    try {
+      const attempt = await attemptService.create({
+        studentUserId: request.auth.user.id,
+        examVersionId,
+        idempotencyKey
+      });
+      if (!attempt) return response.status(404).json({ code: 'EXAM_NOT_FOUND', message: 'Không tìm thấy đề đã publish.' });
+      response.set('Cache-Control', 'no-store');
+      return response.status(attempt.duplicate ? 200 : 201).json(attempt);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/attempts/:id', authenticate, studentOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ATTEMPT_ID', message: 'Attempt id không hợp lệ.' });
+    try {
+      const attempt = await attemptService.getOwned(request.params.id, request.auth.user.id);
+      if (!attempt) return response.status(404).json({ code: 'ATTEMPT_NOT_FOUND', message: 'Không tìm thấy attempt.' });
+      response.set('Cache-Control', 'no-store');
+      return response.json(attempt);
+    } catch (error) {
+      return next(error);
+    }
   });
 
   app.get('/api/imports/:id', importEnabled, authenticate, editorOrReviewer, async (request, response, next) => {
