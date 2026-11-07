@@ -37,6 +37,10 @@ flowchart LR
   Assembly --> Pool[Published FIXED question pool\nmetadata + derivative license]
   Assembly --> Engine[Deterministic backtracking\nseed + hard quotas]
   Engine --> AssemblyDB[(assembly_runs\nstudent/scoring snapshots + hashes)]
+  AssemblyDB --> Approval[BlueprintVersion\nindependent immutable review]
+  Approval --> AssemblyPub[ASSEMBLED publication\npublished snapshots]
+  AssemblyPub --> Catalog
+  Catalog --> Attempt
   Attempt --> Audit
 ```
 
@@ -48,7 +52,7 @@ Backend được giữ modular monolith để phù hợp repo nhỏ. `backend/sr
 
 Publish đọc lại archive, xác minh source SHA-256, revalidate và so canonical report hash với approval. `package-publication.js` dựng plan UUID nội bộ, đổi rich asset/answer-option references và giữ stable identity để tạo version kế tiếp. Repository khóa job và commit source/license/assets/stimuli/questions/groups/exam/publication/audit/status trong một transaction. Nếu bất kỳ insert nào lỗi, toàn bộ rollback; nếu client retry sau commit, `import_publications.import_job_id` trả lại publication cũ. Media storage key hiện là archive-backed (`source.zip#entry`), nên source ZIP published không được cleanup trước khi có object-storage promotion.
 
-`backend/src/catalog` chỉ đọc graph `PUBLISHED + FIXED + non-formal`, dựng lại full internal exam rồi chạy cùng student-safe presentation. Projection loại answer/explanation và lọc cả asset chỉ xuất hiện trong lời giải. Public asset query chỉ chấp nhận reference student-visible từ một published exam, sau đó xác minh bytes với metadata hash/size.
+`backend/src/catalog` chỉ đọc ExamVersion `PUBLISHED + non-formal`. FIXED dựng lại relational graph rồi chạy student-safe presentation; ASSEMBLED đọc immutable publication snapshot và kiểm tra hash/metadata binding. Projection loại answer/explanation. Public asset query chỉ chấp nhận reference student-visible từ FIXED graph hoặc ASSEMBLED student snapshot, sau đó xác minh bytes với metadata hash/size.
 
 `backend/src/attempts` tạo hai snapshot tách biệt: student snapshot được trả cho player, scoring snapshot chứa answer key chỉ nằm server-side. Cả hai được canonical-hash; create transaction khóa lại ExamVersion, ghi attempt + audit nguyên tử và unique `(student_user_id, idempotency_key)`. Service đọc idempotency record trước khi dựng snapshot để retry luôn nhận đúng bản cũ dù catalog đã thay đổi. Lookup luôn scope theo owner.
 
@@ -56,8 +60,8 @@ Autosave dùng optimistic concurrency với `answer_revision`: repository khóa 
 
 Submit khóa attempt, chỉ chấm response đã commit và tạo một immutable `attempt_score_revisions` row bằng `eduassess-scoring-v1`. Public result là projection riêng: PRACTICE final mới có correct answer; mock/diagnostic/pending chỉ có summary, không bao giờ map raw scoring snapshot, explanation hoặc essay rubric. Answered essay chuyển sang manual pending; assessment/competency interpretation vẫn là boundary khác.
 
-`backend/src/assembly` tách engine thuần, service projection/hash và MySQL repository. Repository lọc QuestionVersion published thuộc graph FIXED non-formal, provenance/license derivative còn hiệu lực và metadata assembly đầy đủ. Engine biến direct/atomic/split group thành selection unit, sắp thứ tự bằng seeded SHA-256 rank rồi backtrack hard constraints. Service lưu student/scoring snapshot riêng cùng selection/snapshot hash và audit. API/UI chỉ cho creator Editor/Super Admin; không nối thẳng run kỹ thuật vào catalog Student trước blueprint approval/publish policy.
+`backend/src/assembly` tách engine thuần, service projection/hash/governance và MySQL repository. Repository lọc QuestionVersion published thuộc graph FIXED non-formal, provenance/license derivative còn hiệu lực và metadata assembly đầy đủ. Engine biến direct/atomic/split group thành selection unit, sắp thứ tự bằng seeded SHA-256 rank rồi backtrack hard constraints. Service lưu student/scoring snapshot riêng cùng selection/snapshot hash. BlueprintVersion cần Reviewer độc lập; review bind hashes. Publication transaction tạo ExamVersion ASSEMBLED cùng published snapshot/hash/audit. Catalog dispatch theo mode: FIXED dựng graph, ASSEMBLED đọc snapshot; attempt dùng chung flow và không gọi engine.
 
 ## Boundaries kế tiếp
 
-`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`. Attempt/scoring và deterministic assembly foundation đã có; identity vẫn mới global role. Blueprint governance + Student delivery, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.
+`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`. Attempt/scoring và ASSEMBLED publish/delivery đã có; identity vẫn mới global role. Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.

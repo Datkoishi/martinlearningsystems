@@ -15,7 +15,7 @@
 
 FIXED giữ đúng cấu trúc version đã phát hành. ASSEMBLED lọc pool approved/licensed, giải constraints bằng seed, rồi tạo snapshot bất biến. Không gọi lại assembly khi reload. Cả hai đi qua cùng player và scoring service.
 
-Assembly foundation dùng metadata relational curriculum/topic/skill/difficulty/estimated/family. Chỉ QuestionVersion published trong graph FIXED non-formal, có provenance/license derivative hợp lệ mới vào pool. Quota là hard constraints; atomic group không được tách, split group phải mang stimulus; duplicate question/family bị chặn. Candidate order dùng seeded hash, run lưu engine/selection/snapshot hash. Technical run chưa được đưa thẳng cho Student nếu chưa có blueprint approval/publish gate.
+Assembly dùng metadata relational curriculum/topic/skill/difficulty/estimated/family. Chỉ QuestionVersion published trong graph FIXED non-formal, có provenance/license derivative hợp lệ mới vào pool. Quota là hard constraints; atomic group không được tách, split group phải mang stimulus; duplicate question/family bị chặn. Candidate order dùng seeded hash, run lưu engine/selection/snapshot hash. Mỗi run gắn immutable BlueprintVersion; creator không được tự duyệt, review bind hashes và chỉ APPROVED mới publish thành ExamVersion ASSEMBLED. Catalog/attempt chỉ đọc published snapshot, không chạy lại engine.
 
 ## Exam Package và rich content
 
@@ -31,7 +31,7 @@ Session là opaque token lưu trong cookie `HttpOnly`; DB chỉ lưu hash. Reque
 
 ## Catalog và attempt
 
-Catalog chỉ đọc graph `PUBLISHED + FIXED + non-formal`; không dùng DEMO draft làm nội dung thật. Student projection phải loại answer key, explanation, scoring fields và asset chỉ dùng trong lời giải. Public asset phải có reference student-visible từ published graph và bytes phải khớp metadata hash/size.
+Catalog chỉ đọc ExamVersion `PUBLISHED + non-formal`: FIXED dựng từ relational graph, ASSEMBLED đọc publication snapshot. Student projection phải loại answer key, explanation, scoring fields và asset chỉ dùng trong lời giải. Public asset phải có reference student-visible từ published FIXED graph hoặc ASSEMBLED snapshot và bytes phải khớp metadata hash/size.
 
 Attempt đóng băng `student_snapshot_json` và `scoring_snapshot_json` riêng, hash canonical cả hai. API chỉ map student snapshot; query đọc luôn scope theo authenticated Student. Create yêu cầu CSRF + Idempotency-Key unique theo Student, retry trả record cũ trước khi đọc lại catalog.
 

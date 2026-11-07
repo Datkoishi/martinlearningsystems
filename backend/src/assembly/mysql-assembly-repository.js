@@ -5,9 +5,31 @@ const parseJson = (value) => {
 const placeholders = (values) => values.map(() => '?').join(', ');
 const domainError = (code, message, statusCode = 409) => Object.assign(new Error(message), { code, statusCode });
 
+const mapReview = (row) => row.review_id && ({
+  id: row.review_id,
+  reviewerUserId: row.reviewer_user_id,
+  decision: row.review_decision,
+  reason: row.review_reason,
+  selectionSha256: row.review_selection_sha256,
+  snapshotSha256: row.review_snapshot_sha256,
+  createdAt: row.review_created_at
+});
+
+const mapPublication = (row) => row.publication_id && ({
+  id: row.publication_id,
+  examVersionId: row.published_exam_version_id,
+  publishedByUserId: row.published_by_user_id,
+  snapshotSha256: row.published_snapshot_sha256,
+  publishedAt: row.published_at
+});
+
 const mapRun = (row) => row && ({
   id: row.id,
   creatorUserId: row.created_by_user_id,
+  blueprintVersionId: row.blueprint_version_id,
+  blueprintVersion: Number(row.blueprint_version_number),
+  blueprintVersionSnapshot: parseJson(row.blueprint_version_json),
+  approvalStatus: row.blueprint_approval_status,
   idempotencyKey: row.idempotency_key,
   requestSha256: row.request_sha256,
   status: row.status,
@@ -20,16 +42,31 @@ const mapRun = (row) => row && ({
   studentSnapshot: parseJson(row.student_snapshot_json),
   scoringSnapshot: parseJson(row.scoring_snapshot_json),
   snapshotSha256: row.snapshot_sha256,
-  createdAt: row.created_at
+  createdAt: row.created_at,
+  review: mapReview(row),
+  publication: mapPublication(row)
 });
 
 const selectRun = async (executor, whereSql, values, forUpdate = false) => {
   const [rows] = await executor.execute(
-    `SELECT id, created_by_user_id, idempotency_key, request_sha256, status,
-            blueprint_json, seed, engine_version, selection_sha256,
-            selection_manifest_json, source_distribution_json,
-            student_snapshot_json, scoring_snapshot_json, snapshot_sha256, created_at
-     FROM assembly_runs
+    `SELECT ar.id, ar.created_by_user_id, ar.blueprint_version_id,
+            ebv.version_number AS blueprint_version_number,
+            ebv.approval_status AS blueprint_approval_status,
+            ebv.blueprint_json AS blueprint_version_json,
+            ar.idempotency_key, ar.request_sha256, ar.status,
+            ar.blueprint_json, ar.seed, ar.engine_version, ar.selection_sha256,
+            ar.selection_manifest_json, ar.source_distribution_json,
+            ar.student_snapshot_json, ar.scoring_snapshot_json, ar.snapshot_sha256, ar.created_at,
+            rv.id AS review_id, rv.reviewer_user_id, rv.decision AS review_decision,
+            rv.reason AS review_reason, rv.selection_sha256 AS review_selection_sha256,
+            rv.snapshot_sha256 AS review_snapshot_sha256, rv.created_at AS review_created_at,
+            ap.id AS publication_id, ap.exam_version_id AS published_exam_version_id,
+            ap.published_by_user_id, ap.snapshot_sha256 AS published_snapshot_sha256,
+            ap.published_at
+     FROM assembly_runs ar
+     INNER JOIN exam_blueprint_versions ebv ON ebv.id = ar.blueprint_version_id
+     LEFT JOIN assembly_reviews rv ON rv.assembly_run_id = ar.id
+     LEFT JOIN assembly_publications ap ON ap.assembly_run_id = ar.id
      WHERE ${whereSql}
      LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
     values
@@ -67,11 +104,15 @@ export class MysqlAssemblyRepository {
   }
 
   async findByIdempotency(creatorUserId, idempotencyKey) {
-    return readRunSnapshot(this.pool, 'created_by_user_id = ? AND idempotency_key = ?', [creatorUserId, idempotencyKey]);
+    return readRunSnapshot(this.pool, 'ar.created_by_user_id = ? AND ar.idempotency_key = ?', [creatorUserId, idempotencyKey]);
   }
 
   async findOwned(id, creatorUserId) {
-    return readRunSnapshot(this.pool, 'id = ? AND created_by_user_id = ?', [id, creatorUserId]);
+    return readRunSnapshot(this.pool, 'ar.id = ? AND ar.created_by_user_id = ?', [id, creatorUserId]);
+  }
+
+  async findForReview(id) {
+    return readRunSnapshot(this.pool, 'ar.id = ?', [id]);
   }
 
   async listEligiblePool(filters) {
@@ -287,7 +328,7 @@ export class MysqlAssemblyRepository {
       await connection.beginTransaction();
       const existing = await selectRun(
         connection,
-        'created_by_user_id = ? AND idempotency_key = ?',
+        'ar.created_by_user_id = ? AND ar.idempotency_key = ?',
         [run.creatorUserId, run.idempotencyKey],
         true
       );
@@ -299,14 +340,28 @@ export class MysqlAssemblyRepository {
         return { run: existing, duplicate: true };
       }
       await connection.execute(
+        `INSERT INTO exam_blueprints
+          (id, stable_key, created_by_user_id, created_at)
+         VALUES (?, ?, ?, ?)`,
+        [run.blueprintId, run.blueprintStableKey, run.creatorUserId, run.createdAt]
+      );
+      await connection.execute(
+        `INSERT INTO exam_blueprint_versions
+          (id, blueprint_id, version_number, schema_version, blueprint_json,
+           approval_status, created_by_user_id, created_at)
+         VALUES (?, ?, ?, ?, CAST(? AS JSON), 'NEEDS_REVIEW', ?, ?)`,
+        [run.blueprintVersionId, run.blueprintId, run.blueprintVersion,
+          run.blueprint.schemaVersion, JSON.stringify(run.blueprint), run.creatorUserId, run.createdAt]
+      );
+      await connection.execute(
         `INSERT INTO assembly_runs
-          (id, created_by_user_id, idempotency_key, request_sha256, status,
+          (id, created_by_user_id, blueprint_version_id, idempotency_key, request_sha256, status,
            blueprint_json, seed, engine_version, selection_sha256,
            selection_manifest_json, source_distribution_json,
            student_snapshot_json, scoring_snapshot_json, snapshot_sha256, created_at)
-         VALUES (?, ?, ?, ?, 'SUCCEEDED', CAST(? AS JSON), ?, ?, ?,
+         VALUES (?, ?, ?, ?, ?, 'SUCCEEDED', CAST(? AS JSON), ?, ?, ?,
                  CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), ?, ?)`,
-        [run.id, run.creatorUserId, run.idempotencyKey, run.requestSha256,
+        [run.id, run.creatorUserId, run.blueprintVersionId, run.idempotencyKey, run.requestSha256,
           JSON.stringify(run.blueprint), run.seed, run.engineVersion, run.selectionSha256,
           JSON.stringify(run.selectionManifest), JSON.stringify(run.sourceDistribution),
           JSON.stringify(run.studentSnapshot), JSON.stringify(run.scoringSnapshot),
@@ -322,7 +377,7 @@ export class MysqlAssemblyRepository {
           sourceDistribution: run.sourceDistribution
         })]
       );
-      const created = await selectRun(connection, 'id = ? AND created_by_user_id = ?', [run.id, run.creatorUserId]);
+      const created = await selectRun(connection, 'ar.id = ? AND ar.created_by_user_id = ?', [run.id, run.creatorUserId]);
       await connection.commit();
       return { run: created, duplicate: false };
     } catch (error) {
@@ -330,7 +385,7 @@ export class MysqlAssemblyRepository {
       if (error?.code === 'ER_DUP_ENTRY') {
         const existing = await selectRun(
           connection,
-          'created_by_user_id = ? AND idempotency_key = ?',
+          'ar.created_by_user_id = ? AND ar.idempotency_key = ?',
           [run.creatorUserId, run.idempotencyKey]
         );
         if (existing) {
@@ -339,6 +394,149 @@ export class MysqlAssemblyRepository {
           }
           return { run: existing, duplicate: true };
         }
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async createReview(review) {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const run = await selectRun(connection, 'ar.id = ?', [review.assemblyRunId], true);
+      if (!run) {
+        await connection.rollback();
+        return null;
+      }
+      if (run.creatorUserId === review.reviewerUserId) {
+        throw domainError('SELF_REVIEW_FORBIDDEN', 'Người tạo assembly run không được tự duyệt run đó.');
+      }
+      if (run.review || run.approvalStatus !== 'NEEDS_REVIEW') {
+        throw domainError('ASSEMBLY_NOT_REVIEWABLE', 'Assembly run không còn ở trạng thái chờ duyệt.');
+      }
+      if (run.blueprintVersionId !== review.blueprintVersionId
+        || run.selectionSha256 !== review.selectionSha256
+        || run.snapshotSha256 !== review.snapshotSha256) {
+        throw domainError('ASSEMBLY_REVIEW_BINDING_MISMATCH', 'Assembly run đã khác với snapshot được gửi duyệt.');
+      }
+      await connection.execute(
+        `INSERT INTO assembly_reviews
+          (id, assembly_run_id, blueprint_version_id, reviewer_user_id, decision,
+           reason, selection_sha256, snapshot_sha256, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [review.id, review.assemblyRunId, review.blueprintVersionId, review.reviewerUserId,
+          review.decision, review.reason, review.selectionSha256, review.snapshotSha256, review.createdAt]
+      );
+      await connection.execute(
+        `UPDATE exam_blueprint_versions
+         SET approval_status = ?
+         WHERE id = ? AND approval_status = 'NEEDS_REVIEW'`,
+        [review.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED', review.blueprintVersionId]
+      );
+      await connection.execute(
+        `INSERT INTO audit_logs
+          (id, actor_user_id, event_type, resource_type, resource_id, outcome, details_json)
+         VALUES (?, ?, 'ASSEMBLY_REVIEWED', 'ASSEMBLY_RUN', ?, 'SUCCESS', CAST(? AS JSON))`,
+        [review.auditId, review.reviewerUserId, review.assemblyRunId, JSON.stringify({
+          decision: review.decision,
+          blueprintVersionId: review.blueprintVersionId,
+          selectionSha256: review.selectionSha256,
+          snapshotSha256: review.snapshotSha256
+        })]
+      );
+      const stored = await selectRun(connection, 'ar.id = ?', [review.assemblyRunId]);
+      await connection.commit();
+      return stored;
+    } catch (error) {
+      await connection.rollback();
+      if (error?.code === 'ER_DUP_ENTRY') {
+        throw domainError('ASSEMBLY_NOT_REVIEWABLE', 'Assembly run đã có quyết định bất biến.');
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async publish(publication) {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const run = await selectRun(connection, 'ar.id = ?', [publication.assemblyRunId], true);
+      if (!run) {
+        await connection.rollback();
+        return null;
+      }
+      if (run.publication) {
+        await connection.commit();
+        return { run, publication: run.publication, duplicate: true };
+      }
+      if (run.approvalStatus !== 'APPROVED' || run.review?.decision !== 'APPROVE') {
+        throw domainError('ASSEMBLY_NOT_APPROVED', 'Assembly run chưa có approval hợp lệ để publish.');
+      }
+      if (run.blueprint.purpose === 'FORMAL_ASSESSMENT') {
+        throw domainError('FORMAL_ASSESSMENT_DISABLED', 'Formal assessment đang bị khóa.');
+      }
+      if (run.blueprintVersionId !== publication.blueprintVersionId
+        || run.selectionSha256 !== publication.selectionSha256
+        || run.snapshotSha256 !== publication.sourceSnapshotSha256
+        || run.review.selectionSha256 !== publication.selectionSha256
+        || run.review.snapshotSha256 !== publication.sourceSnapshotSha256) {
+        throw domainError('ASSEMBLY_PUBLICATION_BINDING_MISMATCH', 'Approval không còn khớp assembly snapshot.');
+      }
+      await connection.execute(
+        `INSERT INTO exams (id, source_id, stable_key, created_at)
+         VALUES (?, NULL, ?, ?)`,
+        [publication.examId, publication.examStableKey, publication.publishedAt]
+      );
+      await connection.execute(
+        `INSERT INTO exam_versions
+          (id, exam_id, version_number, title, description, exam_mode, purpose,
+           approval_status, grade, subject, duration_minutes, schema_version, published_at)
+         VALUES (?, ?, 1, ?, ?, 'ASSEMBLED', ?, 'PUBLISHED', ?, ?, ?, '1.0.0', ?)`,
+        [publication.examVersionId, publication.examId, run.blueprint.title, run.blueprint.description,
+          run.blueprint.purpose, run.blueprint.grade, run.blueprint.subject,
+          run.blueprint.durationMinutes, publication.publishedAt]
+      );
+      await connection.execute(
+        `INSERT INTO assembly_publications
+          (id, assembly_run_id, blueprint_version_id, exam_version_id, published_by_user_id,
+           selection_sha256, source_snapshot_sha256, student_snapshot_json,
+           scoring_snapshot_json, snapshot_sha256, published_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?)`,
+        [publication.id, publication.assemblyRunId, publication.blueprintVersionId,
+          publication.examVersionId, publication.publisherUserId, publication.selectionSha256,
+          publication.sourceSnapshotSha256, JSON.stringify(publication.studentSnapshot),
+          JSON.stringify(publication.scoringSnapshot), publication.snapshotSha256, publication.publishedAt]
+      );
+      await connection.execute(
+        `UPDATE exam_blueprint_versions
+         SET approval_status = 'PUBLISHED'
+         WHERE id = ? AND approval_status = 'APPROVED'`,
+        [publication.blueprintVersionId]
+      );
+      await connection.execute(
+        `INSERT INTO audit_logs
+          (id, actor_user_id, event_type, resource_type, resource_id, outcome, details_json)
+         VALUES (?, ?, 'ASSEMBLY_PUBLISHED', 'ASSEMBLY_RUN', ?, 'SUCCESS', CAST(? AS JSON))`,
+        [publication.auditId, publication.publisherUserId, publication.assemblyRunId, JSON.stringify({
+          blueprintVersionId: publication.blueprintVersionId,
+          examVersionId: publication.examVersionId,
+          selectionSha256: publication.selectionSha256,
+          sourceSnapshotSha256: publication.sourceSnapshotSha256,
+          publishedSnapshotSha256: publication.snapshotSha256
+        })]
+      );
+      const stored = await selectRun(connection, 'ar.id = ?', [publication.assemblyRunId]);
+      await connection.commit();
+      return { run: stored, publication: stored.publication, duplicate: false };
+    } catch (error) {
+      await connection.rollback();
+      if (error?.code === 'ER_DUP_ENTRY') {
+        const existing = await selectRun(connection, 'ar.id = ?', [publication.assemblyRunId]);
+        if (existing?.publication) return { run: existing, publication: existing.publication, duplicate: true };
       }
       throw error;
     } finally {

@@ -138,20 +138,20 @@ export default function PublishedCatalog({ authUser, onLogin }) {
     <main className="catalog-page">
       <section className="catalog-hero">
         <div>
-          <p className="eyebrow">Published FIXED catalog</p>
-          <h1>Đề đã qua hai cổng duyệt, sẵn sàng cho học sinh.</h1>
+          <p className="eyebrow">Published exam catalog</p>
+          <h1>Đề FIXED và ASSEMBLED đã qua approval gate.</h1>
         </div>
-        <p>Catalog công khai chỉ trả projection an toàn. Khi Student bắt đầu, server đóng băng riêng snapshot hiển thị và snapshot chấm điểm.</p>
+        <p>Catalog công khai chỉ trả projection an toàn. ASSEMBLED dùng snapshot đã publish và không chạy lại engine khi Student bắt đầu hoặc tải lại trang.</p>
       </section>
 
       {loading ? <div className="catalog-state" role="status">Đang tải catalog…</div> : (
         exams.length === 0 ? (
-          <div className="catalog-state"><strong>Chưa có đề FIXED nào đã publish.</strong><span>Hãy hoàn tất luồng import, technical review, academic review và publish.</span></div>
+          <div className="catalog-state"><strong>Chưa có đề nào đã publish.</strong><span>Hãy hoàn tất approval và publish cho FIXED hoặc ASSEMBLED.</span></div>
         ) : (
           <div className="catalog-grid" aria-label="Danh sách đề đã publish">
             {exams.map((exam) => (
               <button className={`catalog-card ${selectedId === exam.id ? 'selected' : ''}`} type="button" key={exam.id} onClick={() => setSelectedId(exam.id)}>
-                <span>{exam.subject} · Lớp {exam.grade}</span>
+                <span>{exam.mode} · {exam.subject} · Lớp {exam.grade}</span>
                 <strong>{exam.title}</strong>
                 <small>{exam.durationMinutes} phút · phiên bản {exam.version}</small>
               </button>

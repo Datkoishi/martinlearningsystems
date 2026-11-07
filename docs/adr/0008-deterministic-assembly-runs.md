@@ -20,4 +20,4 @@ ASSEMBLED phải tái hiện được, giữ group/stimulus, tôn trọng quyề
 
 ## Consequences
 
-Pool cũ thiếu metadata có thể dẫn tới `INSUFFICIENT_POOL` nhưng FIXED không bị ảnh hưởng. Exact multi-dimensional quota dễ giải thích nhưng có thể làm search lớn; engine fail ở 100.000 node và cần blueprint rõ hơn thay vì tự tăng giới hạn. Failed runs chưa persist. Blueprint version/approval, ASSEMBLED publication, option shuffle, soft optimization và Student delivery là các task riêng.
+Pool cũ thiếu metadata có thể dẫn tới `INSUFFICIENT_POOL` nhưng FIXED không bị ảnh hưởng. Exact multi-dimensional quota dễ giải thích nhưng có thể làm search lớn; engine fail ở 100.000 node và cần blueprint rõ hơn thay vì tự tăng giới hạn. Failed runs chưa persist. Blueprint version/approval, ASSEMBLED publication và Student delivery được triển khai tiếp ở ADR-0009; option shuffle/soft optimization vẫn là task riêng.

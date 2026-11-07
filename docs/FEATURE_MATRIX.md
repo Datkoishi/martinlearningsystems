@@ -14,5 +14,6 @@
 | PLAY-001a | Published FIXED catalog + immutable attempt snapshot | Student | P0 | VERIFIED | `backend/src/catalog`, `backend/src/attempts`, `frontend/src/PublishedCatalog.jsx`, `007_attempt_snapshots.sql` | UT-PLAY-01–07 + DB/HTTP PASS | API_SPEC | IMP-001c + AUTH-001 |
 | PLAY-001b | Attempt autosave/submit/scoring/reveal | Student | P0 | VERIFIED | `backend/src/attempts`, `frontend/src/StudentExamView.jsx`, `008_attempt_scoring.sql` | UT-PLAY-08–12 + HTTP-PLAY-03 + DB-PLAY-04 PASS | API_SPEC | PLAY-001a; manual essay/regrade pending |
 | ASM-001a | Approved pool + deterministic assembly snapshot | Editor | P0 | VERIFIED | `backend/src/assembly`, `frontend/src/AssemblyLab.jsx`, `009_assembly_foundation.sql` | UT-ASM-01–06 + HTTP-ASM-01 + DB-ASM-01 PASS | ASSEMBLY_ENGINE | published FIXED graph + derivative license |
-| ASM-001b | Blueprint approval/publish + Student ASSEMBLED attempt | Reviewer/Student | P0 | NOT_STARTED | — | AC-05–07/20 | ROADMAP | ASM-001a + approval policy |
+| ASM-001b | Blueprint approval/publish + Student ASSEMBLED attempt | Reviewer/Student | P0 | VERIFIED | `assembly-service.js`, `AssemblyReviewPanel.jsx`, `010_assembled_publication.sql` | UT-ASM-07–10 + HTTP-ASM-02 + DB-ASM-02 PASS | ASSEMBLY_ENGINE | ASM-001a + independent review |
+| ASM-001c | Blueprint authoring revisions + governance queue | Editor/Reviewer | P1 | NOT_STARTED | — | version immutability/list filtering | ROADMAP | ASM-001b |
 | ASMNT-001 | Evidence-based assessment | Student/Teacher | P0 | NOT_STARTED | — | AC-14 | ASSESSMENT_ENGINE | approved framework |

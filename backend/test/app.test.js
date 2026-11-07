@@ -202,15 +202,19 @@ test('attempt response, submit and result routes enforce student auth, CSRF and 
 test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads', async (context) => {
   const editorId = '00000000-0000-4000-8000-000000000511';
   const assemblyId = '00000000-0000-4000-8000-000000000512';
+  const reviewerId = '00000000-0000-4000-8000-000000000513';
   const calls = [];
   const authService = {
     async authenticate(token) {
+      const role = token === 'student-session'
+        ? 'STUDENT'
+        : token === 'reviewer-session' ? 'ACADEMIC_REVIEWER' : 'CONTENT_EDITOR';
       return {
         expiresAt: new Date('2026-11-08T00:00:00Z'),
         csrfTokenHash: 'test-only',
         user: {
-          id: editorId,
-          roles: token === 'student-session' ? ['STUDENT'] : ['CONTENT_EDITOR']
+          id: role === 'ACADEMIC_REVIEWER' ? reviewerId : editorId,
+          roles: [role]
         }
       };
     },
@@ -224,6 +228,22 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
     async getOwned(id, ownerId) {
       calls.push(['get', { id, ownerId }]);
       return { id, status: 'SUCCEEDED' };
+    },
+    async getReviewerPreview(id) {
+      calls.push(['preview', { id }]);
+      return { id, approvalStatus: 'NEEDS_REVIEW' };
+    },
+    async getReviewerAsset(id, assetId) {
+      calls.push(['asset', { id, assetId }]);
+      return { data: Buffer.from('reviewer-asset'), mimeType: 'image/png' };
+    },
+    async review(command) {
+      calls.push(['review', command]);
+      return { id: command.id, approvalStatus: 'APPROVED' };
+    },
+    async publish(command) {
+      calls.push(['publish', command]);
+      return { publication: { examVersionId: '00000000-0000-4000-8000-000000000514' }, duplicate: false };
     }
   };
   const app = createApp({ authService, assemblyService, importsEnabled: false });
@@ -281,4 +301,42 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
   });
   assert.equal(restored.status, 200);
   assert.deepEqual(calls.at(-1), ['get', { id: assemblyId, ownerId: editorId }]);
+
+  const editorPreview = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/reviewer-preview`, {
+    headers: { Cookie: editorCookie }
+  });
+  assert.equal(editorPreview.status, 403);
+
+  const reviewerCookie = 'eduassess_session=reviewer-session; eduassess_csrf=csrf-token';
+  const reviewerPreview = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/reviewer-preview`, {
+    headers: { Cookie: reviewerCookie }
+  });
+  assert.equal(reviewerPreview.status, 200);
+  assert.deepEqual(calls.at(-1), ['preview', { id: assemblyId }]);
+
+  const assetId = '00000000-0000-4000-8000-000000000515';
+  const reviewerAsset = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/assets/${assetId}`, {
+    headers: { Cookie: reviewerCookie }
+  });
+  assert.equal(reviewerAsset.status, 200);
+  assert.equal(await reviewerAsset.text(), 'reviewer-asset');
+  assert.deepEqual(calls.at(-1), ['asset', { id: assemblyId, assetId }]);
+
+  const reviewed = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/reviews`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: reviewerCookie,
+      'X-CSRF-Token': 'csrf-token'
+    },
+    body: JSON.stringify({ decision: 'APPROVE', reason: 'Đã kiểm tra toàn bộ snapshot assembled.' })
+  });
+  assert.equal(reviewed.status, 201);
+  assert.equal(calls.at(-1)[1].reviewerUserId, reviewerId);
+
+  const published = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/publish`, {
+    method: 'POST',
+    headers: { Cookie: reviewerCookie, 'X-CSRF-Token': 'csrf-token' }
+  });
+  assert.equal(published.status, 201);
+  assert.deepEqual(calls.at(-1), ['publish', { id: assemblyId, publisherUserId: reviewerId }]);
 });

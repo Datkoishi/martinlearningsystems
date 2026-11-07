@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import AuthPanel from './AuthPanel.jsx';
+import AssemblyReviewPanel from './AssemblyReviewPanel.jsx';
 import StudentExamView from './StudentExamView.jsx';
 import { csrfHeaders, hasRole } from './auth.js';
 
@@ -18,6 +19,7 @@ const lastRunKey = (userId) => `eduassess:assembly:last:${userId}`;
 
 export default function AssemblyLab({ authUser, onLogin }) {
   const canAssemble = hasRole(authUser, 'CONTENT_EDITOR', 'SUPER_ADMIN');
+  const canReview = hasRole(authUser, 'ACADEMIC_REVIEWER', 'SUPER_ADMIN');
   const [form, setForm] = useState({
     title: '[DEMO] Đề luyện tập assembled',
     grade: '5',
@@ -145,19 +147,21 @@ export default function AssemblyLab({ authUser, onLogin }) {
 
   if (authUser === undefined) return <main className="assembly-page"><div className="catalog-state">Đang xác minh phiên…</div></main>;
   if (!authUser) return <main className="assembly-page"><AuthPanel mode="content" onLogin={onLogin} /></main>;
-  if (!canAssemble) return <main className="assembly-page"><div className="catalog-state"><strong>Không có quyền assembly.</strong><span>Cần role CONTENT_EDITOR hoặc SUPER_ADMIN.</span></div></main>;
+  if (!canAssemble && !canReview) return <main className="assembly-page"><div className="catalog-state"><strong>Không có quyền assembly.</strong><span>Cần role CONTENT_EDITOR, ACADEMIC_REVIEWER hoặc SUPER_ADMIN.</span></div></main>;
 
   return (
     <main className="assembly-page">
       <section className="assembly-hero">
         <div>
-          <p className="eyebrow">Deterministic Assembly Lab</p>
-          <h1>Tạo một snapshot có thể tái hiện, không phá quota khi pool thiếu.</h1>
+          <p className="eyebrow">Deterministic Assembly Governance</p>
+          <h1>{canAssemble ? 'Tạo snapshot có thể tái hiện, không phá quota khi pool thiếu.' : 'Duyệt đúng frozen snapshot trước khi mở cho Student.'}</h1>
         </div>
-        <p>Chỉ câu đã publish, có metadata đầy đủ và license cho derivative assembly mới vào pool. Kết quả này là preview kỹ thuật, chưa được đưa vào catalog Student.</p>
+        <p>{canAssemble
+          ? 'Chỉ câu đã publish, có metadata đầy đủ và license derivative mới vào pool. Technical run cần Reviewer độc lập trước khi publish.'
+          : 'Reviewer payload có answer/lời giải; quyết định bind hashes và chỉ bản approved mới xuất hiện trong catalog.'}</p>
       </section>
 
-      <div className="assembly-layout">
+      {canAssemble && <div className="assembly-layout">
         <form className="assembly-form" onSubmit={assemble}>
           <h2>Blueprint 1.0.0</h2>
           <label><span>Tiêu đề</span><input value={form.title} onChange={update('title')} /></label>
@@ -197,6 +201,8 @@ export default function AssemblyLab({ authUser, onLogin }) {
           {run && <>
             <h2>{run.status}</h2>
             <dl>
+              <div><dt>Run ID</dt><dd><code>{run.id}</code></dd></div>
+              <div><dt>Blueprint</dt><dd>v{run.blueprintVersion} · {run.approvalStatus}</dd></div>
               <div><dt>Engine</dt><dd><code>{run.engineVersion}</code></dd></div>
               <div><dt>Seed</dt><dd><code>{run.seed}</code></dd></div>
               <div><dt>Selection hash</dt><dd><code>{run.selectionSha256.slice(0, 16)}…</code></dd></div>
@@ -206,9 +212,9 @@ export default function AssemblyLab({ authUser, onLogin }) {
             <ul>{Object.entries(run.sourceDistribution).map(([sourceId, count]) => <li key={sourceId}><code>{sourceId}</code><span>{count} câu</span></li>)}</ul>
           </>}
         </aside>
-      </div>
+      </div>}
 
-      {run?.snapshot && (
+      {canAssemble && run?.snapshot && (
         <StudentExamView
           key={run.id}
           exam={run.snapshot}
@@ -217,6 +223,7 @@ export default function AssemblyLab({ authUser, onLogin }) {
           previewMessage="Chỉ creator Editor/Admin xem được; snapshot này chưa publish và không thể nộp bài."
         />
       )}
+      {canReview && <AssemblyReviewPanel authUser={authUser} />}
     </main>
   );
 }

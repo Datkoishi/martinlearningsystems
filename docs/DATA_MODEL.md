@@ -1,6 +1,6 @@
 # Data model
 
-Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`.
+Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`; blueprint governance/publication: `010_assembled_publication.sql`.
 
 ```mermaid
 erDiagram
@@ -35,6 +35,12 @@ erDiagram
   EXAM_ATTEMPT ||--o{ ATTEMPT_OPERATION : deduplicates
   USER ||--o{ ATTEMPT_OPERATION : owns
   USER ||--o{ ASSEMBLY_RUN : creates
+  USER ||--o{ EXAM_BLUEPRINT : creates
+  EXAM_BLUEPRINT ||--o{ EXAM_BLUEPRINT_VERSION : versions
+  EXAM_BLUEPRINT_VERSION ||--|| ASSEMBLY_RUN : governs
+  ASSEMBLY_RUN ||--o| ASSEMBLY_REVIEW : reviewed
+  ASSEMBLY_RUN ||--o| ASSEMBLY_PUBLICATION : publishes
+  ASSEMBLY_PUBLICATION ||--|| EXAM_VERSION : exposes
 ```
 
 Published versions phải bất biến ở application/service layer; thay đổi tạo version mới. `ExamItem` có check đúng một target. JSON dành cho rich content/answer config đã được validate; grade/subject/type/status là cột quan hệ để lọc.
@@ -51,4 +57,8 @@ Published versions phải bất biến ở application/service layer; thay đổ
 
 Migration 009 bổ sung các cột relational/indexed trên `question_versions`: curriculum, topic, skill, difficulty, estimated time và family key. Metadata thiếu không làm hỏng FIXED, nhưng row không eligible cho assembly.
 
-`assembly_runs` lưu creator/idempotency request hash, canonical blueprint, seed, engine version, selection manifest/source distribution, student/scoring snapshot tách riêng và hai hash toàn vẹn. Unique `(created_by_user_id, idempotency_key)` chống duplicate retry; chỉ run `SUCCEEDED` được lưu. Lỗi pool trả có cấu trúc nhưng chưa persist rejection run. Assembly snapshot chưa là ExamVersion đã publish và chưa được attempt tham chiếu.
+`assembly_runs` lưu creator/idempotency request hash, canonical blueprint, seed, engine version, selection manifest/source distribution, student/scoring snapshot tách riêng và hai hash toàn vẹn. Unique `(created_by_user_id, idempotency_key)` chống duplicate retry; chỉ run `SUCCEEDED` được lưu. Lỗi pool trả có cấu trúc nhưng chưa persist rejection run. Technical snapshot chỉ trở thành catalog/attempt source sau review + publication record.
+
+Migration 010 cho phép `exams.source_id` nullable riêng cho ASSEMBLED nhiều nguồn; provenance thật vẫn nằm trên từng QuestionVersion/selection manifest. `exam_blueprints` giữ identity, `exam_blueprint_versions` giữ JSON version bất biến + approval status. Mỗi run gắn đúng một version; run có trước reviewer-payload contract được backfill thành version 1 `REJECTED` và phải assemble lại, không được mở publish gate âm thầm.
+
+`assembly_reviews` unique theo run, bind reviewer/decision/reason với selection + source snapshot hashes. `assembly_publications` unique theo run/blueprint/exam version, lưu published student/scoring snapshots + hash và publisher. Publish tạo `exam_versions.mode=ASSEMBLED`; không tạo ExamSection/Item bản sao vì frozen publication snapshot là source of truth. Attempt vẫn FK cùng ExamVersion và sao chép publication snapshot vào attempt.

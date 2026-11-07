@@ -17,14 +17,17 @@ export class MysqlCatalogRepository {
     this.pool = pool;
   }
 
-  async listPublishedFixed() {
+  async listPublished() {
     const [rows] = await this.pool.execute(
       `SELECT ev.id, ev.version_number, ev.title, ev.description, ev.grade, ev.subject,
-              ev.duration_minutes, ev.purpose, ev.published_at
+              ev.duration_minutes, ev.exam_mode, ev.purpose, ev.published_at
        FROM exam_versions ev
        WHERE ev.approval_status = 'PUBLISHED'
-         AND ev.exam_mode = 'FIXED'
+         AND ev.exam_mode IN ('FIXED', 'ASSEMBLED')
          AND ev.purpose <> 'FORMAL_ASSESSMENT'
+         AND (ev.exam_mode = 'FIXED' OR EXISTS (
+           SELECT 1 FROM assembly_publications ap WHERE ap.exam_version_id = ev.id
+         ))
        ORDER BY ev.published_at DESC, ev.created_at DESC`
     );
     return rows.map((row) => ({
@@ -35,9 +38,29 @@ export class MysqlCatalogRepository {
       grade: row.grade,
       subject: row.subject,
       durationMinutes: row.duration_minutes,
+      mode: row.exam_mode,
       purpose: row.purpose,
       publishedAt: row.published_at
     }));
+  }
+
+  async listPublishedFixed() {
+    return (await this.listPublished()).filter((exam) => exam.mode === 'FIXED');
+  }
+
+  async findPublishedMode(examVersionId) {
+    const [rows] = await this.pool.execute(
+      `SELECT exam_mode
+       FROM exam_versions
+       WHERE id = ? AND approval_status = 'PUBLISHED'
+         AND purpose <> 'FORMAL_ASSESSMENT'
+         AND (exam_mode = 'FIXED' OR EXISTS (
+           SELECT 1 FROM assembly_publications ap WHERE ap.exam_version_id = exam_versions.id
+         ))
+       LIMIT 1`,
+      [examVersionId]
+    );
+    return rows[0]?.exam_mode || null;
   }
 
   async findPublishedFixed(examVersionId) {
@@ -237,6 +260,41 @@ export class MysqlCatalogRepository {
     };
   }
 
+  async findPublishedAssembled(examVersionId) {
+    const [rows] = await this.pool.execute(
+      `SELECT ev.id, ev.version_number, ev.title, ev.description, ev.exam_mode, ev.purpose,
+              ev.approval_status, ev.grade, ev.subject, ev.duration_minutes, ev.schema_version,
+              ap.student_snapshot_json, ap.scoring_snapshot_json, ap.snapshot_sha256,
+              ap.published_at
+       FROM exam_versions ev
+       INNER JOIN assembly_publications ap ON ap.exam_version_id = ev.id
+       WHERE ev.id = ?
+         AND ev.approval_status = 'PUBLISHED'
+         AND ev.exam_mode = 'ASSEMBLED'
+         AND ev.purpose <> 'FORMAL_ASSESSMENT'
+       LIMIT 1`,
+      [examVersionId]
+    );
+    if (!rows[0]) return null;
+    return {
+      id: rows[0].id,
+      version: Number(rows[0].version_number),
+      mode: rows[0].exam_mode,
+      purpose: rows[0].purpose,
+      approvalStatus: rows[0].approval_status,
+      title: rows[0].title,
+      description: rows[0].description,
+      grade: Number(rows[0].grade),
+      subject: rows[0].subject,
+      durationMinutes: Number(rows[0].duration_minutes),
+      schemaVersion: rows[0].schema_version,
+      studentSnapshot: parseJson(rows[0].student_snapshot_json),
+      scoringSnapshot: parseJson(rows[0].scoring_snapshot_json),
+      snapshotSha256: rows[0].snapshot_sha256,
+      publishedAt: rows[0].published_at
+    };
+  }
+
   async findPublishedAsset(assetId) {
     const [rows] = await this.pool.execute(
       `SELECT ma.id, ma.storage_key, ma.mime_type, ma.sha256, ma.size_bytes, ma.alt_text
@@ -333,6 +391,64 @@ export class MysqlCatalogRepository {
       sha256: rows[0].sha256,
       sizeBytes: Number(rows[0].size_bytes),
       altText: rows[0].alt_text
+    };
+  }
+
+  async findAnyPublishedAsset(assetId) {
+    const [rows] = await this.pool.execute(
+      `SELECT id, storage_key, mime_type, sha256, size_bytes, alt_text
+       FROM media_assets
+       WHERE id = ? AND approval_status = 'PUBLISHED'
+       LIMIT 1`,
+      [assetId]
+    );
+    if (!rows[0]) return null;
+    return {
+      id: rows[0].id,
+      storageKey: rows[0].storage_key,
+      mimeType: rows[0].mime_type,
+      sha256: rows[0].sha256,
+      sizeBytes: Number(rows[0].size_bytes),
+      altText: rows[0].alt_text
+    };
+  }
+
+  async findPublishedAssembledAsset(assetId) {
+    const [rows] = await this.pool.execute(
+      `SELECT ma.id, ma.storage_key, ma.mime_type, ma.sha256, ma.size_bytes, ma.alt_text,
+              ev.id AS exam_version_id, ev.version_number, ev.title, ev.purpose,
+              ap.student_snapshot_json, ap.scoring_snapshot_json, ap.snapshot_sha256
+       FROM media_assets ma
+       INNER JOIN assembly_publications ap
+         ON JSON_SEARCH(ap.student_snapshot_json, 'one', ma.id, NULL, '$.assets.*.id') IS NOT NULL
+       INNER JOIN exam_versions ev ON ev.id = ap.exam_version_id
+       WHERE ma.id = ? AND ma.approval_status = 'PUBLISHED'
+         AND ev.approval_status = 'PUBLISHED'
+         AND ev.exam_mode = 'ASSEMBLED'
+         AND ev.purpose <> 'FORMAL_ASSESSMENT'
+       ORDER BY ap.published_at DESC
+       LIMIT 1`,
+      [assetId]
+    );
+    if (!rows[0]) return null;
+    return {
+      asset: {
+        id: rows[0].id,
+        storageKey: rows[0].storage_key,
+        mimeType: rows[0].mime_type,
+        sha256: rows[0].sha256,
+        sizeBytes: Number(rows[0].size_bytes),
+        altText: rows[0].alt_text
+      },
+      publication: {
+        id: rows[0].exam_version_id,
+        version: Number(rows[0].version_number),
+        title: rows[0].title,
+        purpose: rows[0].purpose,
+        studentSnapshot: parseJson(rows[0].student_snapshot_json),
+        scoringSnapshot: parseJson(rows[0].scoring_snapshot_json),
+        snapshotSha256: rows[0].snapshot_sha256
+      }
     };
   }
 }

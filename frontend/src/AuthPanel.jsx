@@ -44,7 +44,7 @@ export default function AuthPanel({ onLogin, mode = 'content' }) {
             <p>Import, reviewer preview và Assembly Lab là khu vực bảo vệ. Hệ thống kiểm tra role ở backend, không chỉ ẩn nút trên giao diện.</p>
             <ul>
               <li><strong>Content Editor</strong> — tải/kiểm tra package và tạo assembly technical preview.</li>
-              <li><strong>Academic Reviewer</strong> — xem answer payload và quyết định kỹ thuật.</li>
+              <li><strong>Academic Reviewer</strong> — xem answer payload, duyệt và publish assembly snapshot.</li>
             </ul>
           </>
         )}

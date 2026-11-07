@@ -2,7 +2,7 @@
 
 ## Trạng thái hiện tại
 
-`eduassess-assembly-v1` đã triển khai foundation deterministic cho Editor. Engine nhận Blueprint 1.0.0 + seed, lọc approved/licensed question pool, giải hard constraints bằng backtracking có giới hạn, rồi lưu immutable `assembly_runs` snapshot. Run không tự xuất hiện trong Student catalog; blueprint approval/publish và attempt integration là slice kế tiếp.
+`eduassess-assembly-v1` nhận Blueprint 1.0.0 + seed, lọc approved/licensed question pool, giải hard constraints bằng backtracking có giới hạn, rồi lưu immutable `assembly_runs` snapshot. Mỗi run gắn BlueprintVersion `NEEDS_REVIEW`; independent Reviewer phải duyệt đúng hash trước khi publish thành ExamVersion ASSEMBLED. Student catalog/attempt dùng published snapshot và không chạy lại engine.
 
 ## Eligibility của question pool
 
@@ -60,6 +60,17 @@ Mỗi quota dimension là exact count và tổng phải bằng `section.count`. 
 
 Engine chưa xáo options và chưa dùng soft optimization/student history. Các chức năng này chỉ được thêm khi có schema/policy và test chứng minh không phá meaning/dependency.
 
+## Approval và publication
+
+1. Tạo run đồng thời tạo `exam_blueprints` identity + immutable `exam_blueprint_versions` version 1 ở `NEEDS_REVIEW`. Run cũ trước reviewer-payload contract được migration đánh `REJECTED` và phải assemble lại.
+2. Reviewer endpoint trả projection riêng có answer key/lời giải; explanation-only asset đi qua route reviewer-scoped, không qua public catalog.
+3. Creator không được tự review. Một BlueprintVersion chỉ có một `APPROVE|REJECT`; record bind `selection_sha256` và source `snapshot_sha256`.
+4. Chỉ `APPROVED` được publish. Transaction tạo `ExamVersion(mode=ASSEMBLED, PUBLISHED)`, publication record, student/scoring snapshots mới với ExamVersion ID, hash và audit; retry không tạo version/audit mới.
+5. Catalog xác minh published snapshot hash. Student attempt lại đóng băng bản sao của đúng publication snapshot; refresh/retry không query pool và không reassemble.
+6. `FORMAL_ASSESSMENT` tiếp tục fail-closed. Rejected blueprint không được sửa tại chỗ; tạo technical run/version mới.
+
+Schema hiện hỗ trợ identity/version nhưng UI tạo version 1 cho từng technical run; authoring revision trên cùng blueprint identity là phần mở rộng sau, không thay đổi version đã duyệt/publish.
+
 ## Error contract chính
 
 - `INCOMPATIBLE_BLUEPRINT` — schema/quota/rich instruction/limit không hợp lệ.
@@ -70,3 +81,7 @@ Engine chưa xáo options và chưa dùng soft optimization/student history. Cá
 - `MISSING_ASSETS` — candidate graph tham chiếu asset thiếu/chưa publish.
 - `IDEMPOTENCY_KEY_REUSED` — cùng key cho request khác.
 - `ASSEMBLY_SNAPSHOT_INTEGRITY_FAILED` — stored snapshot/hash không khớp.
+- `SELF_REVIEW_FORBIDDEN` — creator cố duyệt run của chính mình.
+- `ASSEMBLY_NOT_REVIEWABLE` / `ASSEMBLY_NOT_APPROVED` — decision đã khóa hoặc publish chưa đủ gate.
+- `ASSEMBLY_REVIEW_BINDING_MISMATCH` / `ASSEMBLY_PUBLICATION_BINDING_MISMATCH` — approval không còn khớp hashes.
+- `PUBLISHED_ASSEMBLY_INTEGRITY_FAILED` — publication snapshot/hash không khớp khi catalog đọc.

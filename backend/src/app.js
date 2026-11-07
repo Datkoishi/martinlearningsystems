@@ -131,7 +131,7 @@ export const createApp = ({
   app.get('/api/catalog/exams', async (_request, response, next) => {
     try {
       response.set('Cache-Control', 'public, max-age=60');
-      return response.json({ exams: await catalogService.listPublishedFixed() });
+      return response.json({ exams: await catalogService.listPublished() });
     } catch (error) {
       return next(error);
     }
@@ -140,7 +140,7 @@ export const createApp = ({
   app.get('/api/catalog/exams/:id', async (request, response, next) => {
     if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_EXAM_VERSION_ID', message: 'ExamVersion id không hợp lệ.' });
     try {
-      const exam = await catalogService.getPublishedFixed(request.params.id);
+      const exam = await catalogService.getPublished(request.params.id);
       if (!exam) return response.status(404).json({ code: 'EXAM_NOT_FOUND', message: 'Không tìm thấy đề đã publish.' });
       response.set('Cache-Control', 'public, max-age=60');
       return response.json(exam);
@@ -191,6 +191,70 @@ export const createApp = ({
       if (!run) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run.' });
       response.set('Cache-Control', 'no-store');
       return response.json(run);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assemblies/:id/reviewer-preview', authenticate, reviewerOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
+    try {
+      const run = await assemblyService.getReviewerPreview(request.params.id);
+      if (!run) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run.' });
+      response.set('Cache-Control', 'no-store');
+      return response.json(run);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assemblies/:id/assets/:assetId', authenticate, reviewerOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
+    if (!validUuid(request.params.assetId)) return response.status(400).json({ code: 'INVALID_ASSET_ID', message: 'Asset id không hợp lệ.' });
+    try {
+      const asset = await assemblyService.getReviewerAsset(request.params.id, request.params.assetId);
+      if (!asset) return response.status(404).json({ code: 'ASSET_NOT_FOUND', message: 'Asset không thuộc assembly run hoặc chưa publish.' });
+      response.set({
+        'Cache-Control': 'private, no-store',
+        'Content-Type': asset.mimeType,
+        'Content-Length': String(asset.data.length),
+        'Content-Disposition': 'inline'
+      });
+      return response.send(asset.data);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assemblies/:id/reviews', authenticate, reviewerOnly, requireCsrf, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
+    const { decision, reason } = request.body || {};
+    if (!['APPROVE', 'REJECT'].includes(decision)) return response.status(400).json({ code: 'INVALID_REVIEW_DECISION', message: 'Decision phải là APPROVE hoặc REJECT.' });
+    if (typeof reason !== 'string' || reason.trim().length < 10 || reason.trim().length > 1000) {
+      return response.status(400).json({ code: 'INVALID_REVIEW_REASON', message: 'Lý do review cần từ 10 đến 1000 ký tự.' });
+    }
+    try {
+      const run = await assemblyService.review({
+        id: request.params.id,
+        reviewerUserId: request.auth.user.id,
+        decision,
+        reason: reason.trim()
+      });
+      if (!run) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run.' });
+      response.set('Cache-Control', 'no-store');
+      return response.status(201).json(run);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assemblies/:id/publish', authenticate, reviewerOnly, requireCsrf, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
+    try {
+      const result = await assemblyService.publish({ id: request.params.id, publisherUserId: request.auth.user.id });
+      if (!result) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run.' });
+      response.set('Cache-Control', 'no-store');
+      return response.status(result.duplicate ? 200 : 201).json(result);
     } catch (error) {
       return next(error);
     }

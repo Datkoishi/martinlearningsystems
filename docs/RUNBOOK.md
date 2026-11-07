@@ -13,11 +13,11 @@ printf '%s' "$EDUASSESS_NEW_PASSWORD" | docker compose exec -T backend npm run a
 unset EDUASSESS_NEW_PASSWORD
 ```
 
-Role bootstrap hợp lệ: `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SUPER_ADMIN`; ưu tiên tách tài khoản Editor/Reviewer để enforce four-eyes. Sau khi có account và HTTPS/cookie đúng, đặt `ENABLE_IMPORT_API=true` theo quy trình rollout. `IMPORT_STORAGE_PATH` phải trỏ thư mục chỉ backend đọc/ghi; Docker dùng named volume `import_data`. Backup đồng bộ `users`, `user_roles`, `auth_sessions`, `audit_logs`, `import_jobs`, `import_reviews`, `import_publications`, `exam_attempts`, `attempt_responses`, `attempt_operations`, `attempt_score_revisions`, `assembly_runs` và volume này. Thiết lập job xóa session hết hạn cùng retention policy cho attempt/operation/assembly trước production.
+Role bootstrap hợp lệ: `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SUPER_ADMIN`; ưu tiên tách tài khoản Editor/Reviewer để enforce four-eyes. Sau khi có account và HTTPS/cookie đúng, đặt `ENABLE_IMPORT_API=true` theo quy trình rollout. `IMPORT_STORAGE_PATH` phải trỏ thư mục chỉ backend đọc/ghi; Docker dùng named volume `import_data`. Backup đồng bộ `users`, `user_roles`, `auth_sessions`, `audit_logs`, `import_jobs`, `import_reviews`, `import_publications`, `exam_attempts`, `attempt_responses`, `attempt_operations`, `attempt_score_revisions`, `exam_blueprints`, `exam_blueprint_versions`, `assembly_runs`, `assembly_reviews`, `assembly_publications` và volume này. Thiết lập retention cho session/attempt/operation/assembly trước production.
 
 ## Migration
 
-Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` thêm technical review, `005` thêm identity/session/audit, `006` mở academic scope/status + publication marker, `007` thêm immutable attempt snapshots, `008` thêm revision/responses/score revisions và `009` thêm indexed assembly metadata + immutable runs. Luôn thử restore/migration trên bản sao trước production; các `ALTER TABLE` chỉ chạy một lần trên DB cũ.
+Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` technical review, `005` identity/session/audit, `006` academic publication, `007` attempt snapshots, `008` responses/scoring, `009` assembly metadata/runs và `010` blueprint review + ASSEMBLED publication. Migration 010 backfill run cũ thành BlueprintVersion 1 REJECTED vì thiếu frozen reviewer payload; tạo run mới để review/publish. Migration cũng nới `exams.source_id` nullable; kiểm tra ứng dụng không giả định source_id luôn có cho ASSEMBLED. Luôn thử restore/migration trên bản sao trước production; `ALTER TABLE` chỉ chạy một lần trên DB cũ.
 
 ## Kiểm tra và sự cố
 
@@ -49,6 +49,9 @@ Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới
 - `ASSEMBLY_SEARCH_LIMIT`: blueprint/pool gây search quá rộng; chia section/quota rõ hơn hoặc tối ưu engine có test, không tăng giới hạn tùy tiện trong production.
 - `MISSING_ASSETS` hoặc `ASSEMBLY_SNAPSHOT_INTEGRITY_FAILED`: cô lập pool/run và kiểm tra published graph/hash; không sửa snapshot/hash để bypass.
 - Retry assembly sau timeout phải giữ nguyên creator/key/blueprint/seed. Assembly run hiện chỉ là technical preview, không insert thủ công vào catalog hoặc tạo attempt.
+- Assembly review: xác minh creator khác reviewer, hashes trong review khớp run và chỉ một decision. Không update review/status thủ công để mở publish.
+- Assembly publish timeout: retry cùng run; invariant là một ExamVersion, một publication và một `ASSEMBLY_PUBLISHED` audit. Catalog integrity lỗi phải cô lập publication, không reassemble để thay snapshot.
+- Reviewer explanation asset phải đi qua `/api/assemblies/:id/assets/:assetId`; không đổi sang public catalog URL. Public ASSEMBLED asset phải thực sự có trong `student_snapshot_json.assets`.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
 Production deploy chưa cấu hình ngoài CI publish image GHCR. Không coi image publish là database migration hoặc production rollout.

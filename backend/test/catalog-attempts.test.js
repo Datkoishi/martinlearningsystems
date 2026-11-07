@@ -1,15 +1,29 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { test } from 'node:test';
 import { AttemptService } from '../src/attempts/attempt-service.js';
 import { normalizeAttemptResponse, scoreAttempt } from '../src/attempts/scoring-engine.js';
 import { CatalogService } from '../src/catalog/catalog-service.js';
 import { demoFixedExam } from '../src/domain/demo-exam.js';
+import { toStudentExam } from '../src/domain/exam-presentation.js';
 import { sha256 } from '../src/imports/package-reader.js';
 
 const EXAM_ID = '00000000-0000-4000-8000-000000000701';
 const OTHER_EXAM_ID = '00000000-0000-4000-8000-000000000702';
 const STUDENT_ID = '00000000-0000-4000-8000-000000000703';
 const OTHER_STUDENT_ID = '00000000-0000-4000-8000-000000000704';
+const ASSEMBLED_EXAM_ID = '00000000-0000-4000-8000-000000000705';
+
+const canonicalJson = (value) => {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalJson(value[key])]));
+  }
+  return value;
+};
+const snapshotHash = (studentSnapshot, scoringSnapshot) => crypto.createHash('sha256')
+  .update(JSON.stringify(canonicalJson({ scoringSnapshot, studentSnapshot })))
+  .digest('hex');
 
 const publishedExam = () => {
   const exam = structuredClone(demoFixedExam);
@@ -30,10 +44,57 @@ const publishedExam = () => {
   return exam;
 };
 
+const publishedAssembled = () => {
+  const internal = publishedExam();
+  internal.id = ASSEMBLED_EXAM_ID;
+  internal.versionId = ASSEMBLED_EXAM_ID;
+  internal.version = 1;
+  internal.mode = 'ASSEMBLED';
+  internal.title = '[DEMO] Đề assembled đã publish';
+  const studentSnapshot = toStudentExam(internal);
+  const scoringSnapshot = {
+    schemaVersion: '1.0.0',
+    assemblyRunId: '00000000-0000-4000-8000-000000000706',
+    examVersionId: ASSEMBLED_EXAM_ID,
+    engineVersion: 'eduassess-assembly-v1',
+    questions: internal.sections.flatMap((section) => section.groups.flatMap((group) => group.questions.map((question) => ({
+      questionVersionId: question.versionId,
+      type: question.type,
+      points: question.points,
+      optionIds: question.options.map((option) => option.id),
+      answerKey: question.answerKey
+    }))))
+  };
+  return {
+    id: ASSEMBLED_EXAM_ID,
+    mode: 'ASSEMBLED',
+    purpose: studentSnapshot.purpose,
+    title: studentSnapshot.title,
+    studentSnapshot,
+    scoringSnapshot,
+    snapshotSha256: snapshotHash(studentSnapshot, scoringSnapshot)
+  };
+};
+
 class MemoryCatalogRepository {
-  constructor(exam = publishedExam()) {
+  constructor(exam = publishedExam(), assembled = null) {
     this.exam = exam;
+    this.assembled = assembled;
+    this.assembledReads = 0;
     this.assets = new Map();
+    this.assembledAssets = new Map();
+  }
+
+  async listPublished() {
+    return [
+      { id: this.exam.versionId, title: this.exam.title, purpose: this.exam.purpose, mode: 'FIXED' },
+      ...(this.assembled ? [{
+        id: this.assembled.id,
+        title: this.assembled.studentSnapshot.title,
+        purpose: this.assembled.studentSnapshot.purpose,
+        mode: 'ASSEMBLED'
+      }] : [])
+    ];
   }
 
   async listPublishedFixed() {
@@ -44,8 +105,28 @@ class MemoryCatalogRepository {
     return id === this.exam.versionId ? structuredClone(this.exam) : null;
   }
 
+  async findPublishedMode(id) {
+    if (id === this.exam.versionId) return 'FIXED';
+    if (id === this.assembled?.id) return 'ASSEMBLED';
+    return null;
+  }
+
+  async findPublishedAssembled(id) {
+    if (id !== this.assembled?.id) return null;
+    this.assembledReads += 1;
+    return structuredClone(this.assembled);
+  }
+
   async findPublishedAsset(id) {
     return this.assets.get(id) || null;
+  }
+
+  async findAnyPublishedAsset(id) {
+    return this.assets.get(id) || null;
+  }
+
+  async findPublishedAssembledAsset(id) {
+    return this.assembledAssets.get(id) || null;
   }
 }
 
@@ -186,8 +267,8 @@ class MemoryAttemptRepository {
   }
 }
 
-const services = (exam = publishedExam()) => {
-  const catalogRepository = new MemoryCatalogRepository(exam);
+const services = (exam = publishedExam(), assembled = null) => {
+  const catalogRepository = new MemoryCatalogRepository(exam, assembled);
   const catalogService = new CatalogService({
     repository: catalogRepository,
     storage: { readArchiveEntry: async () => null }
@@ -241,6 +322,39 @@ test('attempt creation is idempotent and always returns the original immutable s
   assert.equal(JSON.stringify(first).includes('scoringSnapshot'), false);
   assert.equal(JSON.stringify(first).includes('answerKey'), false);
   assert.ok(attemptRepository.attempts[0].scoringSnapshot.questions[0].answerKey);
+});
+
+test('published assembled exams enter the shared catalog and attempts never reassemble on reload', async () => {
+  const assembled = publishedAssembled();
+  const { catalogRepository, catalogService, attemptService } = services(publishedExam(), assembled);
+  const catalog = await catalogService.listPublished();
+  const preview = await catalogService.getPublished(ASSEMBLED_EXAM_ID);
+  const created = await attemptService.create({
+    studentUserId: STUDENT_ID,
+    examVersionId: ASSEMBLED_EXAM_ID,
+    idempotencyKey: 'assembled-attempt-key-001'
+  });
+
+  assert.equal(catalog.find((exam) => exam.id === ASSEMBLED_EXAM_ID)?.mode, 'ASSEMBLED');
+  assert.equal(preview.mode, 'ASSEMBLED');
+  assert.equal(JSON.stringify(preview).includes('answerKey'), false);
+  assert.equal(created.snapshot.title, '[DEMO] Đề assembled đã publish');
+  assert.equal(catalogRepository.assembledReads, 2);
+
+  catalogRepository.assembled.studentSnapshot.title = 'Đã bị thay đổi ngoài luồng';
+  await assert.rejects(
+    catalogService.getPublished(ASSEMBLED_EXAM_ID),
+    (error) => error.code === 'PUBLISHED_ASSEMBLY_INTEGRITY_FAILED'
+  );
+  const restored = await attemptService.getOwned(created.id, STUDENT_ID);
+  const retry = await attemptService.create({
+    studentUserId: STUDENT_ID,
+    examVersionId: ASSEMBLED_EXAM_ID,
+    idempotencyKey: 'assembled-attempt-key-001'
+  });
+  assert.equal(restored.snapshot.title, '[DEMO] Đề assembled đã publish');
+  assert.equal(retry.snapshot.title, '[DEMO] Đề assembled đã publish');
+  assert.equal(catalogRepository.assembledReads, 3);
 });
 
 test('idempotency keys cannot be reused for another exam', async () => {
@@ -485,9 +599,34 @@ test('published asset bytes must match both stored size and sha256', async () =>
   const service = new CatalogService({ repository, storage: { readArchiveEntry: async () => bytes } });
 
   assert.deepEqual((await service.getPublishedAsset('asset-ok')).data, bytes);
+  assert.deepEqual((await service.getProtectedPublishedAsset('asset-ok')).data, bytes);
   repository.assets.get('asset-ok').sha256 = '0'.repeat(64);
   await assert.rejects(
     service.getPublishedAsset('asset-ok'),
     (error) => error.code === 'PUBLISHED_ASSET_INTEGRITY_FAILED' && error.statusCode === 500
+  );
+});
+
+test('assembled public assets require an intact student-visible publication snapshot', async () => {
+  const bytes = Buffer.from('assembled-public-asset');
+  const assembled = publishedAssembled();
+  const repository = new MemoryCatalogRepository(publishedExam(), assembled);
+  repository.assembledAssets.set('asset-assembled', {
+    asset: {
+      id: 'asset-assembled',
+      storageKey: 'job/source.zip#assets/assembled.png',
+      mimeType: 'image/png',
+      sizeBytes: bytes.length,
+      sha256: sha256(bytes)
+    },
+    publication: structuredClone(assembled)
+  });
+  const service = new CatalogService({ repository, storage: { readArchiveEntry: async () => bytes } });
+
+  assert.deepEqual((await service.getPublishedAsset('asset-assembled')).data, bytes);
+  repository.assembledAssets.get('asset-assembled').publication.studentSnapshot.title = 'tampered';
+  await assert.rejects(
+    service.getPublishedAsset('asset-assembled'),
+    (error) => error.code === 'PUBLISHED_ASSEMBLY_INTEGRITY_FAILED'
   );
 });

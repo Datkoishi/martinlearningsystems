@@ -24,11 +24,13 @@
 - QuestionVersion có metadata assembly relational/indexed; Exam Package validator giữ metadata all-or-none và publication lưu nguyên metadata đã duyệt.
 - Assembly engine `eduassess-assembly-v1` lọc published FIXED non-formal graph + derivative license, giải exact quota/source/points/time/group/family constraints theo seed và fail có cấu trúc khi pool thiếu.
 - Successful assembly run lưu immutable blueprint/seed/selection/source distribution cùng student/scoring snapshot tách biệt, hash toàn vẹn, idempotency và audit; Assembly Lab chỉ trả student-safe owner preview.
+- Mỗi run tạo Blueprint identity/version `NEEDS_REVIEW`; Reviewer độc lập xem answer/lời giải, asset scoped, ghi một decision bind hashes. APPROVED publish nguyên tử thành ExamVersion ASSEMBLED và published snapshot riêng.
+- Catalog chung hiển thị FIXED/ASSEMBLED; attempt từ ASSEMBLED sao chép đúng published snapshot, dùng chung autosave/submit/scoring và không reassemble khi reload/retry.
 
 ## Partial / giới hạn
 
 - Chưa có timer/deadline server-side, attempt limit/new-attempt policy, manual essay scoring UI hay score regrade workflow.
-- Assembly chưa có blueprint identity/version/approval, failed-run persistence, publish vào Student catalog hoặc attempt integration; chưa shuffle option/soft optimization/student history.
+- Assembly chưa có authoring revision UI trên cùng blueprint identity, failed-run persistence, option shuffle, soft optimization/student history hoặc assignment policy.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
 - Chưa có browser visual QA trong sandbox.
@@ -38,4 +40,4 @@
 
 ## Chưa làm
 
-Tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, ASSEMBLED blueprint governance + Student delivery, manual essay/regrade, assessment/reporting.
+Tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, blueprint authoring revisions, manual essay/regrade, assessment/reporting.

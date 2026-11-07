@@ -169,14 +169,19 @@ export class MysqlAttemptRepository {
         return { attempt: hydrated, duplicate: true };
       }
       const [examRows] = await connection.execute(
-        `SELECT approval_status, exam_mode, purpose
-         FROM exam_versions
-         WHERE id = ?
+        `SELECT ev.approval_status, ev.exam_mode, ev.purpose,
+                EXISTS (
+                  SELECT 1 FROM assembly_publications ap WHERE ap.exam_version_id = ev.id
+                ) AS assembly_published
+         FROM exam_versions ev
+         WHERE ev.id = ?
          FOR UPDATE`,
         [attempt.examVersionId]
       );
       if (!examRows[0]) throw attemptError('EXAM_NOT_FOUND', 'Không tìm thấy đề đã publish.', 404);
-      if (examRows[0].approval_status !== 'PUBLISHED' || examRows[0].exam_mode !== 'FIXED') {
+      if (examRows[0].approval_status !== 'PUBLISHED'
+        || !['FIXED', 'ASSEMBLED'].includes(examRows[0].exam_mode)
+        || (examRows[0].exam_mode === 'ASSEMBLED' && !examRows[0].assembly_published)) {
         throw attemptError('EXAM_NOT_AVAILABLE', 'Đề chưa sẵn sàng để tạo attempt.');
       }
       if (examRows[0].purpose === 'FORMAL_ASSESSMENT') {

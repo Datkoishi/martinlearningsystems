@@ -24,3 +24,6 @@
 - Thêm migration `009_assembly_foundation.sql` với indexed curriculum/topic/skill/difficulty/time/family metadata và immutable `assembly_runs`.
 - Thêm `eduassess-assembly-v1`: published/licensed pool, seeded SHA rank, hard-quota backtracking, atomic/split group policy, source diversity và structured insufficient-pool errors.
 - Thêm Editor-only idempotent assembly API và `/#assembly` technical preview; student/scoring snapshots tách riêng và formal assessment vẫn khóa.
+- Thêm migration 010 cho Blueprint identity/version, immutable assembly review và atomic ASSEMBLED publication snapshots.
+- Thêm reviewer workspace có answer/lời giải + asset scoped; chặn self-review và bind decision với selection/snapshot hashes.
+- Mở catalog/attempt dùng chung cho FIXED/ASSEMBLED; published assembly hash được xác minh và reload/retry không reassemble.

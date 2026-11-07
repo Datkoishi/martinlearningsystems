@@ -113,12 +113,16 @@ class MemoryAssemblyRepository {
   constructor(pool = eligiblePool()) {
     this.pool = pool;
     this.runs = [];
+    this.publications = [];
   }
   async findByIdempotency(creatorUserId, idempotencyKey) {
     return this.runs.find((run) => run.creatorUserId === creatorUserId && run.idempotencyKey === idempotencyKey) || null;
   }
   async findOwned(id, creatorUserId) {
     return this.runs.find((run) => run.id === id && run.creatorUserId === creatorUserId) || null;
+  }
+  async findForReview(id) {
+    return this.runs.find((run) => run.id === id) || null;
   }
   async listEligiblePool() { return structuredClone(this.pool); }
   async createRun(run) {
@@ -127,6 +131,48 @@ class MemoryAssemblyRepository {
     const created = structuredClone(run);
     this.runs.push(created);
     return { run: created, duplicate: false };
+  }
+  async createReview(review) {
+    const run = await this.findForReview(review.assemblyRunId);
+    if (!run) return null;
+    if (run.creatorUserId === review.reviewerUserId) {
+      throw Object.assign(new Error('self review'), { code: 'SELF_REVIEW_FORBIDDEN', statusCode: 409 });
+    }
+    if (run.review || run.approvalStatus !== 'NEEDS_REVIEW') {
+      throw Object.assign(new Error('reviewed'), { code: 'ASSEMBLY_NOT_REVIEWABLE', statusCode: 409 });
+    }
+    run.review = structuredClone({
+      id: review.id,
+      reviewerUserId: review.reviewerUserId,
+      decision: review.decision,
+      reason: review.reason,
+      selectionSha256: review.selectionSha256,
+      snapshotSha256: review.snapshotSha256,
+      createdAt: review.createdAt
+    });
+    run.approvalStatus = review.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+    return structuredClone(run);
+  }
+  async publish(publication) {
+    const run = await this.findForReview(publication.assemblyRunId);
+    if (!run) return null;
+    if (run.publication) return { run: structuredClone(run), publication: structuredClone(run.publication), duplicate: true };
+    if (run.approvalStatus !== 'APPROVED' || run.review?.decision !== 'APPROVE') {
+      throw Object.assign(new Error('not approved'), { code: 'ASSEMBLY_NOT_APPROVED', statusCode: 409 });
+    }
+    const storedPublication = {
+      id: publication.id,
+      examVersionId: publication.examVersionId,
+      publishedByUserId: publication.publisherUserId,
+      snapshotSha256: publication.snapshotSha256,
+      publishedAt: publication.publishedAt,
+      studentSnapshot: structuredClone(publication.studentSnapshot),
+      scoringSnapshot: structuredClone(publication.scoringSnapshot)
+    };
+    this.publications.push(storedPublication);
+    run.publication = structuredClone(storedPublication);
+    run.approvalStatus = 'PUBLISHED';
+    return { run: structuredClone(run), publication: structuredClone(storedPublication), duplicate: false };
   }
 }
 
@@ -256,9 +302,105 @@ test('assembly service persists an immutable student-safe snapshot with exact id
     service.create({ ...command, blueprint: changed }),
     (error) => error.code === 'IDEMPOTENCY_KEY_REUSED'
   );
+  const originalBlueprintVersion = structuredClone(repository.runs[0].blueprintVersionSnapshot);
+  repository.runs[0].blueprintVersionSnapshot.title = 'tampered blueprint version';
+  await assert.rejects(
+    service.getOwned(first.id, 'editor-1'),
+    (error) => error.code === 'ASSEMBLY_SNAPSHOT_INTEGRITY_FAILED'
+  );
+  repository.runs[0].blueprintVersionSnapshot = originalBlueprintVersion;
   repository.runs[0].studentSnapshot.title = 'tampered';
   await assert.rejects(
     service.getOwned(first.id, 'editor-1'),
     (error) => error.code === 'ASSEMBLY_SNAPSHOT_INTEGRITY_FAILED'
   );
+});
+
+test('assembly governance requires independent approval and publishes a frozen assembled version', async () => {
+  const repository = new MemoryAssemblyRepository();
+  const service = new AssemblyService({ repository, now: () => new Date('2026-11-07T09:00:00Z') });
+  const created = await service.create({
+    creatorUserId: 'editor-1',
+    idempotencyKey: 'assembly-governance-key-001',
+    blueprint: blueprint(),
+    seed: 'governed-assembly-seed-001'
+  });
+  const reviewerPreview = await service.getReviewerPreview(created.id);
+
+  assert.equal(created.approvalStatus, 'NEEDS_REVIEW');
+  assert.equal(JSON.stringify(created).includes('answerKey'), false);
+  assert.ok(reviewerPreview.preview.sections[0].groups[0].questions[0].answerKey);
+  assert.ok(reviewerPreview.preview.sections[0].groups[0].questions[0].explanation);
+  await assert.rejects(
+    service.review({ id: created.id, reviewerUserId: 'editor-1', decision: 'APPROVE', reason: 'Không được tự duyệt run của chính mình.' }),
+    (error) => error.code === 'SELF_REVIEW_FORBIDDEN'
+  );
+
+  const approved = await service.review({
+    id: created.id,
+    reviewerUserId: 'reviewer-1',
+    decision: 'APPROVE',
+    reason: 'Đã kiểm tra blueprint, nguồn, đáp án, stimulus và snapshot.'
+  });
+  assert.equal(approved.approvalStatus, 'APPROVED');
+  await assert.rejects(
+    service.review({ id: created.id, reviewerUserId: 'reviewer-2', decision: 'REJECT', reason: 'Không được ghi quyết định lần hai.' }),
+    (error) => error.code === 'ASSEMBLY_NOT_REVIEWABLE'
+  );
+
+  const firstPublication = await service.publish({ id: created.id, publisherUserId: 'reviewer-1' });
+  const retry = await service.publish({ id: created.id, publisherUserId: 'reviewer-1' });
+  assert.equal(firstPublication.duplicate, false);
+  assert.equal(retry.duplicate, true);
+  assert.equal(retry.publication.examVersionId, firstPublication.publication.examVersionId);
+  assert.equal(repository.publications.length, 1);
+  assert.equal(repository.publications[0].studentSnapshot.mode, 'ASSEMBLED');
+  assert.equal(repository.publications[0].studentSnapshot.approvalStatus, 'PUBLISHED');
+  assert.equal(repository.publications[0].studentSnapshot.versionId, firstPublication.publication.examVersionId);
+  assert.equal(JSON.stringify(repository.publications[0].studentSnapshot).includes('answerKey'), false);
+  assert.ok(repository.publications[0].scoringSnapshot.questions[0].answerKey);
+});
+
+test('reviewer-only assembly assets are scoped to the frozen run', async () => {
+  const assetId = '00000000-0000-4000-8000-000000000901';
+  const unselectedAssetId = '00000000-0000-4000-8000-000000000902';
+  const pool = eligiblePool();
+  pool.assets[assetId] = {
+    id: assetId,
+    url: `/api/catalog/assets/${assetId}`,
+    mimeType: 'image/png',
+    altText: 'Hình trong lời giải'
+  };
+  pool.assets[unselectedAssetId] = {
+    id: unselectedAssetId,
+    url: `/api/catalog/assets/${unselectedAssetId}`,
+    mimeType: 'image/png',
+    altText: 'Asset không thuộc selection'
+  };
+  pool.units[0].questions[0].explanation.nodes.push({
+    type: 'figure',
+    assetId,
+    alt: 'Hình trong lời giải'
+  });
+  const repository = new MemoryAssemblyRepository(pool);
+  const assetService = {
+    async getProtectedPublishedAsset(id) {
+      return id === assetId ? { data: Buffer.from('private-asset'), mimeType: 'image/png' } : null;
+    }
+  };
+  const service = new AssemblyService({ repository, assetService });
+  const created = await service.create({
+    creatorUserId: 'editor-1',
+    idempotencyKey: 'assembly-reviewer-asset-001',
+    blueprint: blueprint(),
+    seed: 'reviewer-asset-seed-001'
+  });
+  const preview = await service.getReviewerPreview(created.id);
+  const asset = await service.getReviewerAsset(created.id, assetId);
+
+  assert.equal(created.snapshot.assets[assetId], undefined);
+  assert.equal(preview.preview.assets[assetId].url, `/api/assemblies/${created.id}/assets/${assetId}`);
+  assert.equal(preview.preview.assets[unselectedAssetId], undefined);
+  assert.equal(asset.data.toString('utf8'), 'private-asset');
+  assert.equal(await service.getReviewerAsset(created.id, unselectedAssetId), null);
 });

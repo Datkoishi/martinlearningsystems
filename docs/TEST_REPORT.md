@@ -148,3 +148,20 @@ Lệnh đã chạy: `npm test` (cần quyền loopback trong sandbox cho HTTP te
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 MySQL container chỉ chứa fixture kỹ thuật giả lập và đã bị xóa sau smoke test; không có dữ liệu người dùng.
+
+## 2026-11-07 — TASK-009
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-ASM-07 governance | PASS | BlueprintVersion NEEDS_REVIEW; self-review 409; một decision; APPROVED mới publish; retry cùng ExamVersion |
+| UT-ASM-08 shared catalog/attempt | PASS | catalog có FIXED + ASSEMBLED; student-safe; attempt reload/retry giữ frozen title và không đọc lại publication/engine |
+| UT-ASM-09 reviewer asset scope | PASS | explanation asset không có trong student snapshot; reviewer URL protected; unselected asset bị loại/404 |
+| UT-ASM-10 public ASSEMBLED asset integrity | PASS | asset fallback chỉ dùng student-visible publication; snapshot tamper làm asset fail-closed |
+| HTTP-ASM-02 role/CSRF | PASS | Editor không mở reviewer preview; Reviewer session mở preview/asset, review và publish; actor lấy từ session |
+| Backend regression | PASS | 52/52 tests |
+| Frontend production build | PASS | Vite, 38 modules |
+| DB-ASM-02 migration/governance/delivery | PASS | MySQL 8.4, 33 tables; migration 010; 1 blueprint version + 1 review + 1 publication + 1 attempt; 3 run audits; publish/attempt retry không duplicate; catalog modes FIXED/ASSEMBLED |
+| ASSEMBLED public asset query | PASS | MySQL thực thi JSON student-snapshot authorization query; explanation/unselected asset không được suy ra từ scoring snapshot |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+Lệnh chính: `npm test`; focused Node tests; frontend build; Compose config; MySQL 8.4 migration 001–010 + governance/catalog/attempt script; `git diff --check`. MySQL container/script chỉ chứa fixture kỹ thuật và đã bị xóa; `.env` không được đọc hoặc chỉnh sửa.

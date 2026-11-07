@@ -14,11 +14,11 @@ Trả một `ExamVersion` FIXED DEMO gồm assets, stimuli, sections, groups, qu
 
 ## Published catalog
 
-- `GET /api/catalog/exams`: public, liệt kê metadata của `PUBLISHED + FIXED + non-formal`; cache 60 giây.
-- `GET /api/catalog/exams/:id`: public, trả student-safe projection giữ nguyên section/group/question order. Không chứa `answerKey`, `explanation`, scoring snapshot hoặc asset chỉ được dùng trong lời giải.
-- `GET /api/catalog/assets/:id`: public chỉ khi asset đã `PUBLISHED` và có reference trong phần student-visible của ít nhất một đề FIXED non-formal đã publish. Backend đọc entry từ source ZIP bất biến, kiểm tra size/SHA-256 và trả cache immutable; explanation-only asset nhận `404`.
+- `GET /api/catalog/exams`: public, liệt kê metadata của ExamVersion `PUBLISHED + non-formal` cho cả `FIXED|ASSEMBLED`; cache 60 giây.
+- `GET /api/catalog/exams/:id`: public, trả student-safe projection giữ nguyên section/group/question order. FIXED dựng từ version graph; ASSEMBLED đọc published snapshot và xác minh hash. Không chứa `answerKey`, `explanation`, scoring snapshot hoặc asset chỉ dùng trong lời giải.
+- `GET /api/catalog/assets/:id`: public chỉ khi asset đã `PUBLISHED` và xuất hiện student-visible trong ít nhất một FIXED graph hoặc ASSEMBLED publication snapshot non-formal. Backend kiểm tra size/SHA-256 và trả cache immutable; explanation-only asset nhận `404`.
 
-Catalog fail-closed với ExamVersion/group/question/stimulus/asset thiếu hoặc chưa publish. `FORMAL_ASSESSMENT` không xuất hiện trong catalog.
+Catalog fail-closed với FIXED graph thiếu/chưa publish hoặc ASSEMBLED publication/hash không khớp. `FORMAL_ASSESSMENT` không xuất hiện trong catalog.
 
 ## Attempts
 
@@ -30,7 +30,7 @@ Yêu cầu session có role `STUDENT`, CSRF header và `Idempotency-Key` 8–100
 { "examVersionId": "uuid" }
 ```
 
-Chỉ nhận đề `PUBLISHED + FIXED + non-formal`. Lần đầu trả `201`; retry cùng `(student, Idempotency-Key, examVersionId)` trả `200`, `duplicate: true` và đúng attempt/snapshot cũ. Dùng cùng key cho đề khác trả `409 IDEMPOTENCY_KEY_REUSED`.
+Chỉ nhận ExamVersion `PUBLISHED + (FIXED|ASSEMBLED) + non-formal`; ASSEMBLED còn phải có publication record. Lần đầu trả `201`; retry cùng `(student, Idempotency-Key, examVersionId)` trả `200`, `duplicate: true` và đúng attempt/snapshot cũ. Dùng cùng key cho đề khác trả `409 IDEMPOTENCY_KEY_REUSED`.
 
 Response chỉ gồm `id`, `examVersionId`, `status`, `snapshot` student-safe, `snapshotSha256`, `responses`, `answerRevision`, timestamps và `duplicate`. Scoring snapshot không bao giờ được trả. Server ghi riêng student/scoring JSON, hash canonical của cả hai và audit `ATTEMPT_STARTED` trong transaction.
 
@@ -107,7 +107,23 @@ Response gồm metadata blueprint, seed, `eduassess-assembly-v1`, selection/snap
 
 Yêu cầu Editor/Admin và chỉ creator đọc được; resource của creator khác trả 404. Backend xác minh selection/snapshot hash trước khi trả và dùng `Cache-Control: no-store`.
 
-Assembly run hiện là owner-scoped technical preview, chưa được publish vào Student catalog và chưa dùng để tạo attempt.
+Owner response có BlueprintVersion/status/review/publication summary nhưng vẫn không có scoring payload.
+
+### `GET /api/assemblies/:id/reviewer-preview`
+
+Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN`. Trả đúng frozen snapshot cùng answer key/lời giải, creator, BlueprintVersion, review/publication state và hashes. Dữ liệu nhạy cảm dùng `Cache-Control: no-store`.
+
+### `GET /api/assemblies/:id/assets/:assetId`
+
+Yêu cầu Reviewer/Admin. Chỉ trả asset `PUBLISHED` có mặt trong selected scoring snapshot của run; explanation-only asset không trở thành public catalog asset. Bytes được kiểm tra size/hash qua storage adapter.
+
+### `POST /api/assemblies/:id/reviews`
+
+Yêu cầu Reviewer/Admin + CSRF; body `{decision: "APPROVE|REJECT", reason}`. Creator tự duyệt nhận `409 SELF_REVIEW_FORBIDDEN`. Decision bất biến, bind BlueprintVersion + selection/snapshot hash; decision thứ hai nhận `409 ASSEMBLY_NOT_REVIEWABLE`.
+
+### `POST /api/assemblies/:id/publish`
+
+Yêu cầu Reviewer/Admin + CSRF. Chỉ BlueprintVersion `APPROVED` với hash binding nguyên vẹn được publish. Transaction tạo ExamVersion ASSEMBLED, published student/scoring snapshots, publication record và audit; lần đầu `201`, retry `200 duplicate: true`. Formal assessment vẫn khóa.
 
 ## Identity/session
 
@@ -145,4 +161,4 @@ Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Nhận cùng decision/rea
 
 Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Chỉ publish job `ACADEMICALLY_APPROVED`; source hash, validation report và approval phải khớp. Trả `201` cho publication mới, `200` và `duplicate: true` khi retry job đã publish. Transaction ghi toàn bộ versioned content hoặc rollback; purpose `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
 
-Blueprint approval/publish, Student attempt từ assembly, manual essay scoring/regrade và assessment APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.
+Blueprint authoring revision UI, manual essay scoring/regrade và assessment APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.

@@ -46,4 +46,10 @@ Scoring rule có version độc lập với assessment interpretation. PRACTICE 
 
 Question pool không phải mọi QuestionVersion published: candidate phải có metadata assembly đầy đủ, thuộc published FIXED non-formal graph và có provenance/license derivative còn hiệu lực. Direct/atomic/split group được chuẩn hóa thành selection unit; exact quota, source diversity, points/time, duplicate family là hard constraints. Candidate order dùng SHA-256 của seed thay vì random DB; backtracking fail có cấu trúc thay vì phá blueprint.
 
-Successful run lưu student/scoring snapshot riêng, selection/source manifest, engine version và hashes. API chỉ trả student-safe projection cho creator Editor/Admin. Run kỹ thuật chưa được coi là ExamVersion published hoặc giao cho Student; blueprint approval/publish là gate riêng. Formal assessment vẫn khóa. Chi tiết ở ADR-0008.
+Successful run lưu student/scoring snapshot riêng, selection/source manifest, engine version và hashes. API chỉ trả student-safe projection cho creator Editor/Admin. Run kỹ thuật không tự được coi là ExamVersion published hoặc giao cho Student; phải qua gate riêng đã triển khai ở D-012. Formal assessment vẫn khóa. Chi tiết ở ADR-0008.
+
+## D-012 ASSEMBLED publication bind approval với frozen snapshots
+
+Mỗi technical run có BlueprintVersion immutable. Reviewer độc lập duyệt đúng selection/source snapshot hashes; creator không được tự duyệt và decision không sửa. APPROVED mới được transactionally publish thành ExamVersion ASSEMBLED với student/scoring snapshots + hash riêng. Catalog/attempt đọc snapshot đã publish thay vì dựng lại selection; retry/reload không gọi engine.
+
+ASSEMBLED nhiều nguồn nên `exams.source_id` nullable; provenance vẫn ở selected QuestionVersions/manifest, không gán giả một source. Reviewer asset chỉ mở khi thuộc selected scoring snapshot; public asset chỉ khi student-visible trong FIXED graph hoặc ASSEMBLED publication. Chi tiết ở ADR-0009.
