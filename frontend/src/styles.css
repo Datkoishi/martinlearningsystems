@@ -255,6 +255,13 @@ td .rich-content, th .rich-content { font-size: inherit; }
 .decision-recorded { padding: 1rem; border: 1px solid #87ac98; border-radius: 10px; background: #e6f2e9; }
 .decision-recorded strong, .decision-recorded span { display: block; }
 .decision-recorded span { margin-top: .3rem; color: var(--forest); font-family: ui-monospace, monospace; font-size: .75rem; }
+.decision-recorded p { margin-bottom: 0; color: var(--muted); font-size: .72rem; line-height: 1.6; }
+.rejected-record { border-color: #d8a2a2; background: #fff0ef; }
+.rejected-record span { color: #8b2929; }
+.publish-panel { display: grid; gap: .8rem; padding: 1rem; border: 1px solid #87ac98; border-radius: 10px; background: #e6f2e9; }
+.publish-panel p { margin: 0; color: var(--muted); font-size: .72rem; line-height: 1.6; }
+.publish-panel .approve-button { justify-self: end; padding: .8rem 1rem; border-radius: 8px; font-weight: 800; cursor: pointer; }
+.formal-lock { padding: .8rem; border-left: 3px solid #a53a3a; color: #7b2d2d; background: #fff0ef; font-size: .7rem; line-height: 1.5; }
 .inline-error { grid-column: 1 / -1; margin: 0; padding: .7rem; border-left: 3px solid #a53a3a; color: #7b2d2d; background: #fff0ef; font-size: .72rem; }
 .auth-panel { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); gap: clamp(2rem, 6vw, 6rem); align-items: center; min-height: calc(100vh - 180px); }
 .auth-copy h1, .forbidden-panel h1 { max-width: 700px; margin: 0; font-size: clamp(2.5rem, 6vw, 5rem); line-height: 1; letter-spacing: -.05em; }

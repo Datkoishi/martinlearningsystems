@@ -17,7 +17,7 @@ Role bootstrap hợp lệ: `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SUPER_ADMIN`;
 
 ## Migration
 
-Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` thêm technical review và `005` thêm identity/session/audit cùng creator FK. Luôn thử restore/migration trên bản sao trước production; `ALTER TABLE` trong `005` chỉ chạy một lần trên DB cũ.
+Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` thêm technical review, `005` thêm identity/session/audit và `006` mở academic scope/status + publication marker. Luôn thử restore/migration trên bản sao trước production; các `ALTER TABLE` chỉ chạy một lần trên DB cũ.
 
 ## Kiểm tra và sự cố
 
@@ -30,7 +30,11 @@ Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới
 - `CSRF_INVALID`: kiểm tra frontend gửi `x-csrf-token` từ cookie cùng session; không tắt guard để xử lý nhanh.
 - `FORBIDDEN`: kiểm tra role server-side trong `user_roles`; không cấp `SUPER_ADMIN` thay cho việc sửa scope.
 - `SELF_REVIEW_FORBIDDEN`: dùng một Reviewer khác; không đổi creator hoặc sửa audit để bypass four-eyes.
-- Technical review là bất biến. Nếu reject, sửa nguồn và upload package mới; không update/delete `import_reviews`. `TECHNICALLY_APPROVED` vẫn không được publish khi chưa có academic approval.
+- Technical/academic review là bất biến. Nếu reject, sửa nguồn và upload package mới; không update/delete `import_reviews`.
+- `PACKAGE_HASH_CHANGED`, `VALIDATION_REPORT_CHANGED` hoặc `PACKAGE_REVALIDATION_FAILED`: cô lập job và kiểm tra archive/storage; không sửa hash/report/approval để bypass. Upload package/version mới sau khi xác minh.
+- `FORMAL_ASSESSMENT_DISABLED`: đúng theo policy mặc định; không đổi purpose trực tiếp trong DB.
+- Publish retry sau timeout là an toàn: cùng ImportJob trả `import_publications` cũ. Không chạy SQL thủ công để đổi job sang `PUBLISHED`.
+- Source ZIP của job đã publish đang giữ asset bytes cho archive-backed storage key; không cleanup cho đến khi S3/object promotion và reference rewrite đã commit.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
 Production deploy chưa cấu hình ngoài CI publish image GHCR. Không coi image publish là database migration hoặc production rollout.

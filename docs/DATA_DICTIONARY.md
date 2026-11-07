@@ -18,6 +18,7 @@
 | auth_sessions | user_id, token/csrf hash, expires/revoked | opaque token chỉ lưu SHA-256; session revoke phía server |
 | audit_logs | actor, event/resource, outcome, details | audit auth/import/review; không chứa raw token/password |
 | import_jobs | package_id/hash, status, creator, report | idempotency theo package + hash; creator dùng chống self-review |
-| import_reviews | import_job_id, reviewer_id, scope, decision, reason, report hash, actor source | một quyết định kỹ thuật bất biến/job; authenticated reviewer |
+| import_reviews | import_job_id, reviewer_id, scope, decision, reason, report/package hash, actor source | tối đa một decision bất biến cho mỗi scope TECHNICAL/ACADEMIC |
+| import_publications | import_job_id, exam_version_id, publisher, report/package hash | idempotency marker và provenance của atomic publish |
 
 Retention/xóa mềm đầy đủ chưa triển khai; entity đã được tham chiếu không được hard-delete ở feature tương lai.

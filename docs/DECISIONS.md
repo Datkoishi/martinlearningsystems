@@ -27,3 +27,7 @@ Decision bind SHA-256 của validation report, unique theo ImportJob và không 
 ## D-007 Opaque server session cho backoffice đầu tiên
 
 Dùng session token ngẫu nhiên trong cookie `HttpOnly`, CSRF token bind với session và global role guard phía server. DB chỉ lưu token hash; password dùng scrypt. Lựa chọn này cho phép revoke tức thời và không đưa claims/role có tuổi thọ dài xuống client. Tenant scope, MFA/recovery và distributed rate limiting được để thành hardening riêng trước public production.
+
+## D-008 Academic approval tách biệt và DB publish nguyên tử
+
+Technical và academic decision dùng hai immutable scope trên cùng ImportJob; cả hai bind package/report hash và creator không được tự duyệt. Publish revalidate archive rồi normalize sang UUID/version nội bộ trong một MySQL transaction, có `import_publications` làm idempotency/provenance marker. Media tạm thời dùng archive-backed storage key để tránh file copy ngoài transaction; source ZIP published phải được giữ. Formal assessment không được mở bởi gate này.

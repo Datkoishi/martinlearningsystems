@@ -10,6 +10,8 @@
 - Thêm Import Lab hiển thị validation report; production import mặc định tắt trước RBAC.
 - Nâng ZIP parser runtime lên `yauzl 3.4.0`; runtime audit không còn advisory.
 - Thêm reviewer preview dựng từ ZIP nguồn bằng cùng Rich Content renderer, kèm asset/answer/explanation.
-- Thêm migration `import_reviews` và technical decision transaction bất biến; publish vẫn khóa.
+- Thêm migration `import_reviews` và technical decision transaction bất biến làm gate trước academic approval.
 - Thêm user/global role, password scrypt, opaque session, CSRF, login throttling và audit qua migration `005_identity_access.sql`.
 - Bảo vệ Import Lab bằng Editor/Reviewer role phía server; reviewer identity lấy từ session và transaction chặn self-review.
+- Thêm academic approval bất biến, migration `006_academic_publish.sql` và endpoint publish có CSRF/RBAC.
+- Normalize Exam Package sang versioned content bằng transaction nguyên tử, hash/report revalidation, UUID reference remap và idempotent retry; formal assessment vẫn khóa.

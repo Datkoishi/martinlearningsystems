@@ -68,3 +68,23 @@ Lệnh đã chạy: `npm test --prefix backend` (lần đầu 6 pass/1 blocked d
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 Các container, image và network MySQL/backend tạm dùng cho DB/HTTP test đã được dừng và xóa sau kiểm thử. Password thử nghiệm được truyền qua stdin; một lần PTY ban đầu có echo cục bộ nên flow đã được sửa và xác minh lại với echo tắt, không ghi credential vào source/commit.
+
+## 2026-11-07 — TASK-005
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-PUB-01 separate academic gate | PASS | academic trước technical bị từ chối; scope ACADEMIC bất biến; chưa tự publish |
+| UT-PUB-02 normalize + idempotency | PASS | source/license/assets/stimulus/question/group/exam plan; UUID asset/option refs; retry trả cùng publication |
+| UT-PUB-03 source tamper | PASS | source bytes đổi sau approval trả `PACKAGE_HASH_CHANGED`, không publication |
+| UT-PUB-04 formal policy gate | PASS | `FORMAL_ASSESSMENT_DISABLED` sau đủ content approvals |
+| Backend regression | PASS | 27/27 tests |
+| Frontend production build | PASS | Vite, 34 modules |
+| DB-PUB-01 migration 006 | PASS | MySQL 8.4 temp, 24 tables; academic statuses/scope và `import_publications` tồn tại |
+| DB-PUB-02 real transaction/idempotency | PASS | first publish + retry cùng ID; 1 publication/exam/question; job PUBLISHED |
+| DB-PUB-03 rollback | PASS | duplicate giữa transaction → `ER_DUP_ENTRY`; source count 0 và job vẫn ACADEMICALLY_APPROVED |
+| HTTP-PUB-01 auth/CSRF matrix | PASS | unauth 401; Editor academic 403; Reviewer thiếu CSRF 403; missing job academic/publish 404; academic trên published job 409 |
+| Production image | PASS | backend image build và CLI-created Editor/Reviewer login 200 |
+| Runtime dependency audit | PASS | `npm audit --omit=dev`: 0 vulnerabilities |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+Container API/MySQL, image và network thử nghiệm TASK-005 chỉ chứa dữ liệu giả lập; tất cả đã được dừng và xóa, không thể khôi phục nhưng không có dữ liệu người dùng.

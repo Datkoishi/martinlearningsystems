@@ -7,10 +7,15 @@ const StatusPill = ({ status }) => {
   const labels = {
     READY_FOR_REVIEW: 'Sẵn sàng duyệt',
     TECHNICALLY_APPROVED: 'Đã duyệt kỹ thuật',
+    ACADEMICALLY_APPROVED: 'Đã duyệt học thuật',
+    ACADEMICALLY_REJECTED: 'Từ chối học thuật',
+    PUBLISHED: 'Đã publish',
     REJECTED: 'Đã từ chối',
     INVALID: 'Không hợp lệ'
   };
-  const tone = status === 'TECHNICALLY_APPROVED' ? 'approved' : status === 'READY_FOR_REVIEW' ? 'ready' : 'invalid';
+  const tone = ['TECHNICALLY_APPROVED', 'ACADEMICALLY_APPROVED', 'PUBLISHED'].includes(status)
+    ? 'approved'
+    : status === 'READY_FOR_REVIEW' ? 'ready' : 'invalid';
   return <span className={`import-status ${tone}`}>{labels[status] || status}</span>;
 };
 
@@ -99,8 +104,9 @@ export default function ImportPanel({ authUser, onLogin }) {
         <div className="pipeline" aria-label="Quy trình import hiện tại">
           <span className="active">1 · Tải ZIP</span>
           <span>2 · Kiểm tra</span>
-          <span>3 · Chờ reviewer</span>
-          <span className="disabled">4 · Publish khóa</span>
+          <span>3 · Technical review</span>
+          <span>4 · Academic approval</span>
+          <span>5 · Atomic publish</span>
         </div>
       </section>
 
@@ -182,13 +188,13 @@ export default function ImportPanel({ authUser, onLogin }) {
               <IssueList title="Lỗi cần sửa" issues={result.report.errors} tone="errors" />
               <IssueList title="Cảnh báo cần xem" issues={result.report.warnings} tone="warnings" />
               {result.status === 'READY_FOR_REVIEW' && !result.report.warnings.length && (
-                <div className="clean-report">Đã qua kiểm tra kỹ thuật. Publish vẫn bị khóa cho đến khi reviewer phê duyệt.</div>
+                <div className="clean-report">Validation đã sạch. Package vẫn cần technical review và academic approval trước publish.</div>
               )}
             </div>
           )}
         </section>
       </div>
-      {canReview && ['READY_FOR_REVIEW', 'TECHNICALLY_APPROVED', 'REJECTED'].includes(result?.status) && (
+      {canReview && ['READY_FOR_REVIEW', 'TECHNICALLY_APPROVED', 'ACADEMICALLY_APPROVED', 'ACADEMICALLY_REJECTED', 'REJECTED', 'PUBLISHED'].includes(result?.status) && (
         <ReviewerPreview
           job={result}
           authUser={authUser}

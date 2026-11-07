@@ -195,6 +195,40 @@ export const createApp = ({
     }
   });
 
+  app.post('/api/imports/:id/academic-reviews', importEnabled, authenticate, reviewerOnly, requireCsrf, async (request, response, next) => {
+    if (!validImportId(request.params.id)) return response.status(400).json({ code: 'INVALID_IMPORT_ID', message: 'Import job id không hợp lệ.' });
+    const { decision, reason } = request.body || {};
+    if (!['APPROVE', 'REJECT'].includes(decision)) return response.status(400).json({ code: 'INVALID_REVIEW_DECISION', message: 'Decision phải là APPROVE hoặc REJECT.' });
+    if (typeof reason !== 'string' || reason.trim().length < 10 || reason.length > 1000) {
+      return response.status(400).json({ code: 'INVALID_REVIEW_REASON', message: 'Lý do review cần từ 10 đến 1000 ký tự.' });
+    }
+    try {
+      const result = await importService.createAcademicReview({
+        importJobId: request.params.id,
+        reviewerId: request.auth.user.id,
+        decision,
+        reason: reason.trim()
+      });
+      if (!result) return response.status(404).json({ code: 'IMPORT_NOT_FOUND', message: 'Không tìm thấy import job.' });
+      response.set('Cache-Control', 'no-store');
+      return response.status(201).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/imports/:id/publish', importEnabled, authenticate, reviewerOnly, requireCsrf, async (request, response, next) => {
+    if (!validImportId(request.params.id)) return response.status(400).json({ code: 'INVALID_IMPORT_ID', message: 'Import job id không hợp lệ.' });
+    try {
+      const result = await importService.publish(request.params.id, request.auth.user.id);
+      if (!result) return response.status(404).json({ code: 'IMPORT_NOT_FOUND', message: 'Không tìm thấy import job.' });
+      response.set('Cache-Control', 'no-store');
+      return response.status(result.duplicate ? 200 : 201).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   app.use((_request, response) => {
     response.status(404).json({ message: 'Route not found' });
   });

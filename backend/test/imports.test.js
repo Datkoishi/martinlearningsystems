@@ -21,7 +21,7 @@ const createZip = (files) => new Promise((resolve, reject) => {
   zip.end();
 });
 
-const buildValidPackage = async ({ corruptChecksum = false, unsafeSvg = false } = {}) => {
+const buildValidPackage = async ({ corruptChecksum = false, unsafeSvg = false, purpose = 'PRACTICE', generatorMetadata } = {}) => {
   const rich = (...nodes) => ({ schemaVersion: '1.0.0', nodes });
   const paragraph = (value) => ({ type: 'paragraph', children: [{ type: 'text', text: value }] });
   const asset = unsafeSvg
@@ -35,7 +35,7 @@ const buildValidPackage = async ({ corruptChecksum = false, unsafeSvg = false } 
     subject: 'Toán',
     durationMinutes: 20,
     mode: 'FIXED',
-    purpose: 'PRACTICE',
+    purpose,
     sections: [{ id: 'section-1', title: 'Phần I', instruction: rich(paragraph('Chọn đáp án đúng.')), itemRefs: [{ type: 'GROUP', ref: 'group-1' }] }]
   });
   const questions = jsonBuffer({
@@ -68,7 +68,11 @@ const buildValidPackage = async ({ corruptChecksum = false, unsafeSvg = false } 
   const manifest = {
     schemaVersion: '1.0.0',
     packageId: 'pkg-demo-import-001',
-    source: { name: 'Dữ liệu DEMO kiểm thử', originType: 'HUMAN_AUTHORED' },
+    source: {
+      name: 'Dữ liệu DEMO kiểm thử',
+      originType: 'HUMAN_AUTHORED',
+      ...(generatorMetadata ? { generatorMetadata } : {})
+    },
     rights: { publishFixed: true, extractReuse: true, derivativeAssembly: true },
     counts: { questions: 1 },
     files: Object.entries(payloadFiles).map(([filePath, data]) => ({
@@ -86,6 +90,8 @@ class MemoryImportRepository {
   constructor() {
     this.jobs = [];
     this.reviews = [];
+    this.publications = [];
+    this.publishedPlans = [];
   }
   async findByPackageHash(packageId, packageSha256) {
     return this.jobs.find((job) => job.packageId === packageId && job.packageSha256 === packageSha256) || null;
@@ -98,6 +104,12 @@ class MemoryImportRepository {
   }
   async listReviews(importJobId) { return this.reviews.filter((review) => review.importJobId === importJobId); }
   async createTechnicalReview(review) {
+    return this.createReview(review, 'TECHNICAL');
+  }
+  async createAcademicReview(review) {
+    return this.createReview(review, 'ACADEMIC');
+  }
+  async createReview(review, scope) {
     const job = await this.findById(review.importJobId);
     if (job.createdByUserId && job.createdByUserId === review.reviewerId) {
       const error = new Error('Người nhập package không được tự review package đó.');
@@ -105,7 +117,8 @@ class MemoryImportRepository {
       error.statusCode = 409;
       throw error;
     }
-    if (job.status !== 'READY_FOR_REVIEW' || this.reviews.some((item) => item.importJobId === review.importJobId)) {
+    const expectedStatus = scope === 'TECHNICAL' ? 'READY_FOR_REVIEW' : 'TECHNICALLY_APPROVED';
+    if (job.status !== expectedStatus || this.reviews.some((item) => item.importJobId === review.importJobId && item.scope === scope)) {
       const error = new Error('Import job không còn ở trạng thái chờ review.');
       error.code = 'IMPORT_NOT_REVIEWABLE';
       error.statusCode = 409;
@@ -113,15 +126,55 @@ class MemoryImportRepository {
     }
     const created = {
       ...review,
-      scope: 'TECHNICAL',
+      scope,
       actorSource: 'AUTHENTICATED_USER',
-      status: review.decision === 'APPROVE' ? 'TECHNICALLY_APPROVED' : 'REJECTED',
+      status: review.decision === 'APPROVE'
+        ? (scope === 'TECHNICAL' ? 'TECHNICALLY_APPROVED' : 'ACADEMICALLY_APPROVED')
+        : (scope === 'TECHNICAL' ? 'REJECTED' : 'ACADEMICALLY_REJECTED'),
       createdAt: new Date('2026-11-07T00:00:00Z')
     };
     this.reviews.push(created);
     job.status = created.status;
     job.updatedAt = new Date('2026-11-07T00:01:00Z');
     return created;
+  }
+  async findPublicationByJob(importJobId) {
+    return this.publications.find((item) => item.importJobId === importJobId) || null;
+  }
+  async publishImport({ plan, publisherId, validationReportSha256, publishedAt }) {
+    const job = await this.findById(plan.importJobId);
+    if (job.status === 'PUBLISHED') {
+      return { publication: this.publications.find((item) => item.importJobId === plan.importJobId), duplicate: true };
+    }
+    if (job.status !== 'ACADEMICALLY_APPROVED') {
+      const error = new Error('Package chưa được phê duyệt học thuật.');
+      error.code = 'IMPORT_NOT_PUBLISHABLE';
+      error.statusCode = 409;
+      throw error;
+    }
+    const academicApproval = this.reviews.find((item) => (
+      item.importJobId === plan.importJobId && item.scope === 'ACADEMIC' && item.decision === 'APPROVE'
+      && item.packageSha256 === plan.packageSha256 && item.validationReportSha256 === validationReportSha256
+    ));
+    if (!academicApproval) {
+      const error = new Error('Academic approval không khớp package/report hiện tại.');
+      error.code = 'ACADEMIC_APPROVAL_MISMATCH';
+      error.statusCode = 409;
+      throw error;
+    }
+    const publication = {
+      id: plan.publicationId,
+      importJobId: plan.importJobId,
+      examVersionId: plan.exam.versionId,
+      publishedByUserId: publisherId,
+      packageSha256: plan.packageSha256,
+      validationReportSha256,
+      publishedAt
+    };
+    this.publishedPlans.push(plan);
+    this.publications.push(publication);
+    job.status = 'PUBLISHED';
+    return { publication, duplicate: false };
   }
 }
 
@@ -269,4 +322,123 @@ test('authenticated editor cannot technically review the package they staged', a
     }),
     (error) => error.code === 'SELF_REVIEW_FORBIDDEN' && error.statusCode === 409
   );
+});
+
+test('academic approval is a separate immutable gate before publish', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-academic-review-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const repository = new MemoryImportRepository();
+  const service = new ImportService({ repository, storage: new LocalImportStorage(root) });
+  const staged = await service.stage(await buildValidPackage(), {
+    user: { id: '00000000-0000-4000-8000-000000000401' }
+  });
+
+  await assert.rejects(
+    service.createAcademicReview({
+      importJobId: staged.id,
+      reviewerId: '00000000-0000-4000-8000-000000000402',
+      decision: 'APPROVE',
+      reason: 'Chưa thể duyệt học thuật trước technical review.'
+    }),
+    (error) => error.code === 'IMPORT_NOT_REVIEWABLE'
+  );
+  await service.createTechnicalReview({
+    importJobId: staged.id,
+    reviewerId: '00000000-0000-4000-8000-000000000402',
+    decision: 'APPROVE',
+    reason: 'Đã đối chiếu cấu trúc, asset và answer key.'
+  });
+  const academic = await service.createAcademicReview({
+    importJobId: staged.id,
+    reviewerId: '00000000-0000-4000-8000-000000000402',
+    decision: 'APPROVE',
+    reason: 'Đã duyệt tính chính xác học thuật, đáp án và lời giải.'
+  });
+
+  assert.equal(academic.review.scope, 'ACADEMIC');
+  assert.equal(academic.job.status, 'ACADEMICALLY_APPROVED');
+  assert.equal(repository.publications.length, 0);
+  await assert.rejects(
+    service.createAcademicReview({
+      importJobId: staged.id,
+      reviewerId: '00000000-0000-4000-8000-000000000403',
+      decision: 'REJECT',
+      reason: 'Không được ghi đè academic approval đã có.'
+    }),
+    (error) => error.code === 'IMPORT_NOT_REVIEWABLE'
+  );
+});
+
+test('publish normalizes the approved package atomically and retry is idempotent', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-publish-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const repository = new MemoryImportRepository();
+  const service = new ImportService({ repository, storage: new LocalImportStorage(root) });
+  const staged = await service.stage(await buildValidPackage({
+    generatorMetadata: { provider: 'DEMO', model: 'fixture-v1', apiKey: 'must-not-be-published' }
+  }), {
+    user: { id: '00000000-0000-4000-8000-000000000411' }
+  });
+  const reviewerId = '00000000-0000-4000-8000-000000000412';
+  await service.createTechnicalReview({
+    importJobId: staged.id,
+    reviewerId,
+    decision: 'APPROVE',
+    reason: 'Đã kiểm tra toàn bộ cấu trúc package.'
+  });
+  await service.createAcademicReview({
+    importJobId: staged.id,
+    reviewerId,
+    decision: 'APPROVE',
+    reason: 'Đã kiểm tra nội dung, đáp án, lời giải và quyền.'
+  });
+
+  const first = await service.publish(staged.id, reviewerId);
+  const second = await service.publish(staged.id, reviewerId);
+  const plan = repository.publishedPlans[0];
+
+  assert.equal(first.duplicate, false);
+  assert.equal(first.job.status, 'PUBLISHED');
+  assert.equal(second.duplicate, true);
+  assert.equal(second.publication.id, first.publication.id);
+  assert.equal(repository.publications.length, 1);
+  assert.equal(plan.assets.length, 1);
+  assert.deepEqual(plan.source.generatorMetadata, { provider: 'DEMO', model: 'fixture-v1' });
+  assert.equal(plan.stimuli.length, 1);
+  assert.equal(plan.questions.length, 1);
+  assert.deepEqual(plan.questions[0].answerKey.correctOptionIds, [plan.questions[0].options[0].id]);
+  assert.equal(plan.stimuli[0].content.nodes[0].assetId, plan.assets[0].id);
+  assert.equal(plan.groups[0].questionVersionIds[0], plan.questions[0].versionId);
+  assert.equal(plan.exam.sections[0].items[0].questionGroupId, plan.groups[0].id);
+  assert.ok(plan.assetReferences.some((reference) => reference.ownerType === 'STIMULUS_VERSION'));
+});
+
+test('publish fails closed when source bytes change after approval', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-publish-tamper-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const repository = new MemoryImportRepository();
+  const service = new ImportService({ repository, storage: new LocalImportStorage(root) });
+  const staged = await service.stage(await buildValidPackage());
+  const reviewerId = '00000000-0000-4000-8000-000000000422';
+  await service.createTechnicalReview({ importJobId: staged.id, reviewerId, decision: 'APPROVE', reason: 'Technical review hợp lệ.' });
+  await service.createAcademicReview({ importJobId: staged.id, reviewerId, decision: 'APPROVE', reason: 'Academic review hợp lệ.' });
+  await fs.writeFile(path.join(root, staged.id, 'source.zip'), Buffer.from('tampered'));
+
+  await assert.rejects(service.publish(staged.id, reviewerId), (error) => error.code === 'PACKAGE_HASH_CHANGED');
+  assert.equal(repository.publications.length, 0);
+  assert.equal((await service.getById(staged.id)).status, 'ACADEMICALLY_APPROVED');
+});
+
+test('formal assessment remains disabled even after academic approval', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'eduassess-formal-gate-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const repository = new MemoryImportRepository();
+  const service = new ImportService({ repository, storage: new LocalImportStorage(root) });
+  const staged = await service.stage(await buildValidPackage({ purpose: 'FORMAL_ASSESSMENT' }));
+  const reviewerId = '00000000-0000-4000-8000-000000000432';
+  await service.createTechnicalReview({ importJobId: staged.id, reviewerId, decision: 'APPROVE', reason: 'Technical review hợp lệ.' });
+  await service.createAcademicReview({ importJobId: staged.id, reviewerId, decision: 'APPROVE', reason: 'Academic review hợp lệ.' });
+
+  await assert.rejects(service.publish(staged.id, reviewerId), (error) => error.code === 'FORMAL_ASSESSMENT_DISABLED');
+  assert.equal(repository.publications.length, 0);
 });

@@ -10,6 +10,8 @@
 
 Identity/session và global role guard đã có cho workflow import. Backend, không phải UI, enforce `CONTENT_EDITOR`, `ACADEMIC_REVIEWER` và `SUPER_ADMIN`; mọi thao tác ghi dùng CSRF và được bind với user session. Tenant/school scope, guardian/teacher scope và assignment vẫn chưa có.
 
-`CONTENT_EDITOR` được upload và đọc validation metadata nhưng không được gọi reviewer preview/assets/reviews. `ACADEMIC_REVIEWER` được xem answer payload và ghi technical decision; reviewer ID luôn lấy từ session. ImportJob lưu creator và transaction từ chối tự review. `SUPER_ADMIN` có cả hai quyền nhưng vẫn chịu self-review rule.
+`CONTENT_EDITOR` được upload và đọc validation metadata nhưng không được gọi reviewer preview/assets/reviews/publish. `ACADEMIC_REVIEWER` được xem answer payload, ghi technical decision, academic approval và kích hoạt publish sau đủ gate; reviewer/publisher ID luôn lấy từ session. ImportJob lưu creator và mọi review transaction từ chối tự review. `SUPER_ADMIN` có cả hai quyền nhưng vẫn chịu self-review rule.
+
+Academic approval không đồng nghĩa formal assessment approval. Package `FORMAL_ASSESSMENT` luôn bị chặn ở publish cho đến khi có role/policy/validation record chuyên biệt. Published version không được sửa tại chỗ; thay đổi phải tạo package/version mới.
 
 Production vẫn mặc định `ENABLE_IMPORT_API=false` để rollout có chủ đích; feature flag không thay thế auth. Trước public deployment phải bổ sung tenant scope, account recovery/MFA theo rủi ro, session cleanup/rotation, distributed rate limit và negative IDOR tests khi có tài nguyên tenant.

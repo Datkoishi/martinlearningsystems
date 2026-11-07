@@ -40,4 +40,12 @@ Yêu cầu `ACADEMIC_REVIEWER` hoặc `SUPER_ADMIN`. Phục vụ đúng asset đ
 
 Yêu cầu `ACADEMIC_REVIEWER` hoặc `SUPER_ADMIN`; POST còn yêu cầu CSRF. GET trả immutable review history. POST nhận `{decision: "APPROVE|REJECT", reason}`; reviewer ID lấy từ session, không nhận từ client. Chỉ nhận job `READY_FOR_REVIEW`, trả `409` nếu đã có quyết định hoặc `SELF_REVIEW_FORBIDDEN` nếu reviewer là người nhập. APPROVE tạo `TECHNICALLY_APPROVED`, REJECT tạo `REJECTED`; không publish.
 
-Academic approval/publish, attempt/scoring/assembly APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.
+## `POST /api/imports/:id/academic-reviews`
+
+Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Nhận cùng decision/reason contract nhưng chỉ từ `TECHNICALLY_APPROVED`. Decision scope `ACADEMIC` là record bất biến thứ hai; APPROVE → `ACADEMICALLY_APPROVED`, REJECT → `ACADEMICALLY_REJECTED`. Creator không được tự duyệt.
+
+## `POST /api/imports/:id/publish`
+
+Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Chỉ publish job `ACADEMICALLY_APPROVED`; source hash, validation report và approval phải khớp. Trả `201` cho publication mới, `200` và `duplicate: true` khi retry job đã publish. Transaction ghi toàn bộ versioned content hoặc rollback; purpose `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
+
+Published catalog/player, attempt/scoring/assembly APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.

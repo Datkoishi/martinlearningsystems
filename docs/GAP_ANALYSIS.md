@@ -7,9 +7,9 @@
 | Frontend | Vite/React status page | product UI/player/renderer | thêm renderer + FIXED DEMO | React/Vite, proxy | status-only screen replaced; font CDN is optional fallback risk |
 | Backend | Express health only | domain/API/security | modular domain logic + safe projection + import session/RBAC | Express/Helmet/CORS/opaque sessions | global role only; tenant/MFA/recovery pending |
 | Database | MySQL + service_status | toàn bộ assessment domain | additive normalized version tables + JSON rich content | MySQL 8.4/init convention | init SQL không tự chạy trên volume cũ |
-| Content | none | package/import/review/assets | fixture + schema first | — | DEMO must never be mistaken for official |
+| Content | none | package/import/review/publish/assets | versioned schema + atomic publication | archive-backed media | DEMO must never be mistaken for official |
 | Tests | 3 health/unit tests | content/leakage/player/DB/E2E | add validator/order/safe payload tests | Node test runner | network-listen tests blocked in sandbox |
 | Docs | README only | domain/roadmap/status/runbook | add required baseline | existing run commands | docs must track code each slice |
 | Git/CI | main, origin, CI | feature workflow evidence | feature branch | existing CI | branch push will not deploy main |
 
-Breaking risk thấp: route mới và bảng mới là additive; màn hình bootstrap cũ được thay bằng product DEMO. Rủi ro chính tiếp theo là tenant scope, academic publish integrity, answer leakage và migration trên volume MySQL hiện hữu.
+Breaking risk thấp: route mới và bảng mới là additive; màn hình bootstrap cũ được thay bằng product DEMO. Rủi ro chính tiếp theo là student-safe published projection, asset delivery/S3, tenant scope, answer leakage và migration trên volume MySQL hiện hữu.

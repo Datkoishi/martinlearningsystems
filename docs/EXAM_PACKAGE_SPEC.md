@@ -30,4 +30,8 @@ Upload nguyên gói → kiểm tra cấu trúc ZIP → tính package SHA-256 →
 - Hỗ trợ MIME: JSON, PNG, JPEG, WebP, SVG an toàn, MP3 và PDF preview.
 - Gói vi phạm bảo mật ZIP bị từ chối trước khi lưu; lỗi schema/nghiệp vụ được staging ở trạng thái `INVALID` để tải report.
 
-Package qua validation có reviewer preview dựng trực tiếp từ ZIP, gồm asset, answer key và explanation. Route yêu cầu authenticated Reviewer; reviewer identity lấy từ session và không được trùng creator. Reviewer có thể ghi một quyết định kỹ thuật bất biến; reject yêu cầu package mới để sửa. Chưa triển khai normalize/editor, academic approval, object storage S3 và publish transaction.
+Package qua validation có reviewer preview dựng trực tiếp từ ZIP, gồm asset, answer key và explanation. Route yêu cầu authenticated Reviewer; reviewer identity lấy từ session và không được trùng creator. Technical review và academic approval là hai record scope riêng, bất biến và cùng bind validation-report/package hash; reject yêu cầu package mới để sửa.
+
+Publish chỉ nhận trạng thái `ACADEMICALLY_APPROVED`. Service đọc lại ZIP nguồn, so SHA-256, chạy validator lại và yêu cầu report canonical không đổi. Sau đó package được normalize sang source/license/media/question/stimulus/group/exam version; asset và correct option reference đổi sang UUID nội bộ. Tất cả row cùng publication/audit/status được commit trong một MySQL transaction. Lỗi ở bất kỳ bước nào rollback toàn bộ; retry sau commit trả publication đã có. Source ZIP của job đã publish phải được giữ vì media storage key hiện trỏ entry trong archive. Object storage S3/published catalog delivery chưa triển khai.
+
+Package có purpose `FORMAL_ASSESSMENT` không được publish chỉ nhờ academic approval; endpoint trả `FORMAL_ASSESSMENT_DISABLED` cho đến khi có policy/approver/validation record riêng.

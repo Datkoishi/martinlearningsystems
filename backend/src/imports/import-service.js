@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readZipEntries, sha256 } from './package-reader.js';
 import { validateExamPackage } from './package-validator.js';
 import { buildReviewerPreview, findPackageAsset } from './reviewer-preview.js';
+import { buildPublicationPlan } from './package-publication.js';
 
 const publicJob = (job, duplicate = false) => ({
   id: job.id,
@@ -16,7 +17,26 @@ const publicJob = (job, duplicate = false) => ({
   updatedAt: job.updatedAt
 });
 
-const reviewerVisibleStatuses = new Set(['READY_FOR_REVIEW', 'TECHNICALLY_APPROVED', 'REJECTED']);
+const reviewerVisibleStatuses = new Set([
+  'READY_FOR_REVIEW',
+  'TECHNICALLY_APPROVED',
+  'ACADEMICALLY_APPROVED',
+  'ACADEMICALLY_REJECTED',
+  'REJECTED',
+  'PUBLISHED'
+]);
+
+const canonicalJson = (value) => {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalJson(value[key])]));
+  }
+  return value;
+};
+
+export const hashValidationReport = (report) => sha256(Buffer.from(JSON.stringify(canonicalJson(report))));
+
+const importError = (code, message, statusCode = 409) => Object.assign(new Error(message), { code, statusCode });
 
 export class ImportService {
   constructor({ repository, storage }) {
@@ -74,7 +94,8 @@ export class ImportService {
     return {
       job: publicJob(job),
       preview: buildReviewerPreview(files, id),
-      reviews: await this.repository.listReviews(id)
+      reviews: await this.repository.listReviews(id),
+      publication: this.repository.findPublicationByJob ? await this.repository.findPublicationByJob(id) : null
     };
   }
 
@@ -88,7 +109,7 @@ export class ImportService {
   async createTechnicalReview({ importJobId, reviewerId, decision, reason }) {
     const job = await this.repository.findById(importJobId);
     if (!job) return null;
-    const validationReportSha256 = sha256(Buffer.from(JSON.stringify(job.report)));
+    const validationReportSha256 = hashValidationReport(job.report);
     const review = await this.repository.createTechnicalReview({
       id: randomUUID(),
       importJobId,
@@ -96,10 +117,64 @@ export class ImportService {
       decision,
       reason,
       validationReportSha256,
+      packageSha256: job.packageSha256,
       auditId: randomUUID()
     });
     return {
       review,
+      job: publicJob(await this.repository.findById(importJobId))
+    };
+  }
+
+  async createAcademicReview({ importJobId, reviewerId, decision, reason }) {
+    const job = await this.repository.findById(importJobId);
+    if (!job) return null;
+    const review = await this.repository.createAcademicReview({
+      id: randomUUID(),
+      importJobId,
+      reviewerId,
+      decision,
+      reason,
+      validationReportSha256: hashValidationReport(job.report),
+      packageSha256: job.packageSha256,
+      auditId: randomUUID()
+    });
+    return {
+      review,
+      job: publicJob(await this.repository.findById(importJobId))
+    };
+  }
+
+  async publish(importJobId, publisherId) {
+    const job = await this.repository.findById(importJobId);
+    if (!job) return null;
+    const source = await this.storage.readOriginal(importJobId);
+    const actualPackageSha256 = sha256(source);
+    if (actualPackageSha256 !== job.packageSha256) {
+      throw importError('PACKAGE_HASH_CHANGED', 'Source ZIP không còn khớp hash đã review.');
+    }
+    const files = await readZipEntries(source);
+    const report = validateExamPackage(files, actualPackageSha256);
+    if (report.errors.length > 0) {
+      throw importError('PACKAGE_REVALIDATION_FAILED', 'Package không còn vượt qua validation trước publish.');
+    }
+    const validationReportSha256 = hashValidationReport(report);
+    if (validationReportSha256 !== hashValidationReport(job.report)) {
+      throw importError('VALIDATION_REPORT_CHANGED', 'Validation report đã thay đổi sau approval.');
+    }
+    const plan = buildPublicationPlan({ files, importJob: job });
+    if (plan.exam.purpose === 'FORMAL_ASSESSMENT') {
+      throw importError('FORMAL_ASSESSMENT_DISABLED', 'Publish FORMAL_ASSESSMENT đang bị khóa cho đến khi có formal approval policy.');
+    }
+    const result = await this.repository.publishImport({
+      plan,
+      publisherId,
+      validationReportSha256,
+      auditId: randomUUID(),
+      publishedAt: new Date()
+    });
+    return {
+      ...result,
       job: publicJob(await this.repository.findById(importJobId))
     };
   }

@@ -10,7 +10,7 @@
 | AUTH-001 | Opaque session + CSRF + server-side Editor/Reviewer RBAC | Editor/Reviewer | P0 | VERIFIED | `backend/src/auth`, `frontend/src/AuthPanel.jsx`, `005_identity_access.sql` | UT-AUTH-01–05 + HTTP-AUTH-01 + DB-AUTH-01 PASS | PERMISSIONS | tenant scope pending |
 | IMP-001a | Import ZIP staging + validation + idempotency | Editor | P0 | VERIFIED | `backend/src/imports`, `frontend/src/ImportPanel.jsx` | UT-IMP-01–06 + DB/HTTP PASS | EXAM_PACKAGE_SPEC | AUTH-001 |
 | IMP-001b | Reviewer preview + immutable technical decision | Reviewer | P0 | VERIFIED | `reviewer-preview.js`, `ReviewerPreview.jsx`, `004_import_reviews.sql` | UT-REV-01–04 + DB/HTTP PASS | API_SPEC | AUTH-001; academic gate separate |
-| IMP-001c | Academic approval + atomic publish | Academic Reviewer | P0 | NOT_STARTED | — | AC-01/02/09 | EXAM_PACKAGE_SPEC | IMP-001b + publish model |
+| IMP-001c | Academic approval + atomic publish | Academic Reviewer | P0 | VERIFIED | `package-publication.js`, `006_academic_publish.sql`, `ReviewerPreview.jsx` | UT-PUB-01–04 + DB-PUB-01/02 + HTTP-PUB-01 PASS | EXAM_PACKAGE_SPEC | IMP-001b + AUTH-001 |
 | PLAY-001 | Attempt/autosave/submit/scoring | Student | P0 | NOT_STARTED | — | AC-04/10–13 | ROADMAP | auth + attempt schema |
 | ASM-001 | Deterministic assembled exam | Editor/Student | P0 | NOT_STARTED | — | AC-05–07/20 | ASSEMBLY_ENGINE | approved pool |
 | ASMNT-001 | Evidence-based assessment | Student/Teacher | P0 | NOT_STARTED | — | AC-14 | ASSESSMENT_ENGINE | approved framework |

@@ -49,7 +49,7 @@ export default function ReviewerPreview({ job, authUser, onJobUpdate }) {
   const [error, setError] = useState('');
   const [reason, setReason] = useState('Đã đối chiếu cấu trúc, rich content, asset và answer key trong gói này.');
   const [submitting, setSubmitting] = useState(false);
-  const [decisionResult, setDecisionResult] = useState(null);
+  const [publication, setPublication] = useState(null);
 
   const loadPreview = async () => {
     setLoading(true);
@@ -66,11 +66,12 @@ export default function ReviewerPreview({ job, authUser, onJobUpdate }) {
     }
   };
 
-  const submitDecision = async (decision) => {
+  const submitDecision = async (scope, decision) => {
     setSubmitting(true);
     setError('');
     try {
-      const response = await fetch(`/api/imports/${job.id}/reviews`, {
+      const endpoint = scope === 'ACADEMIC' ? 'academic-reviews' : 'reviews';
+      const response = await fetch(`/api/imports/${job.id}/${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,7 +81,30 @@ export default function ReviewerPreview({ job, authUser, onJobUpdate }) {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.message || 'Không thể ghi quyết định review.');
-      setDecisionResult(body.review);
+      setPayload((current) => ({ ...current, job: body.job, reviews: [...current.reviews, body.review] }));
+      onJobUpdate(body.job);
+      if (scope === 'TECHNICAL' && decision === 'APPROVE') {
+        setReason('Đã kiểm tra tính chính xác học thuật, độ phù hợp lớp/môn, đáp án, lời giải và quyền công bố.');
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const publish = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/imports/${job.id}/publish`, {
+        method: 'POST',
+        headers: csrfHeaders()
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || 'Không thể publish package.');
+      setPublication(body.publication);
+      setPayload((current) => ({ ...current, job: body.job }));
       onJobUpdate(body.job);
     } catch (requestError) {
       setError(requestError.message);
@@ -95,7 +119,7 @@ export default function ReviewerPreview({ job, authUser, onJobUpdate }) {
         <div>
           <p className="eyebrow">Bước tiếp theo · Reviewer</p>
           <h2>Xem bằng renderer thật trước khi quyết định</h2>
-          <p>Preview sẽ đọc lại ZIP đã lưu. Answer key chỉ được tải trong khu vực reviewer development.</p>
+          <p>Preview sẽ đọc lại ZIP đã lưu. Answer key chỉ được tải trong session Reviewer đã xác thực.</p>
         </div>
         <button className="secondary-button" type="button" onClick={loadPreview} disabled={loading}>
           {loading ? 'Đang dựng preview…' : 'Mở reviewer preview'}
@@ -106,7 +130,19 @@ export default function ReviewerPreview({ job, authUser, onJobUpdate }) {
   }
 
   const { preview } = payload;
-  const alreadyReviewed = decisionResult || payload.reviews.length > 0 || job.status !== 'READY_FOR_REVIEW';
+  const currentStatus = payload.job?.status || job.status;
+  const visiblePublication = publication || payload.publication;
+  const technicalReview = payload.reviews.find((review) => review.scope === 'TECHNICAL');
+  const academicReview = payload.reviews.find((review) => review.scope === 'ACADEMIC');
+  const activeScope = currentStatus === 'READY_FOR_REVIEW'
+    ? 'TECHNICAL'
+    : currentStatus === 'TECHNICALLY_APPROVED' ? 'ACADEMIC' : null;
+  const terminalReview = currentStatus === 'REJECTED'
+    ? technicalReview
+    : currentStatus === 'ACADEMICALLY_REJECTED' ? academicReview : null;
+  const lockLabel = currentStatus === 'PUBLISHED'
+    ? 'PUBLISHED · BẤT BIẾN'
+    : currentStatus === 'ACADEMICALLY_APPROVED' ? 'SẴN SÀNG PUBLISH' : 'PUBLISH ĐANG KHÓA';
   return (
     <section className="review-workspace">
       <header className="review-toolbar">
@@ -114,7 +150,7 @@ export default function ReviewerPreview({ job, authUser, onJobUpdate }) {
           <p className="eyebrow">Technical reviewer preview</p>
           <h2>{preview.exam.title}</h2>
         </div>
-        <span className="review-lock">PUBLISH ĐANG KHÓA</span>
+        <span className="review-lock">{lockLabel}</span>
       </header>
 
       <div className="review-context">
@@ -156,27 +192,47 @@ export default function ReviewerPreview({ job, authUser, onJobUpdate }) {
       <section className="review-decision">
         <div>
           <p className="eyebrow">Quyết định bất biến</p>
-          <h2>Technical review</h2>
-          <p>Đây không phải phê duyệt học thuật và không publish nội dung.</p>
+          <h2>{activeScope === 'ACADEMIC' ? 'Academic approval' : activeScope === 'TECHNICAL' ? 'Technical review' : 'Publish gate'}</h2>
+          <p>Technical review, academic approval và publish là ba bước tách biệt, đều bind với package/report đã duyệt.</p>
         </div>
-        {alreadyReviewed ? (
+        {currentStatus === 'PUBLISHED' || visiblePublication ? (
           <div className="decision-recorded">
-            <strong>Đã ghi quyết định</strong>
-            <span>{decisionResult?.decision || payload.reviews[0]?.decision || job.status}</span>
-            <p>Muốn sửa nội dung, hãy tạo package mới thay vì ghi đè audit record.</p>
+            <strong>Đã publish nguyên tử</strong>
+            <span>{visiblePublication?.examVersionId || 'ExamVersion đã được ghi nhận'}</span>
+            <p>Nội dung version đã publish là bất biến. Mọi chỉnh sửa phải đi qua package/version mới.</p>
           </div>
-        ) : (
+        ) : currentStatus === 'ACADEMICALLY_APPROVED' ? (
+          <div className="publish-panel">
+            <strong>Đủ hai approval gate</strong>
+            <p>Backend sẽ đọc lại source ZIP, kiểm tra hash/report và ghi source, license, asset, question, stimulus, group cùng ExamVersion trong một transaction.</p>
+            {preview.exam.purpose === 'FORMAL_ASSESSMENT' ? (
+              <div className="formal-lock">FORMAL_ASSESSMENT vẫn bị khóa cho đến khi có formal approval policy.</div>
+            ) : (
+              <button type="button" className="approve-button" disabled={submitting} onClick={publish}>
+                {submitting ? 'Đang publish…' : 'Publish version bất biến'}
+              </button>
+            )}
+          </div>
+        ) : terminalReview ? (
+          <div className="decision-recorded rejected-record">
+            <strong>Package đã bị từ chối</strong>
+            <span>{terminalReview.scope} · {terminalReview.decision}</span>
+            <p>{terminalReview.reason}</p>
+          </div>
+        ) : activeScope ? (
           <div className="decision-form">
             <div className="reviewer-identity"><span>Reviewer xác thực</span><strong>{authUser.displayName}</strong><code>{authUser.id}</code></div>
             <label>
-              <span>Lý do và bằng chứng đã kiểm tra</span>
+              <span>{activeScope === 'ACADEMIC' ? 'Kết luận học thuật và bằng chứng đã kiểm tra' : 'Lý do và bằng chứng kỹ thuật đã kiểm tra'}</span>
               <textarea rows="4" value={reason} onChange={(event) => setReason(event.target.value)} />
             </label>
             <div className="decision-actions">
-              <button type="button" className="reject-button" disabled={submitting} onClick={() => submitDecision('REJECT')}>Từ chối kỹ thuật</button>
-              <button type="button" className="approve-button" disabled={submitting} onClick={() => submitDecision('APPROVE')}>Chấp thuận kỹ thuật</button>
+              <button type="button" className="reject-button" disabled={submitting} onClick={() => submitDecision(activeScope, 'REJECT')}>Từ chối {activeScope === 'ACADEMIC' ? 'học thuật' : 'kỹ thuật'}</button>
+              <button type="button" className="approve-button" disabled={submitting} onClick={() => submitDecision(activeScope, 'APPROVE')}>Chấp thuận {activeScope === 'ACADEMIC' ? 'học thuật' : 'kỹ thuật'}</button>
             </div>
           </div>
+        ) : (
+          <div className="decision-recorded"><strong>Không có thao tác khả dụng</strong><span>{currentStatus}</span></div>
         )}
         {error && <p className="inline-error" role="alert">{error}</p>}
       </section>

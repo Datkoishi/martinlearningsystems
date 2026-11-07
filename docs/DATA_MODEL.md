@@ -22,12 +22,17 @@ erDiagram
   USER ||--o{ AUTH_SESSION : owns
   USER ||--o{ AUDIT_LOG : acts
   USER ||--o{ IMPORT_JOB : creates
-  IMPORT_JOB ||--o| IMPORT_REVIEW : records
+  IMPORT_JOB ||--o{ IMPORT_REVIEW : records
+  IMPORT_JOB ||--o| IMPORT_PUBLICATION : publishes
   USER ||--o{ IMPORT_REVIEW : performs
+  USER ||--o{ IMPORT_PUBLICATION : performs
+  EXAM_VERSION ||--o| IMPORT_PUBLICATION : produced
 ```
 
 Published versions phải bất biến ở application/service layer; thay đổi tạo version mới. `ExamItem` có check đúng một target. JSON dành cho rich content/answer config đã được validate; grade/subject/type/status là cột quan hệ để lọc. Attempt/snapshot sẽ được thêm trong Phase 2 trước khi có submit thật.
 
 `users` giữ identity trạng thái; password chỉ lưu scrypt hash. `user_roles` hiện chỉ có global scope. `auth_sessions` lưu hash của opaque session/CSRF token, expiry và revoke timestamp; `audit_logs` lưu event/outcome/resource mà không lưu raw credential/token.
 
-`import_jobs.created_by_user_id` xác định creator. `import_reviews` chỉ có scope `TECHNICAL` trong slice hiện tại, unique theo `import_job_id`, lưu decision/reason/reviewer ID/report SHA-256/actor source; transaction cấm creator tự review. Academic approval/publish là gate riêng và chưa tồn tại.
+`import_jobs.created_by_user_id` xác định creator. `import_reviews` có hai scope `TECHNICAL | ACADEMIC`, unique theo `(import_job_id, review_scope)`, lưu decision/reason/reviewer ID/report SHA-256/package SHA-256/actor source; transaction cấm creator tự review.
+
+`import_publications` unique theo ImportJob và ExamVersion, lưu publisher cùng hai hash đã duyệt. Publication transaction tạo content source/license/media, các identity + version rows, section/item/group/provenance/asset reference, rồi mới đổi job sang `PUBLISHED`. Stable exam/question/stimulus key nhận version number kế tiếp; published rows không update. Formal assessment vẫn bị khóa ở service policy.

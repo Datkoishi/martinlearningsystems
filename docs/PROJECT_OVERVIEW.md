@@ -11,4 +11,4 @@ Nguồn (`origin_type`), chế độ (`exam_mode`) và mục đích (`purpose`) 
 
 ## Trạng thái hiện tại
 
-Repo là modular monolith nhỏ: React frontend, Express backend, MySQL. Hệ thống hiện chứng minh dữ liệu rich content có version, section, stimulus/group, asset, math/table, API student-safe và renderer responsive. Import Lab đã có staging ZIP, lưu nguồn nguyên vẹn, validation report, idempotency, session/RBAC và technical reviewer workflow; publish vẫn khóa. Dữ liệu chỉ là DEMO; tenant scope, academic approval, attempt/autosave, scoring và assembly chưa hoàn thành.
+Repo là modular monolith nhỏ: React frontend, Express backend, MySQL. Hệ thống hiện chứng minh dữ liệu rich content có version, section, stimulus/group, asset, math/table, API student-safe và renderer responsive. Import Lab đã có staging ZIP, validation, session/RBAC, technical + academic review và atomic publish sang versioned schema. Dữ liệu vẫn chỉ là DEMO; tenant scope, published catalog/player, attempt/autosave, scoring và assembly chưa hoàn thành. Formal assessment luôn khóa.
