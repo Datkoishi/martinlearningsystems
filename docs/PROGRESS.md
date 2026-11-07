@@ -74,3 +74,21 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `8939300` (`feat(auth): secure content workflows with sessions`).
 - Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
+
+## [2026-11-07 08:14 +07:00] TASK-005 — Academic approval và atomic package publication
+
+- Mục tiêu / feature IDs: IMP-001c; AC-01/02/09 publish gate foundation.
+- Trạng thái: VERIFIED (unit/build/MySQL transaction/HTTP authorization hoàn thành; browser visual QA vẫn chưa có tooling).
+- Phạm vi thực hiện: academic review scope bất biến; package/report hash binding; source revalidation; normalize UUID nội bộ; versioned source/license/media/stimulus/question/group/exam publication; atomic rollback; idempotent retry; formal assessment fail-closed; Reviewer UI ba gate.
+- Files created: `backend/src/imports/package-publication.js`, `database/init/006_academic_publish.sql`, `docs/adr/0005-atomic-package-publication.md`.
+- Files modified: import service/repository/routes/tests, ImportPanel/ReviewerPreview/styles, README và docs architecture/domain/status/test/runbook.
+- DB migration / data impact: mở status `ACADEMICALLY_APPROVED|ACADEMICALLY_REJECTED`; review unique theo job+scope; thêm package hash và `import_publications`. Publish tạo additive version rows; không update version đã publish.
+- API / UI behavior: `POST /academic-reviews`; `POST /publish`; technical → academic → publish rõ ràng; retry trả publication cũ; package formal hiển thị khóa; published ExamVersion ID được trả cho UI.
+- Test commands actually run: `npm test`; `docker compose config --quiet`; `npm audit --prefix backend --omit=dev`; production Docker build; MySQL 8.4 migration + repository commit/retry/rollback smoke; Docker HTTP auth/CSRF matrix; `git diff --check`; `git diff --cached --check`.
+- Test results: backend 27/27 PASS; frontend build PASS (34 modules); runtime audit 0 vulnerabilities; MySQL PASS (24 tables); first publish/retry same record; forced mid-transaction duplicate rollback sạch; HTTP 401/403/404/409 matrix PASS.
+- Security/privacy considerations: creator self-review vẫn bị cấm; publisher lấy từ session; source/report hash recheck; generator metadata allowlist bỏ secret-like fields; answer/asset refs remap UUID; `FORMAL_ASSESSMENT` khóa độc lập. Container/image/network test chỉ có dữ liệu giả lập đã xóa vĩnh viễn.
+- Known issues / trade-offs: media published còn archive-backed trên local volume; source ZIP không được cleanup; chưa S3/published catalog delivery; role vẫn global; không browser QA.
+- Next actionable task: PLAY-001a — published FIXED catalog + student-safe projection và immutable Attempt snapshot foundation.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `9bd80d9` (`feat(import): add academic atomic publication`).
+- Push status: `PUSH_BLOCKED` như TASK-001; không retry remote khi chưa có phê duyệt rõ.
