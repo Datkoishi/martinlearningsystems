@@ -1,6 +1,6 @@
-# Martin Learning Systems
+# EduAssess — Martin Learning Systems
 
-Môi trường phát triển full-stack gồm React + Vite, Node.js + Express + Socket.IO, MySQL và Docker Compose.
+Nền tảng web đánh giá năng lực học sinh. Repo hiện có luồng import → technical review → academic review → atomic publish, catalog chung cho FIXED/ASSEMBLED, attempt/scoring cho Student và deterministic assembly có blueprint version/approval/publish gate. Stack gồm React + Vite, Node.js + Express + Socket.IO, MySQL và Docker Compose.
 
 ## Yêu cầu
 
@@ -20,7 +20,8 @@ Sau khi các container sẵn sàng:
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:3000/api
-- Backend health: http://localhost:3000/api/health
+- Backend liveness: http://localhost:3000/api/live
+- Backend readiness: http://localhost:3000/api/ready
 - MySQL: `localhost:3307`, database `mls_db`
 
 Dừng hệ thống:
@@ -59,6 +60,42 @@ Vite tự proxy `/api` và `/socket.io` sang backend tại cổng 3000.
 npm test --prefix backend
 npm run build --prefix frontend
 ```
+
+API demo: `GET /api/exams/demo-fixed`. Dữ liệu hiển thị có nhãn `[DEMO]`, chưa phải nội dung học thuật được duyệt. Catalog thật ở `/#catalog`; chỉ liệt kê ExamVersion `PUBLISHED + (FIXED|ASSEMBLED) + non-formal`. Student có thể tạo attempt, khôi phục câu trả lời đã được server xác nhận, autosave theo revision và nộp bài idempotent.
+
+Import Lab ở `/#imports`. Backend yêu cầu session đăng nhập, role phía server và CSRF cho mọi thao tác ghi; production vẫn mặc định tắt import cho đến khi cấu hình vận hành được duyệt. Tạo user đầu tiên bằng password qua stdin, không đưa credential vào command history:
+
+```bash
+read -s EDUASSESS_NEW_PASSWORD
+printf '%s' "$EDUASSESS_NEW_PASSWORD" | docker compose exec -T backend npm run auth:create-user -- \
+  --email editor@example.com --display-name "Content Editor" --roles CONTENT_EDITOR
+unset EDUASSESS_NEW_PASSWORD
+```
+
+Các role bootstrap hiện hỗ trợ `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER` và `SUPER_ADMIN`; nên cấp mỗi người đúng role cần thiết. Sau khi đăng nhập ở Import Lab, Editor có thể tải ZIP. Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
+
+Package `READY_FOR_REVIEW` có thể mở bằng chính Rich Content renderer khi session có role `ACADEMIC_REVIEWER`. Reviewer ID lấy từ session, Editor không đọc được answer payload và người nhập package không thể tự review. Workflow tách technical review, academic approval và publish. Publish đọc lại ZIP, kiểm tra hash/report rồi ghi source, license, asset, question/stimulus/group và `ExamVersion` trong một transaction; retry trả publication cũ thay vì nhân đôi. `FORMAL_ASSESSMENT` vẫn bị khóa cho đến khi có formal approval policy.
+
+Catalog công khai không trả answer key/explanation hoặc asset chỉ xuất hiện trong lời giải. Các API ghi attempt yêu cầu session `STUDENT`, CSRF và `Idempotency-Key`; server lưu riêng student snapshot và scoring snapshot, kèm SHA-256 toàn vẹn. Chỉ chủ sở hữu đọc được attempt và API không bao giờ trả scoring snapshot. Scoring hiện hỗ trợ choice, đúng/sai, số có tolerance và short text; bài tự luận đã trả lời chuyển `PENDING_MANUAL_SCORING`, không dùng AI để kết luận. Chỉ bài `PRACTICE` đã chấm `FINAL` mới mở đáp án đúng; lời giải và rubric không được mở ở slice này.
+
+Assembly Lab ở `/#assembly`: Editor tạo deterministic technical run; Academic Reviewer mở snapshot có answer payload, ghi một quyết định bất biến và publish bản approved. Engine chỉ đọc QuestionVersion `PUBLISHED` trong graph FIXED non-formal, có metadata đầy đủ và license `derivative_assembly`; quota/source diversity/group policy là điều kiện cứng. Publication tạo `ExamVersion(mode=ASSEMBLED)` cùng student/scoring snapshot riêng; catalog và Student attempt dùng đúng snapshot đã publish, không reassemble khi reload. Formal assessment vẫn khóa.
+
+Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
+
+## Runtime production
+
+Compose mặc định dùng `NODE_ENV=development` để local HTTP hoạt động. Trước khi chạy public production, tối thiểu phải cấu hình:
+
+- `NODE_ENV=production`;
+- `CLIENT_ORIGIN` là origin HTTPS chính xác, không kèm path;
+- `COOKIE_SECURE=true`;
+- `MYSQL_PASSWORD` lấy từ secret manager và không còn giá trị mẫu;
+- `TRUST_PROXY` đúng số reverse proxy tin cậy (`1` khi backend chỉ nằm sau một proxy);
+- `SHUTDOWN_GRACE_MS` nằm trong 1–60 giây.
+
+Backend từ chối khởi động nếu cấu hình production không an toàn hoặc sai kiểu. Orchestrator dùng `/api/live` cho liveness và `/api/ready` cho readiness; khi nhận `SIGTERM`/`SIGINT`, readiness chuyển `503` trước khi đóng Socket.IO, HTTP và MySQL pool. Nginx frontend có CSP/security headers, health `/healthz`, giới hạn upload 26 MiB tương thích API ZIP 25 MiB và không tải font từ bên thứ ba.
+
+Đây mới là runtime safety baseline, chưa phải rollout production hoàn chỉnh. Database đang có dữ liệu vẫn cần migration runner/ledger, backup-restore rehearsal, TLS edge, tenant scope, S3/CDN và monitoring trước khi phục vụ dữ liệu thật.
 
 ## CI/CD
 

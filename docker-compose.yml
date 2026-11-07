@@ -27,8 +27,9 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
+    stop_grace_period: 15s
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
@@ -36,13 +37,21 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
+      ENABLE_IMPORT_API: ${ENABLE_IMPORT_API:-false}
+      IMPORT_STORAGE_PATH: /app/.data/imports
+      AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-8}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      SHUTDOWN_GRACE_MS: ${SHUTDOWN_GRACE_MS:-10000}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     depends_on:
       mysql:
         condition: service_healthy
+    volumes:
+      - import_data:/app/.data/imports
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/ready').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -59,11 +68,18 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     networks:
       - app_network
 
 volumes:
   mysql_data:
+  import_data:
 
 networks:
   app_network:

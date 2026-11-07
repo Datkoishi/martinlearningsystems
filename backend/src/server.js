@@ -4,7 +4,8 @@ import { createApp } from './app.js';
 import { config } from './config.js';
 import { db } from './db.js';
 
-const app = createApp();
+let shuttingDown = false;
+const app = createApp({ readinessCheck: () => !shuttingDown });
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -29,14 +30,37 @@ server.listen(config.port, () => {
   console.log(`Backend listening on port ${config.port}`);
 });
 
-const shutdown = async (signal) => {
+let shutdownPromise;
+const closeRealtime = () => new Promise((resolve) => io.close(resolve));
+const closeHttp = () => new Promise((resolve, reject) => {
+  if (!server.listening) return resolve();
+  return server.close((error) => error ? reject(error) : resolve());
+});
+
+const shutdown = (signal) => {
+  if (shutdownPromise) return shutdownPromise;
+  shuttingDown = true;
   console.log(`${signal} received, shutting down gracefully`);
-  io.close();
-  server.close(async () => {
+  const deadline = setTimeout(() => {
+    console.error(`Graceful shutdown exceeded ${config.shutdownGraceMs}ms`);
+    server.closeAllConnections?.();
+    process.exit(1);
+  }, config.shutdownGraceMs);
+  deadline.unref();
+
+  shutdownPromise = (async () => {
+    await closeRealtime();
+    await closeHttp();
     await db.end();
-    process.exit(0);
+    clearTimeout(deadline);
+    process.exitCode = 0;
+  })().catch((error) => {
+    clearTimeout(deadline);
+    console.error('Graceful shutdown failed', error);
+    process.exitCode = 1;
   });
+  return shutdownPromise;
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));

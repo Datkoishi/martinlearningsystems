@@ -1,0 +1,52 @@
+# Exam Package V1
+
+ZIP gồm `manifest.json`, `exam.json`, `questions.json`, `answers.json`, `assets/`, tùy chọn `preview.pdf`. Manifest khai schema/package ID, source/rights, file size + SHA-256 và counts. Path phải tương đối, không traversal; checksum/MIME/reference phải khớp.
+
+## Manifest tối thiểu
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "packageId": "pkg-math-5-demo-001",
+  "source": {"name": "Nguồn DEMO", "originType": "HUMAN_AUTHORED"},
+  "rights": {"publishFixed": true, "extractReuse": true, "derivativeAssembly": true},
+  "counts": {"questions": 1},
+  "files": [
+    {"path": "exam.json", "sha256": "<64 hex>", "sizeBytes": 123, "mimeType": "application/json"},
+    {"path": "assets/shape.svg", "assetId": "asset-shape", "altText": "Hình vuông", "sha256": "<64 hex>", "sizeBytes": 456, "mimeType": "image/svg+xml"}
+  ]
+}
+```
+
+`exam.json` chứa `id/title/grade/subject/durationMinutes/mode/purpose/sections`; mỗi section có `itemRefs` loại `GROUP` hoặc `QUESTION`. `questions.json` chứa `stimuli`, `groups`, `questions`; rich content tham chiếu `assetId` đã khai báo. `answers.json` chứa đúng một record cho mỗi câu và answer key phù hợp option/type. `MULTIPLE_CHOICE` mặc định exact-match; nếu cần partial credit, `answerKey.partialCredit.mode` duy nhất được hỗ trợ là `PER_OPTION_WITH_PENALTY`. Mode khác bị validator từ chối.
+
+Question có thể opt-in vào ASSEMBLED pool bằng bộ metadata all-or-none:
+
+```json
+{
+  "curriculumVersion": "vn-2018",
+  "topicKey": "geometry",
+  "skillKey": "reasoning",
+  "difficulty": "MEDIUM",
+  "estimatedSeconds": 90,
+  "familyKey": "rectangle-area-v1"
+}
+```
+
+Năm trường đầu là bắt buộc cùng nhau; `familyKey` tùy chọn. Difficulty chỉ nhận `EASY | MEDIUM | HARD`; estimated time từ 1–7200 giây. Metadata hợp lệ vẫn chưa đủ để được chọn: QuestionVersion phải published trong FIXED non-formal graph và provenance license phải cho `derivativeAssembly` tại thời điểm query. Package cũ không có metadata vẫn phục vụ FIXED nhưng không vào pool.
+
+## Pipeline và giới hạn hiện tại
+
+Upload nguyên gói → kiểm tra cấu trúc ZIP → tính package SHA-256 → validate manifest/checksum/MIME/rich content/reference/answer/license → lưu `source.zip` + report → `READY_FOR_REVIEW` hoặc `INVALID`. `(packageId, packageSha256)` là idempotency key.
+
+- Request tối đa 25 MiB; tối đa 200 ZIP entries, 10 MiB/entry, 50 MiB sau giải nén, compression ratio tối đa 100.
+- Cấm path tuyệt đối/traversal/backslash, duplicate path, symlink, encryption và file không khai báo.
+- SVG có script, event handler, `foreignObject`, entity hoặc external/data/javascript URL bị từ chối.
+- Hỗ trợ MIME: JSON, PNG, JPEG, WebP, SVG an toàn, MP3 và PDF preview.
+- Gói vi phạm bảo mật ZIP bị từ chối trước khi lưu; lỗi schema/nghiệp vụ được staging ở trạng thái `INVALID` để tải report.
+
+Package qua validation có reviewer preview dựng trực tiếp từ ZIP, gồm asset, answer key và explanation. Route yêu cầu authenticated Reviewer; reviewer identity lấy từ session và không được trùng creator. Technical review và academic approval là hai record scope riêng, bất biến và cùng bind validation-report/package hash; reject yêu cầu package mới để sửa.
+
+Publish chỉ nhận trạng thái `ACADEMICALLY_APPROVED`. Service đọc lại ZIP nguồn, so SHA-256, chạy validator lại và yêu cầu report canonical không đổi. Sau đó package được normalize sang source/license/media/question/stimulus/group/exam version; asset và correct option reference đổi sang UUID nội bộ. Tất cả row cùng publication/audit/status được commit trong một MySQL transaction. Lỗi ở bất kỳ bước nào rollback toàn bộ; retry sau commit trả publication đã có. Source ZIP của job đã publish phải được giữ vì media storage key hiện trỏ entry trong archive. Catalog đã phục vụ entry student-visible với hash/size check; S3/CDN promotion chưa triển khai.
+
+Package có purpose `FORMAL_ASSESSMENT` không được publish chỉ nhờ academic approval; endpoint trả `FORMAL_ASSESSMENT_DISABLED` cho đến khi có policy/approver/validation record riêng.
