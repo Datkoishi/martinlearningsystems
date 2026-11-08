@@ -259,3 +259,21 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `0ee56a8` (`feat(ops): add secure production observability`).
 - Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `0ee56a8`.
+
+## [2026-11-08 17:50 +07:00] TASK-015 — Immutable Blueprint revisions và governance queues
+
+- Mục tiêu / feature IDs: ASM-001c; authoring revision trên cùng Blueprint identity và queue Editor/Reviewer không sửa version đã duyệt/publish.
+- Trạng thái: VERIFIED (unit/API/full regression/frontend build/MySQL 8.4 transaction/query gates hoàn thành; browser visual/a11y QA chưa có tooling).
+- Phạm vi thực hiện: full-Blueprint revision command; same-identity sequential versioning; latest terminal guard; stale/parallel branch conflict; idempotent replay; owner/reviewer safe queues có status/purpose/title filter + bounded pagination; Assembly Lab revision/owned queue; Reviewer selectable queue.
+- Files created: `backend/test/mysql-assembly-repository.integration.test.js`, `docs/adr/0015-linear-blueprint-revisions.md`.
+- Files modified: assembly service/repository/routes/tests; Assembly Lab/Reviewer panel/CSS; README và docs architecture/API/data/status/roadmap/test/decision.
+- DB migration / data impact: không thêm migration và không sửa production data; dùng schema 010 hiện có. Revision transaction khóa Blueprint identity/latest version, nối `version_number + 1`; source version/run/snapshot giữ bất biến.
+- API / UI behavior: thêm Editor `GET /api/assemblies`, `POST /api/assemblies/:id/revisions`; Reviewer `GET /api/assembly-review-queue`. Chỉ latest `REJECTED|PUBLISHED` được revision; `NEEDS_REVIEW|APPROVED` bị khóa. Queue không có student/scoring snapshot, answer key hoặc explanation; reviewer preview chỉ tải khi mở item.
+- Test commands actually run: focused `node --test test/assembly.test.js test/app.test.js`; root `npm test`; isolated MySQL 8.4 migration 001–012 + opt-in repository integration test; frontend build trong root gate; `git diff --check`; `git diff --cached --check`.
+- Test results: focused backend/API 21/21 PASS; default backend 74 cases = 73 PASS + 1 opt-in MySQL test SKIP; ops suite PASS; Vite build PASS (38 modules); MySQL integration riêng 1/1 PASS với v1 rejected→v2, exact retry, stale/blocked conflicts và safe filtered queues.
+- Security/privacy considerations: Editor queue owner-scoped; Reviewer queue loại self-created run; filter allowlist/bounds; SQL parameterized; queue không lộ answer/scoring payload; creator vẫn không thể tự review. MySQL fixture/container chỉ có dữ liệu kỹ thuật, đã dừng và tự xoá; `.env` không bị hiển thị, chỉnh sửa hoặc stage.
+- Known issues / trade-offs: editor revision form hiện hỗ trợ Blueprint một section, trong khi API/domain vẫn nhận nhiều section; chưa persist failed assembly run, branching/merge, soft optimization/history, assignment policy hoặc browser QA.
+- Next actionable task: sản phẩm `ASMNT-001` — evidence framework/assessment interpretation có approval; production `OPS-001f` vẫn chờ domain/certificate/webhook/off-site/bucket/tenant inputs thật.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `5a60210` (`feat(assembly): add blueprint revision governance`).
+- Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `5a60210`.
