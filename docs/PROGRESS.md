@@ -240,3 +240,22 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `b5a90cc` (`feat(ops): add verified object media promotion`).
 - Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `b5a90cc`.
+
+## [2026-11-08 14:20 +07:00] TASK-014 — Secure production overlay và bounded observability
+
+- Mục tiêu / feature IDs: OPS-001e; TLS/file-secret production bundle, protected metrics và alert wiring cho HTTP/object/backup.
+- Trạng thái: VERIFIED trong repo/full-stack fixture smoke; target certificate/domain, encrypted off-site destination và real webhook delivery còn BLOCKED vì chưa có hạ tầng/secret đích.
+- Phạm vi thực hiện: production Compose merge reset plaintext secret/direct ports; TLS 1.2/1.3 + HTTP/2/HSTS edge; app/internal/edge/egress networks; `_FILE` secret parsing; protected metrics listener; bounded HTTP/error/readiness/object telemetry; atomic backup textfile metrics; Prometheus scrape/rules; Alertmanager webhook file; rotation/rollback runbook.
+- Files created: `backend/src/operations/metrics.js`, `backend/test/metrics.test.js`, `docker-compose.production.yml`, `ops/backup/backup-metrics.sh`, `ops/monitoring/{prometheus,alerts,alertmanager}.yml`, `ops/production/{nginx.production.conf,production.env.example}`, `docs/adr/0014-production-secrets-observability.md`.
+- Files modified: backend config/app/server/catalog/storage/tests/Dockerfile; backup secret/health/test scripts; base Compose/env/frontend image; AGENTS/README và architecture/status/roadmap/runbook/test/decision docs.
+- DB migration / data impact: không thêm migration, không sửa production data. Full-stack smoke dùng fresh fixture volume rồi xóa toàn bộ volume/container/network/image dự án test.
+- API / UI behavior: product API/UI không đổi. Edge HTTP redirect 308 sang HTTPS; `/api/live`/`ready` đi qua TLS. Metrics chạy port nội bộ 9464, không qua Nginx, không token trả 401; Prometheus/Alertmanager UI không publish.
+- Test commands actually run: focused/full backend tests; root `npm test`; Node 24 read-only container tests; backup suite; frontend build; production `npm audit`; Compose merge; pinned `promtool`/`amtool`/node_exporter; standalone Nginx TLS smoke; full production Compose build/up/curl/internal query/down; diff/cached diff/secret scan.
+- Test results: backend 72/72 PASS trên host và Node 24; ops PASS; Vite build 38 modules; runtime audit 0 vulnerability; Compose PASS; Prometheus config + 8 rules PASS; Alertmanager config/ready PASS; HTTP 308, TLS HTTP/2/HSTS, API live/ready PASS; MySQL/backend/frontend/backup healthy, migrator exit 0, backup READY, protected metrics 401/200, Prometheus backend `up=1` + backup healthy `1`.
+- Defects found/fixed during runtime smoke: frontend chỉ nối internal network làm PortBindings không publish nên thêm edge network riêng; backup loop export file secret làm child thấy direct + `_FILE` nên giữ secret file-resolved ở shell job không export; frontend health `localhost` chọn IPv6 trong khi Nginx listen IPv4 nên pin `127.0.0.1`; 5xx ratio denominator được sửa để không làm thấp tỷ lệ khi traffic nhỏ.
+- Security/privacy considerations: secret direct/file mutually exclusive; metrics token >=32 và constant-time compare; metric route không chứa UUID/user/content ID; internal services không publish; root filesystem read-only/no-new-privileges ở service phù hợp; fixtures chỉ là kỹ thuật và đã xóa. `.env` không bị đọc, hiển thị, chỉnh sửa hoặc stage.
+- Known issues / trade-offs: in-process counters reset khi backend restart; readiness gauge phản ánh probe gần nhất; same-host `backup_data` chưa phải off-site; Alertmanager ready không chứng minh receiver nhận alert; object bucket IAM/CDN/replication và tenant scope chưa provision.
+- Next actionable task: OPS-001f — target provisioning/go-live evidence khi có domain/certificate/webhook/off-site/bucket inputs; task sản phẩm vẫn là ASM-001c.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `0ee56a8` (`feat(ops): add secure production observability`).
+- Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `0ee56a8`.
