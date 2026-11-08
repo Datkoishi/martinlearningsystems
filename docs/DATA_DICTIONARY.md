@@ -27,7 +27,7 @@
 | attempt_operations | student, attempt, operation_type, idempotency_key, request_sha256, response_json | exact replay cho AUTOSAVE/SUBMIT; key không được dùng lại với request khác |
 | attempt_score_revisions | attempt, revision_number, scoring_state/version, result_json, actor | immutable score history; revision 1 do submit, regrade/manual scoring chưa có |
 | assembly_runs | creator, idempotency/request hash, blueprint, seed/engine, selection/source JSON, student/scoring snapshots, hashes | immutable successful run; owner-only public projection; unique creator/key |
-| exam_blueprints / versions | stable key, version, blueprint JSON, approval status, creator | immutable blueprint content; version 1/run hiện tại; status chỉ workflow mutation |
+| exam_blueprints / versions | stable key, version, blueprint JSON, approval status, creator | identity có nhiều immutable version tuần tự; chỉ latest rejected/published được nối revision; status chỉ workflow mutation |
 | assembly_reviews | run/version, reviewer, decision, reason, selection/snapshot hashes | một quyết định bất biến/run; creator không tự duyệt |
 | assembly_publications | run/version/ExamVersion, publisher, source/published hashes, student/scoring snapshots | một publication/run; source cho catalog ASSEMBLED và attempt |
 

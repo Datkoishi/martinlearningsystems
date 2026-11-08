@@ -257,3 +257,18 @@ Lệnh chính: focused config/media/migration tests; full `npm test`; Node 24 co
 | Target delivery/off-site | BLOCKED | chưa có production domain/certificate, real webhook receiver, encrypted off-site target hoặc bucket identity do người dùng/hạ tầng chưa cung cấp |
 
 Lệnh chính: `npm test --prefix backend` ngoài sandbox; `bash ops/backup/test.sh`; frontend build; Compose merge/config; pinned `promtool`/`amtool`/node_exporter checks; Nginx self-signed TLS smoke; full production Compose build/up/curl/internal Prometheus query/down. Smoke lần đầu phát hiện edge chỉ nối internal network nên port không publish, và backup loop export secret làm lần validate con xung đột; cả hai được sửa rồi full stack chạy lại PASS. Health frontend cũng đổi `localhost` sang `127.0.0.1` sau khi IPv6 loopback bị từ chối. Mọi secret/certificate/database/container/network/volume/image fixture đã xóa; `.env` không bị đọc, hiển thị hoặc chỉnh sửa.
+
+## 2026-11-08 — TASK-015
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-ASM-11 revision/queue contract | PASS | cùng Blueprint identity, v1→v2; latest terminal guard; stale/blocked conflict; exact retry; immutable v1; filter validation và no-answer queue |
+| HTTP-ASM-03 routes/RBAC/CSRF | PASS | Editor owned queue + revision; missing CSRF 403; Reviewer queue; Editor bị từ chối Reviewer queue; actor/source lấy từ session/path |
+| DB-ASM-03 MySQL 8.4 repository | PASS | migration 001–012; real transaction v1 rejected→v2; retry same run; stale/parallel blocked; title/purpose/status query và safe summary |
+| Backend regression | PASS | 74 cases: 73 pass + 1 opt-in MySQL integration skip trong default gate; integration case chạy riêng PASS |
+| Operations regression | PASS | backup script checksum/path/health suite |
+| Frontend production build | PASS | Vite, 38 modules; Editor/Reviewer queues và revision UI compile |
+| Diff/schema impact | PASS | `git diff --check`; không thêm migration vì schema 010 đã có identity, version unique và run binding |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+Lệnh chính: focused `node --test test/assembly.test.js test/app.test.js` ngoài sandbox (21/21); root `npm test` (73 pass, 1 opt-in skip + ops/build PASS); isolated MySQL 8.4 migration 001–012 và `mysql-assembly-repository.integration.test.js` (1/1 PASS); `git diff --check`. MySQL container dùng fixture kỹ thuật, đã dừng và tự xoá; `.env` không bị hiển thị, chỉnh sửa hoặc stage.

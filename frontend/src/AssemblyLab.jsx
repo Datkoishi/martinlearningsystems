@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AuthPanel from './AuthPanel.jsx';
 import AssemblyReviewPanel from './AssemblyReviewPanel.jsx';
 import StudentExamView from './StudentExamView.jsx';
@@ -16,6 +16,7 @@ const quotaMap = (input) => Object.fromEntries(String(input).split(',').map((ite
 }));
 
 const lastRunKey = (userId) => `eduassess:assembly:last:${userId}`;
+const quotaText = (value = {}) => Object.entries(value).map(([key, count]) => `${key}=${count}`).join(', ');
 
 export default function AssemblyLab({ authUser, onLogin }) {
   const canAssemble = hasRole(authUser, 'CONTENT_EDITOR', 'SUPER_ADMIN');
@@ -42,13 +43,43 @@ export default function AssemblyLab({ authUser, onLogin }) {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [revisionSource, setRevisionSource] = useState(null);
+  const [queue, setQueue] = useState({ items: [], total: 0, page: 1, limit: 20, nextPage: null });
+  const [queueFilters, setQueueFilters] = useState({ status: '', purpose: '', query: '' });
+  const [queueLoading, setQueueLoading] = useState(false);
   const pendingRef = useRef(null);
+
+  const loadQueue = useCallback(async (page = 1) => {
+    if (!canAssemble) return;
+    setQueueLoading(true);
+    try {
+      const parameters = new URLSearchParams({ page: String(page), limit: '20' });
+      if (queueFilters.status) parameters.set('status', queueFilters.status);
+      if (queueFilters.purpose) parameters.set('purpose', queueFilters.purpose);
+      if (queueFilters.query.trim()) parameters.set('q', queueFilters.query.trim());
+      const response = await fetch(`/api/assemblies?${parameters}`);
+      if (!response.ok) throw await parseError(response, 'Không tải được danh sách Blueprint.');
+      setQueue(await response.json());
+    } catch (requestError) {
+      setError(`${requestError.code ? `${requestError.code}: ` : ''}${requestError.message}`);
+    } finally {
+      setQueueLoading(false);
+    }
+  }, [canAssemble, queueFilters]);
 
   useEffect(() => {
     setRun(null);
     setError('');
+    setRevisionSource(null);
+    setQueue({ items: [], total: 0, page: 1, limit: 20, nextPage: null });
     pendingRef.current = null;
   }, [authUser?.id]);
+
+  useEffect(() => {
+    if (!canAssemble) return undefined;
+    const timeout = window.setTimeout(() => { void loadQueue(1); }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [canAssemble, loadQueue]);
 
   useEffect(() => {
     if (!canAssemble || !authUser?.id) return undefined;
@@ -76,6 +107,54 @@ export default function AssemblyLab({ authUser, onLogin }) {
 
   const update = (field) => (event) => {
     setForm((current) => ({ ...current, [field]: event.target.value }));
+    pendingRef.current = null;
+  };
+
+  const openRun = async (id) => {
+    setRestoring(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/assemblies/${encodeURIComponent(id)}`);
+      if (!response.ok) throw await parseError(response, 'Không mở được assembly run.');
+      const selected = await response.json();
+      setRun(selected);
+      try { window.sessionStorage.setItem(lastRunKey(authUser.id), selected.id); } catch { /* Server remains authoritative. */ }
+      return selected;
+    } catch (requestError) {
+      setError(`${requestError.code ? `${requestError.code}: ` : ''}${requestError.message}`);
+      return null;
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const beginRevision = async (item) => {
+    const selected = await openRun(item.id);
+    if (!selected) return;
+    const section = selected.blueprint.sections?.[0];
+    if (!section || selected.blueprint.sections.length !== 1) {
+      setError('UI revision hiện chỉ hỗ trợ Blueprint một section; dữ liệu gốc vẫn không bị thay đổi.');
+      return;
+    }
+    setForm({
+      title: selected.blueprint.title,
+      grade: String(selected.blueprint.grade),
+      subject: selected.blueprint.subject,
+      curriculumVersion: selected.blueprint.curriculumVersion,
+      purpose: selected.blueprint.purpose,
+      durationMinutes: String(selected.blueprint.durationMinutes),
+      seed: `${selected.seed}-revision-${selected.blueprintVersion + 1}`.slice(0, 128),
+      count: String(section.count),
+      questionTypes: quotaText(section.quotas.questionTypes),
+      topics: quotaText(section.quotas.topics),
+      skills: quotaText(section.quotas.skills),
+      difficulties: quotaText(section.quotas.difficulties),
+      minSources: String(selected.blueprint.sourceDiversity.minSources),
+      maxPerSource: String(selected.blueprint.sourceDiversity.maxQuestionsPerSource),
+      minPoints: String(selected.blueprint.pointRange.min),
+      maxPoints: String(selected.blueprint.pointRange.max)
+    });
+    setRevisionSource(selected);
     pendingRef.current = null;
   };
 
@@ -118,13 +197,16 @@ export default function AssemblyLab({ authUser, onLogin }) {
       setError(parseFailure.message);
       return;
     }
+    const endpoint = revisionSource
+      ? `/api/assemblies/${encodeURIComponent(revisionSource.id)}/revisions`
+      : '/api/assemblies';
     const serialized = JSON.stringify(body);
-    if (!pendingRef.current || pendingRef.current.serialized !== serialized) {
-      pendingRef.current = { serialized, key: crypto.randomUUID() };
+    if (!pendingRef.current || pendingRef.current.serialized !== serialized || pendingRef.current.endpoint !== endpoint) {
+      pendingRef.current = { serialized, endpoint, key: crypto.randomUUID() };
     }
     setSubmitting(true);
     try {
-      const response = await fetch('/api/assemblies', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,6 +218,8 @@ export default function AssemblyLab({ authUser, onLogin }) {
       if (!response.ok) throw await parseError(response, 'Không thể tạo assembly snapshot.');
       const created = await response.json();
       setRun(created);
+      setRevisionSource(null);
+      await loadQueue(1);
       try { window.sessionStorage.setItem(lastRunKey(authUser.id), created.id); } catch { /* Server remains authoritative. */ }
     } catch (requestError) {
       const detail = requestError.details ? ` ${JSON.stringify(requestError.details)}` : '';
@@ -163,7 +247,10 @@ export default function AssemblyLab({ authUser, onLogin }) {
 
       {canAssemble && <div className="assembly-layout">
         <form className="assembly-form" onSubmit={assemble}>
-          <h2>Blueprint 1.0.0</h2>
+          <div className="assembly-form-heading">
+            <h2>{revisionSource ? `Revision v${revisionSource.blueprintVersion + 1}` : 'Blueprint 1.0.0'}</h2>
+            {revisionSource && <button className="text-button" type="button" onClick={() => { setRevisionSource(null); pendingRef.current = null; }}>Hủy revision</button>}
+          </div>
           <label><span>Tiêu đề</span><input value={form.title} onChange={update('title')} /></label>
           <div className="assembly-form-row">
             <label><span>Lớp</span><input type="number" min="1" max="12" value={form.grade} onChange={update('grade')} /></label>
@@ -191,7 +278,7 @@ export default function AssemblyLab({ authUser, onLogin }) {
             <label><span>Điểm min–max</span><span className="range-inputs"><input type="number" min="0" step="0.25" value={form.minPoints} onChange={update('minPoints')} /><input type="number" min="0" step="0.25" value={form.maxPoints} onChange={update('maxPoints')} /></span></label>
           </div>
           {error && <p className="inline-error" role="alert">{error}</p>}
-          <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Đang giải constraints…' : 'Tạo immutable snapshot'}</button>
+          <button className="primary-button" type="submit" disabled={submitting}>{submitting ? 'Đang giải constraints…' : revisionSource ? 'Tạo immutable revision' : 'Tạo immutable snapshot'}</button>
         </form>
 
         <aside className="assembly-evidence">
@@ -202,7 +289,7 @@ export default function AssemblyLab({ authUser, onLogin }) {
             <h2>{run.status}</h2>
             <dl>
               <div><dt>Run ID</dt><dd><code>{run.id}</code></dd></div>
-              <div><dt>Blueprint</dt><dd>v{run.blueprintVersion} · {run.approvalStatus}</dd></div>
+              <div><dt>Blueprint</dt><dd><code>{run.blueprintId}</code><br />v{run.blueprintVersion} · {run.approvalStatus}</dd></div>
               <div><dt>Engine</dt><dd><code>{run.engineVersion}</code></dd></div>
               <div><dt>Seed</dt><dd><code>{run.seed}</code></dd></div>
               <div><dt>Selection hash</dt><dd><code>{run.selectionSha256.slice(0, 16)}…</code></dd></div>
@@ -210,9 +297,48 @@ export default function AssemblyLab({ authUser, onLogin }) {
             </dl>
             <h3>Phân bố nguồn</h3>
             <ul>{Object.entries(run.sourceDistribution).map(([sourceId, count]) => <li key={sourceId}><code>{sourceId}</code><span>{count} câu</span></li>)}</ul>
+            {['REJECTED', 'PUBLISHED'].includes(run.approvalStatus) && (
+              <button className="secondary-button" type="button" onClick={() => beginRevision(run)}>Tạo revision kế tiếp</button>
+            )}
           </>}
         </aside>
       </div>}
+
+      {canAssemble && (
+        <section className="assembly-queue">
+          <header>
+            <div><p className="eyebrow">Blueprint của tôi</p><h2>Revision và trạng thái governance</h2></div>
+            <span>{queue.total} run</span>
+          </header>
+          <div className="assembly-queue-filters">
+            <input aria-label="Tìm theo tiêu đề" placeholder="Tìm tiêu đề…" value={queueFilters.query} onChange={(event) => setQueueFilters((current) => ({ ...current, query: event.target.value }))} />
+            <select aria-label="Lọc trạng thái" value={queueFilters.status} onChange={(event) => setQueueFilters((current) => ({ ...current, status: event.target.value }))}>
+              <option value="">Mọi trạng thái</option><option>NEEDS_REVIEW</option><option>APPROVED</option><option>REJECTED</option><option>PUBLISHED</option>
+            </select>
+            <select aria-label="Lọc mục đích" value={queueFilters.purpose} onChange={(event) => setQueueFilters((current) => ({ ...current, purpose: event.target.value }))}>
+              <option value="">Mọi mục đích</option><option>PRACTICE</option><option>MOCK_EXAM</option><option>DIAGNOSTIC</option>
+            </select>
+            <button className="secondary-button" type="button" onClick={() => loadQueue(1)} disabled={queueLoading}>{queueLoading ? 'Đang tải…' : 'Lọc'}</button>
+          </div>
+          <div className="assembly-queue-list">
+            {queue.items.map((item) => (
+              <article key={item.id}>
+                <button type="button" onClick={() => openRun(item.id)}>
+                  <span><strong>{item.title}</strong><small>Lớp {item.grade} · {item.subject} · {item.purpose}</small></span>
+                  <span><b>v{item.blueprintVersion}</b><small>{item.approvalStatus}</small></span>
+                </button>
+                {['REJECTED', 'PUBLISHED'].includes(item.approvalStatus) && <button className="text-button" type="button" onClick={() => beginRevision(item)}>Revision</button>}
+              </article>
+            ))}
+            {!queueLoading && queue.items.length === 0 && <p>Không có Blueprint khớp bộ lọc.</p>}
+          </div>
+          <footer>
+            <button type="button" className="text-button" disabled={queue.page <= 1 || queueLoading} onClick={() => loadQueue(queue.page - 1)}>Trang trước</button>
+            <span>Trang {queue.page}</span>
+            <button type="button" className="text-button" disabled={!queue.nextPage || queueLoading} onClick={() => loadQueue(queue.nextPage)}>Trang sau</button>
+          </footer>
+        </section>
+      )}
 
       {canAssemble && run?.snapshot && (
         <StudentExamView

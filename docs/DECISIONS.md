@@ -83,3 +83,9 @@ Upload nằm ngoài DB transaction nên lỗi DB sau PUT có thể để object 
 Base Compose tiếp tục phục vụ local development; production phải merge overlay có version requirement rõ, reset MySQL/backend host ports và plaintext DB secret, chỉ publish Nginx 80/443. Nginx terminate TLS 1.2/1.3 + HSTS; secret được mount bằng file. Network internal giữ DB/API/monitoring kín, edge network riêng mới cho phép Docker publish TLS frontend; backend/Alertmanager có egress riêng cho object store/webhook.
 
 Metrics chạy listener riêng, Bearer token đọc từ file và không được proxy/public. HTTP labels chỉ là method/route template/status; object read và backup health có outcome hữu hạn. Backup ghi textfile atomically cho node_exporter; Prometheus dùng credential file và Alertmanager dùng webhook URL file. Readiness của stack/Alertmanager không thay bằng chứng notification delivery hoặc off-site durability trên target thật. Chi tiết ở ADR-0014.
+
+## D-018 Blueprint revision là chuỗi tuyến tính, queue chỉ là safe projection
+
+Blueprint content không sửa tại chỗ. Revision nhận full Blueprint + seed mới, chạy lại deterministic engine và nối version trên cùng identity chỉ khi latest version đã `REJECTED` hoặc `PUBLISHED`. `NEEDS_REVIEW`/`APPROVED` khóa revision để không sinh nhánh governance song song; source không còn latest bị từ chối. Transaction khóa identity/latest version, còn unique version number là guard cuối cùng. Exact idempotency retry vẫn trả run cũ.
+
+Editor queue scope theo creator; Reviewer queue loại chính creator để phản ánh self-review gate. Queue chỉ trả metadata/review/publication summary và hashes, không trả student/scoring snapshot hay answer/explanation. Reviewer payload nhạy cảm chỉ tải sau khi chọn một run cụ thể. Schema 010 đã đủ nên không thêm migration chỉ để kích hoạt workflow này. Chi tiết ở ADR-0015.

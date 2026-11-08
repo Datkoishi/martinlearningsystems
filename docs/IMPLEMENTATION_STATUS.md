@@ -26,6 +26,8 @@
 - Successful assembly run lưu immutable blueprint/seed/selection/source distribution cùng student/scoring snapshot tách biệt, hash toàn vẹn, idempotency và audit; Assembly Lab chỉ trả student-safe owner preview.
 - Mỗi run tạo Blueprint identity/version `NEEDS_REVIEW`; Reviewer độc lập xem answer/lời giải, asset scoped, ghi một decision bind hashes. APPROVED publish nguyên tử thành ExamVersion ASSEMBLED và published snapshot riêng.
 - Catalog chung hiển thị FIXED/ASSEMBLED; attempt từ ASSEMBLED sao chép đúng published snapshot, dùng chung autosave/submit/scoring và không reassemble khi reload/retry.
+- Editor tạo immutable revision trên cùng Blueprint identity từ latest `REJECTED|PUBLISHED`; transaction cấp version tuần tự, chặn source stale/nhánh song song và giữ exact idempotency. Version/run cũ không bị sửa.
+- Assembly Lab có owned governance queue và revision form; Reviewer workspace có queue mặc định `NEEDS_REVIEW`. Queue lọc status/purpose/title, phân trang, loại self-review và không mang answer/scoring snapshot.
 - Production config fail-fast kiểm tra typed env, HTTPS origin, secure cookie và DB secret; Express trust proxy chỉ theo hop count cấu hình.
 - Runtime có liveness/readiness tách biệt, readiness chuyển not-ready khi drain và graceful shutdown có deadline; Docker health dùng readiness.
 - MySQL Compose health query bằng application user/database nên không báo sẵn sàng trong temporary initialization server; migrator chỉ chạy sau khi schema target thực sự truy cập được.
@@ -46,7 +48,7 @@
 ## Partial / giới hạn
 
 - Chưa có timer/deadline server-side, attempt limit/new-attempt policy, manual essay scoring UI hay score regrade workflow.
-- Assembly chưa có authoring revision UI trên cùng blueprint identity, failed-run persistence, option shuffle, soft optimization/student history hoặc assignment policy.
+- Assembly chưa có failed-run persistence, option shuffle, soft optimization/student history hoặc assignment policy; editor revision form hiện tối ưu cho Blueprint một section dù API hỗ trợ schema nhiều section.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
 - Chưa có browser visual QA trong sandbox.
@@ -57,4 +59,4 @@
 
 ## Chưa làm
 
-Target production provisioning, off-site backup + alert delivery drill, object bucket/identity/CDN, tenant-scoped RBAC, account lifecycle/recovery/MFA, blueprint authoring revisions, manual essay/regrade, assessment/reporting.
+Target production provisioning, off-site backup + alert delivery drill, object bucket/identity/CDN, tenant-scoped RBAC, account lifecycle/recovery/MFA, assembly failure/history optimization, manual essay/regrade, assessment/reporting.

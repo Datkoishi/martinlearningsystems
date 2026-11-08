@@ -45,3 +45,6 @@
 - Thêm protected backend metrics listener với bounded HTTP route labels, readiness/error và object archive/object/fallback/failure telemetry; graceful shutdown đóng listener.
 - Thêm atomic backup textfile metrics, node_exporter, Prometheus credential-file scrape, 8 alert rules và Alertmanager webhook secret config.
 - Thêm production env template/runbook cho validate/deploy/rotation/rollback; full-stack fixture smoke xác minh migration, TLS/API health, backup, Prometheus và Alertmanager.
+- Thêm immutable Blueprint revision trên cùng identity: chỉ latest rejected/published được nối version mới, stale/parallel branch bị chặn và exact idempotency được giữ.
+- Thêm owner governance queue và Reviewer queue có allowlisted filter/pagination; queue summary không chứa answer, explanation hay student/scoring snapshot.
+- Nâng Assembly Lab/Reviewer workspace với revision form và selectable queue; bổ sung MySQL 8.4 integration test cho transaction version/query thật.

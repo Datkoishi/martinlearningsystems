@@ -110,11 +110,23 @@ Engine chỉ đọc question pool eligible/licensed, giải exact quotas + sourc
 
 Response gồm metadata blueprint, seed, `eduassess-assembly-v1`, selection/snapshot hash, selection manifest, source distribution và student-safe snapshot. Không trả scoring snapshot, answer key hoặc explanation. `INSUFFICIENT_POOL` trả 409 với counts; engine không tự nới quota. `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
 
+### `GET /api/assemblies`
+
+Yêu cầu Editor/Admin. Liệt kê run thuộc chính creator, hỗ trợ query `status=NEEDS_REVIEW|APPROVED|REJECTED|PUBLISHED`, `purpose=PRACTICE|MOCK_EXAM|DIAGNOSTIC`, `q`, `page` và `limit` (1–100). Response `{items,total,page,limit,nextPage}` chỉ chứa Blueprint/run metadata, creator, review/publication summary và hashes; không chứa student/scoring snapshot, answer hay explanation. Filter sai trả `400 INVALID_QUEUE_FILTER`.
+
 ### `GET /api/assemblies/:id`
 
 Yêu cầu Editor/Admin và chỉ creator đọc được; resource của creator khác trả 404. Backend xác minh selection/snapshot hash trước khi trả và dùng `Cache-Control: no-store`.
 
 Owner response có BlueprintVersion/status/review/publication summary nhưng vẫn không có scoring payload.
+
+### `POST /api/assemblies/:id/revisions`
+
+Yêu cầu owner Editor/Admin, CSRF và `Idempotency-Key`; body giữ cùng contract `{blueprint, seed}` như create. `:id` là source run thuộc Blueprint identity cần sửa. Chỉ latest version `REJECTED` hoặc `PUBLISHED` được tạo version kế tiếp; source stale trả `409 BLUEPRINT_REVISION_STALE`, version đang review/approved trả `409 BLUEPRINT_REVISION_BLOCKED`. Transaction giữ cùng Blueprint ID, cấp version number tuần tự và không sửa version/run cũ. Lần đầu `201`; exact retry `200 duplicate: true`.
+
+### `GET /api/assembly-review-queue`
+
+Yêu cầu Reviewer/Admin. Cùng filter/pagination contract với Editor queue, mặc định `status=NEEDS_REVIEW`, đồng thời loại mọi run do chính Reviewer tạo để phản ánh self-review gate. Queue không chứa answer/scoring snapshot; Reviewer phải mở endpoint preview của item cụ thể.
 
 ### `GET /api/assemblies/:id/reviewer-preview`
 
@@ -168,4 +180,4 @@ Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Nhận cùng decision/rea
 
 Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Chỉ publish job `ACADEMICALLY_APPROVED`; source hash, validation report và approval phải khớp. Trả `201` cho publication mới, `200` và `duplicate: true` khi retry job đã publish. Transaction ghi toàn bộ versioned content hoặc rollback; purpose `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
 
-Blueprint authoring revision UI, manual essay scoring/regrade và assessment APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.
+Manual essay scoring/regrade và assessment APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.

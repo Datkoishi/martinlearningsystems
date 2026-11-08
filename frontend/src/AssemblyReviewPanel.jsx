@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import RichContent from './RichContent.jsx';
 import { csrfHeaders } from './auth.js';
 
@@ -50,17 +50,46 @@ const ReviewQuestion = ({ question, assets }) => {
 export default function AssemblyReviewPanel({ authUser }) {
   const [runId, setRunId] = useState('');
   const [payload, setPayload] = useState(null);
+  const [queue, setQueue] = useState({ items: [], total: 0, page: 1, limit: 20, nextPage: null });
+  const [queueFilters, setQueueFilters] = useState({ status: 'NEEDS_REVIEW', purpose: '', query: '' });
+  const [queueLoading, setQueueLoading] = useState(false);
   const [reason, setReason] = useState('Đã kiểm tra blueprint, quota, nguồn, stimulus, đáp án và snapshot assembled.');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const load = async () => {
+  const loadQueue = useCallback(async (page = 1) => {
+    setQueueLoading(true);
+    setError('');
+    try {
+      const parameters = new URLSearchParams({ page: String(page), limit: '20' });
+      if (queueFilters.status) parameters.set('status', queueFilters.status);
+      if (queueFilters.purpose) parameters.set('purpose', queueFilters.purpose);
+      if (queueFilters.query.trim()) parameters.set('q', queueFilters.query.trim());
+      const response = await fetch(`/api/assembly-review-queue?${parameters}`);
+      if (!response.ok) throw await readError(response, 'Không tải được hàng đợi Reviewer.');
+      setQueue(await response.json());
+    } catch (requestError) {
+      setError(`${requestError.code ? `${requestError.code}: ` : ''}${requestError.message}`);
+    } finally {
+      setQueueLoading(false);
+    }
+  }, [queueFilters]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => { void loadQueue(1); }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [loadQueue]);
+
+  const load = async (selectedId = runId) => {
+    const normalizedId = selectedId.trim();
+    if (!normalizedId) return;
     setLoading(true);
     setError('');
     setPayload(null);
+    setRunId(normalizedId);
     try {
-      const response = await fetch(`/api/assemblies/${encodeURIComponent(runId.trim())}/reviewer-preview`);
+      const response = await fetch(`/api/assemblies/${encodeURIComponent(normalizedId)}/reviewer-preview`);
       if (!response.ok) throw await readError(response, 'Không mở được assembly reviewer preview.');
       setPayload(await response.json());
     } catch (requestError) {
@@ -81,6 +110,7 @@ export default function AssemblyReviewPanel({ authUser }) {
       });
       if (!response.ok) throw await readError(response, 'Không ghi được quyết định assembly.');
       setPayload(await response.json());
+      await loadQueue(queue.page);
     } catch (requestError) {
       setError(`${requestError.code ? `${requestError.code}: ` : ''}${requestError.message}`);
     } finally {
@@ -99,6 +129,7 @@ export default function AssemblyReviewPanel({ authUser }) {
       if (!response.ok) throw await readError(response, 'Không publish được assembly snapshot.');
       const body = await response.json();
       setPayload(body.run);
+      await loadQueue(queue.page);
     } catch (requestError) {
       setError(`${requestError.code ? `${requestError.code}: ` : ''}${requestError.message}`);
     } finally {
@@ -116,11 +147,44 @@ export default function AssemblyReviewPanel({ authUser }) {
         </div>
         <div className="assembly-run-lookup">
           <label><span>Assembly run ID</span><input value={runId} onChange={(event) => setRunId(event.target.value)} placeholder="UUID do Editor cung cấp" /></label>
-          <button className="secondary-button" type="button" onClick={load} disabled={loading || !runId.trim()}>{loading ? 'Đang tải…' : 'Mở snapshot'}</button>
+          <button className="secondary-button" type="button" onClick={() => load()} disabled={loading || !runId.trim()}>{loading ? 'Đang tải…' : 'Mở snapshot'}</button>
         </div>
       </header>
 
       {error && <p className="inline-error" role="alert">{error}</p>}
+
+      <section className="assembly-queue review-queue">
+        <header>
+          <div><p className="eyebrow">Reviewer queue</p><h3>Snapshot cần governance độc lập</h3></div>
+          <span>{queue.total} run</span>
+        </header>
+        <div className="assembly-queue-filters">
+          <input aria-label="Tìm theo tiêu đề review" placeholder="Tìm tiêu đề…" value={queueFilters.query} onChange={(event) => setQueueFilters((current) => ({ ...current, query: event.target.value }))} />
+          <select aria-label="Lọc trạng thái review" value={queueFilters.status} onChange={(event) => setQueueFilters((current) => ({ ...current, status: event.target.value }))}>
+            <option>NEEDS_REVIEW</option><option>APPROVED</option><option>REJECTED</option><option>PUBLISHED</option>
+          </select>
+          <select aria-label="Lọc mục đích review" value={queueFilters.purpose} onChange={(event) => setQueueFilters((current) => ({ ...current, purpose: event.target.value }))}>
+            <option value="">Mọi mục đích</option><option>PRACTICE</option><option>MOCK_EXAM</option><option>DIAGNOSTIC</option>
+          </select>
+          <button className="secondary-button" type="button" onClick={() => loadQueue(1)} disabled={queueLoading}>{queueLoading ? 'Đang tải…' : 'Lọc'}</button>
+        </div>
+        <div className="assembly-queue-list">
+          {queue.items.map((item) => (
+            <article key={item.id}>
+              <button type="button" onClick={() => load(item.id)}>
+                <span><strong>{item.title}</strong><small>{item.creator.displayName} · Lớp {item.grade} · {item.subject}</small></span>
+                <span><b>v{item.blueprintVersion}</b><small>{item.approvalStatus}</small></span>
+              </button>
+            </article>
+          ))}
+          {!queueLoading && queue.items.length === 0 && <p>Không có snapshot khớp bộ lọc.</p>}
+        </div>
+        <footer>
+          <button type="button" className="text-button" disabled={queue.page <= 1 || queueLoading} onClick={() => loadQueue(queue.page - 1)}>Trang trước</button>
+          <span>Trang {queue.page}</span>
+          <button type="button" className="text-button" disabled={!queue.nextPage || queueLoading} onClick={() => loadQueue(queue.nextPage)}>Trang sau</button>
+        </footer>
+      </section>
 
       {payload && (
         <>

@@ -223,6 +223,38 @@ export const createApp = ({
     }
   });
 
+  app.get('/api/assemblies', authenticate, editorOnly, async (request, response, next) => {
+    try {
+      const result = await assemblyService.listOwned(request.auth.user.id, {
+        status: request.query.status,
+        purpose: request.query.purpose,
+        query: request.query.q,
+        page: request.query.page,
+        limit: request.query.limit
+      });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assembly-review-queue', authenticate, reviewerOnly, async (request, response, next) => {
+    try {
+      const result = await assemblyService.listReviewQueue(request.auth.user.id, {
+        status: request.query.status,
+        purpose: request.query.purpose,
+        query: request.query.q,
+        page: request.query.page,
+        limit: request.query.limit
+      });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   app.get('/api/assemblies/:id', authenticate, editorOnly, async (request, response, next) => {
     if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
     try {
@@ -230,6 +262,27 @@ export const createApp = ({
       if (!run) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run.' });
       response.set('Cache-Control', 'no-store');
       return response.json(run);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assemblies/:id/revisions', authenticate, editorOnly, requireCsrf, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
+    const { blueprint, seed } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    try {
+      const run = await assemblyService.createRevision({
+        sourceRunId: request.params.id,
+        creatorUserId: request.auth.user.id,
+        idempotencyKey,
+        blueprint,
+        seed
+      });
+      if (!run) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run thuộc Editor.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(run.duplicate ? 200 : 201).json(run);
     } catch (error) {
       return next(error);
     }

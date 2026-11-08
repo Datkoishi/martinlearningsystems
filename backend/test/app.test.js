@@ -282,6 +282,18 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
       calls.push(['create', command]);
       return { id: assemblyId, status: 'SUCCEEDED', duplicate: false };
     },
+    async createRevision(command) {
+      calls.push(['revision', command]);
+      return { id: assemblyId, blueprintVersion: 2, status: 'SUCCEEDED', duplicate: false };
+    },
+    async listOwned(ownerId, filters) {
+      calls.push(['owned-queue', { ownerId, filters }]);
+      return { items: [{ id: assemblyId }], total: 1, page: 1, limit: 20, nextPage: null };
+    },
+    async listReviewQueue(reviewerUserId, filters) {
+      calls.push(['review-queue', { reviewerUserId, filters }]);
+      return { items: [{ id: assemblyId }], total: 1, page: 1, limit: 20, nextPage: null };
+    },
     async getOwned(id, ownerId) {
       calls.push(['get', { id, ownerId }]);
       return { id, status: 'SUCCEEDED' };
@@ -353,6 +365,35 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
   assert.equal(calls[0][1].creatorUserId, editorId);
   assert.equal(calls[0][1].idempotencyKey, 'assembly-key-001');
 
+  const ownedQueue = await fetch(`${baseUrl}/api/assemblies?status=NEEDS_REVIEW&purpose=PRACTICE&q=demo`, {
+    headers: { Cookie: editorCookie }
+  });
+  assert.equal(ownedQueue.status, 200);
+  assert.deepEqual((await ownedQueue.json()).items, [{ id: assemblyId }]);
+  assert.deepEqual(calls.at(-1), ['owned-queue', {
+    ownerId: editorId,
+    filters: { status: 'NEEDS_REVIEW', purpose: 'PRACTICE', query: 'demo', page: undefined, limit: undefined }
+  }]);
+
+  const revisionMissingCsrf = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/revisions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: editorCookie, 'Idempotency-Key': 'assembly-revision-key-001' },
+    body
+  });
+  assert.equal(revisionMissingCsrf.status, 403);
+  const revision = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/revisions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: editorCookie,
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'assembly-revision-key-001'
+    },
+    body
+  });
+  assert.equal(revision.status, 201);
+  assert.deepEqual(calls.at(-1)[0], 'revision');
+  assert.equal(calls.at(-1)[1].sourceRunId, assemblyId);
+  assert.equal(calls.at(-1)[1].creatorUserId, editorId);
+
   const restored = await fetch(`${baseUrl}/api/assemblies/${assemblyId}`, {
     headers: { Cookie: editorCookie }
   });
@@ -365,6 +406,21 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
   assert.equal(editorPreview.status, 403);
 
   const reviewerCookie = 'eduassess_session=reviewer-session; eduassess_csrf=csrf-token';
+  const reviewerQueue = await fetch(`${baseUrl}/api/assembly-review-queue?status=NEEDS_REVIEW&page=1&limit=25`, {
+    headers: { Cookie: reviewerCookie }
+  });
+  assert.equal(reviewerQueue.status, 200);
+  assert.deepEqual((await reviewerQueue.json()).items, [{ id: assemblyId }]);
+  assert.deepEqual(calls.at(-1), ['review-queue', {
+    reviewerUserId: reviewerId,
+    filters: { status: 'NEEDS_REVIEW', purpose: undefined, query: undefined, page: '1', limit: '25' }
+  }]);
+
+  const editorQueueDenied = await fetch(`${baseUrl}/api/assembly-review-queue`, {
+    headers: { Cookie: editorCookie }
+  });
+  assert.equal(editorQueueDenied.status, 403);
+
   const reviewerPreview = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/reviewer-preview`, {
     headers: { Cookie: reviewerCookie }
   });

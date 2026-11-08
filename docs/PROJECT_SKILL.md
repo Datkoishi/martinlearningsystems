@@ -15,7 +15,7 @@
 
 FIXED giữ đúng cấu trúc version đã phát hành. ASSEMBLED lọc pool approved/licensed, giải constraints bằng seed, rồi tạo snapshot bất biến. Không gọi lại assembly khi reload. Cả hai đi qua cùng player và scoring service.
 
-Assembly dùng metadata relational curriculum/topic/skill/difficulty/estimated/family. Chỉ QuestionVersion published trong graph FIXED non-formal, có provenance/license derivative hợp lệ mới vào pool. Quota là hard constraints; atomic group không được tách, split group phải mang stimulus; duplicate question/family bị chặn. Candidate order dùng seeded hash, run lưu engine/selection/snapshot hash. Mỗi run gắn immutable BlueprintVersion; creator không được tự duyệt, review bind hashes và chỉ APPROVED mới publish thành ExamVersion ASSEMBLED. Catalog/attempt chỉ đọc published snapshot, không chạy lại engine.
+Assembly dùng metadata relational curriculum/topic/skill/difficulty/estimated/family. Chỉ QuestionVersion published trong graph FIXED non-formal, có provenance/license derivative hợp lệ mới vào pool. Quota là hard constraints; atomic group không được tách, split group phải mang stimulus; duplicate question/family bị chặn. Candidate order dùng seeded hash, run lưu engine/selection/snapshot hash. Mỗi run gắn immutable BlueprintVersion; revision chỉ nối latest rejected/published trên cùng identity. Creator không được tự duyệt, review bind hashes và chỉ APPROVED mới publish thành ExamVersion ASSEMBLED. Editor/Reviewer queue không mang answer payload; catalog/attempt chỉ đọc published snapshot, không chạy lại engine.
 
 ## Exam Package và rich content
 
