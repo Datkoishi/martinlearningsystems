@@ -13,6 +13,8 @@ test('development config keeps local-safe defaults', () => {
   assert.equal(config.trustProxy, 0);
   assert.equal(config.shutdownGraceMs, 10000);
   assert.equal(config.importStoragePath, path.resolve('/srv/eduassess/backend/.data/imports'));
+  assert.equal(config.migrationsPath, path.resolve('/srv/eduassess/database/init'));
+  assert.equal(config.migrationLockTimeoutSeconds, 30);
 });
 
 test('production config accepts explicit HTTPS, secure cookie and database secret', () => {
@@ -61,4 +63,5 @@ test('config rejects malformed values instead of silently using fallbacks', () =
   assert.throws(() => buildConfig({ ENABLE_IMPORT_API: 'yes' }), ConfigError);
   assert.throws(() => buildConfig({ CLIENT_ORIGIN: 'https://example.test/path' }), ConfigError);
   assert.throws(() => buildConfig({ TRUST_PROXY: '11' }), ConfigError);
+  assert.throws(() => buildConfig({ MIGRATION_LOCK_TIMEOUT_SECONDS: '301' }), ConfigError);
 });

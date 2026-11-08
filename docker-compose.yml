@@ -13,7 +13,6 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 5s
@@ -23,9 +22,38 @@ services:
     networks:
       - app_network
 
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: "no"
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
+      ENABLE_IMPORT_API: "false"
+      AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-8}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      SHUTDOWN_GRACE_MS: ${SHUTDOWN_GRACE_MS:-10000}
+      MIGRATIONS_PATH: /app/database/init
+      MIGRATION_LOCK_TIMEOUT_SECONDS: ${MIGRATION_LOCK_TIMEOUT_SECONDS:-30}
+      MIGRATION_ACTOR: ${MIGRATION_ACTOR:-compose-migrator}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - app_network
+
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     stop_grace_period: 15s
     environment:
@@ -43,11 +71,16 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       TRUST_PROXY: ${TRUST_PROXY:-0}
       SHUTDOWN_GRACE_MS: ${SHUTDOWN_GRACE_MS:-10000}
+      MIGRATIONS_PATH: /app/database/init
+      MIGRATION_LOCK_TIMEOUT_SECONDS: ${MIGRATION_LOCK_TIMEOUT_SECONDS:-30}
+      MIGRATION_ACTOR: ${MIGRATION_ACTOR:-compose-operator}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     depends_on:
       mysql:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - import_data:/app/.data/imports
     healthcheck:

@@ -29,6 +29,9 @@
 - Production config fail-fast kiểm tra typed env, HTTPS origin, secure cookie và DB secret; Express trust proxy chỉ theo hop count cấu hình.
 - Runtime có liveness/readiness tách biệt, readiness chuyển not-ready khi drain và graceful shutdown có deadline; Docker health dùng readiness.
 - Frontend Nginx có CSP/security headers, `/healthz`, upload 26 MiB và static asset cache; browser không còn tải Google Fonts bên thứ ba.
+- Versioned migration runner kiểm tra sequence/checksum, giữ MySQL advisory lock, skip DEMO mặc định và fail-closed với schema hiện hữu chưa adopt hoặc schema áp dụng một phần.
+- Compose dùng one-shot migrator làm gate trước backend; backend image/CI chứa đúng migration source. Fresh/retry/adopt/demo/lock/drift/partial-schema đã được smoke trên MySQL 8.4.
+- Backup single-transaction đã được checksum, restore vào database cô lập và đối chiếu table/column/ledger/fixture; runner xác minh bản restore thành công.
 
 ## Partial / giới hạn
 
@@ -40,8 +43,8 @@
 - Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
 - Production vẫn cần TLS edge/secret manager thực tế; import feature flag mặc định tắt để rollout có chủ đích.
 - Published media hiện được phục vụ từ entry trong source ZIP bất biến trên local volume; chưa có S3 promotion/CDN adapter.
-- Migration SQL vẫn chỉ auto-run trên MySQL volume mới; chưa có migration ledger/runner cho DB production đang tồn tại hay backup-restore rehearsal tự động.
+- Backup/restore hiện mới là rehearsal thủ công; chưa có lịch backup, encryption/retention policy, off-site lifecycle, restore alert hay RPO/RTO monitoring trên hạ tầng đích.
 
 ## Chưa làm
 
-Migration runner + backup/restore rehearsal, tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, blueprint authoring revisions, manual essay/regrade, assessment/reporting.
+Backup scheduling/observability, tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, blueprint authoring revisions, manual essay/regrade, assessment/reporting.

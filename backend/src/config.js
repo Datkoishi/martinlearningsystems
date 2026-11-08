@@ -70,6 +70,13 @@ export const buildConfig = (env = process.env, cwd = process.cwd()) => {
     cookieSecure,
     trustProxy: integerFromEnv('TRUST_PROXY', env.TRUST_PROXY, 0, { min: 0, max: 10 }),
     shutdownGraceMs: integerFromEnv('SHUTDOWN_GRACE_MS', env.SHUTDOWN_GRACE_MS, 10000, { min: 1000, max: 60000 }),
+    migrationsPath: path.resolve(cwd, env.MIGRATIONS_PATH || '../database/init'),
+    migrationLockTimeoutSeconds: integerFromEnv(
+      'MIGRATION_LOCK_TIMEOUT_SECONDS',
+      env.MIGRATION_LOCK_TIMEOUT_SECONDS,
+      30,
+      { min: 0, max: 300 }
+    ),
     database: {
       host: env.MYSQL_HOST || 'localhost',
       port: integerFromEnv('MYSQL_PORT', env.MYSQL_PORT, 3306, { min: 1, max: 65535 }),

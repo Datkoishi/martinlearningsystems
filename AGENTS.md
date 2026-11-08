@@ -4,7 +4,7 @@
 
 - `frontend/`: React 19 + Vite; `npm run dev:frontend`, `npm run build --prefix frontend`.
 - `backend/`: Express 5 + MySQL; `npm run dev:backend`, `npm test --prefix backend`.
-- `database/init/`: migration/seed SQL chỉ tự chạy khi MySQL volume được tạo mới.
+- `database/init/`: migration/seed SQL có ledger/checksum; dùng `npm run db:migrate:status --prefix backend` để kiểm tra và `npm run db:migrate --prefix backend` để nâng schema. Compose giao schema cho one-shot `migrate`, không mount SQL vào MySQL entrypoint.
 - Cài đặt: `npm run install:all`. Kiểm tra chung: `npm test`.
 
 ## Trước khi code

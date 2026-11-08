@@ -39,7 +39,53 @@ Nginx áp CSP và security headers cho UI, đồng thời dùng system font đ�
 
 ## Migration
 
-Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới. Với DB đã có dữ liệu, backup và chạy riêng migration mới theo thứ tự bằng account có quyền; không dùng `docker compose down -v`. `002` additive, `003` seed DEMO idempotent, `004` technical review, `005` identity/session/audit, `006` academic publication, `007` attempt snapshots, `008` responses/scoring, `009` assembly metadata/runs và `010` blueprint review + ASSEMBLED publication. Migration 010 backfill run cũ thành BlueprintVersion 1 REJECTED vì thiếu frozen reviewer payload; tạo run mới để review/publish. Migration cũng nới `exams.source_id` nullable; kiểm tra ứng dụng không giả định source_id luôn có cho ASSEMBLED. Luôn thử restore/migration trên bản sao trước production; `ALTER TABLE` chỉ chạy một lần trên DB cũ.
+Compose không mount SQL vào MySQL entrypoint. Service một lần `migrate` lấy advisory lock theo database, kiểm tra sequence/checksum trong `schema_migrations`, áp dụng migration còn thiếu rồi mới cho backend khởi động. Kiểm tra độc lập:
+
+```bash
+docker compose up -d mysql
+docker compose run --rm migrate npm run db:migrate:status
+```
+
+Database mới dùng `docker compose up --build`; migration `003_demo_fixed_exam.sql` được ghi `SKIPPED` theo mặc định. Chỉ trên database demo mới hoàn toàn, trước lần migrate đầu tiên, dùng:
+
+```bash
+docker compose up -d mysql
+docker compose run --rm migrate npm run db:migrate -- --include-demo
+docker compose up -d
+```
+
+Với volume đã tồn tại từ trước khi có ledger, lần khởi động đầu tiên sẽ fail-closed bằng `MIGRATION_EXISTING_SCHEMA_UNTRACKED`. Không xóa volume. Backup và restore thử trên bản sao trước, kiểm tra ứng dụng/schema, rồi adopt đúng một lần:
+
+```bash
+docker compose up -d mysql
+docker compose run --rm migrate npm run db:migrate:status
+docker compose run --rm migrate npm run db:migrate -- --adopt-existing
+docker compose up -d
+```
+
+Adoption chỉ ghi nhận prefix migration có sentinel schema đầy đủ; schema áp dụng một phần hoặc có dấu vết migration sau sẽ bị từ chối. Migration `003` đã hiện diện trong schema cũ được ghi `ADOPTED`; nếu không có dữ liệu demo thì được ghi `SKIPPED`. Không dùng `--adopt-existing` để bỏ qua lỗi trên database mới hoặc schema chưa hiểu rõ.
+
+Mỗi migration mới phải có tên `NNN_name.sql`, sequence liên tục và chỉ additive/backward-compatible trong rollout tương ứng. Tuyệt đối không sửa, đổi tên hoặc xóa file đã có trong ledger: checksum/sequence drift làm runner dừng. Retry sau lần chạy thành công là no-op. MySQL DDL có implicit commit, nên migration lỗi giữa chừng có thể để lại schema một phần; dừng rollout, giữ log, restore bản sao hoặc repair có review rồi mới retry, không tự sửa ledger.
+
+`001`–`010` giữ lịch sử schema hiện tại; `011_migration_ledger.sql` tạo ledger và bootstrap checksum cho hệ thống từng chạy qua entrypoint cũ. Migration 010 backfill run cũ thành BlueprintVersion 1 `REJECTED` vì thiếu frozen reviewer payload và nới `exams.source_id` nullable cho ASSEMBLED nhiều nguồn.
+
+## Backup và restore rehearsal
+
+Trước migration/deploy có thay đổi dữ liệu, tạo dump bằng account backup tối thiểu quyền, truyền password qua secret environment thay vì argument. Ví dụ trên host có MySQL client:
+
+```bash
+read -s EDUASSESS_DB_PASSWORD
+export MYSQL_PWD="$EDUASSESS_DB_PASSWORD"
+mysqldump --host=<db-host> --port=3306 --user=<backup-user> \
+  --single-transaction --routines --triggers --hex-blob --set-gtid-purged=OFF \
+  <database> > eduassess-before-migration.sql
+sha256sum eduassess-before-migration.sql
+unset MYSQL_PWD EDUASSESS_DB_PASSWORD
+```
+
+Lưu dump đã mã hóa ngoài máy ứng dụng, hạn chế quyền đọc và ghi checksum vào change record. Snapshot/backup volume `import_data` trong cùng recovery point vì source ZIP published còn là nguồn asset; dump DB đơn lẻ chưa đủ khôi phục hệ thống.
+
+Restore dump vào database cô lập, không ghi đè production. Sau restore: chạy `db:migrate:status` trỏ vào database bản sao; so số table/row quan trọng, toàn bộ ledger version/checksum, publication/attempt/audit counts và sample hash; sau đó chạy migration trên bản sao rồi smoke API/readiness. Chỉ rollout khi restore đọc được và các invariant khớp. Ghi RPO/RTO, vị trí artifact, checksum, thời gian restore và người xác nhận; xóa an toàn bản sao sau thời hạn kiểm thử.
 
 ## Kiểm tra và sự cố
 
@@ -69,6 +115,9 @@ Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới
 - `INCOMPATIBLE_BLUEPRINT`: sửa schema/quota; tổng từng quota dimension phải đúng section count. Không chỉnh DB để bypass validator.
 - `INSUFFICIENT_POOL`: kiểm tra metadata, published FIXED membership, license validity/`derivative_assembly`, source diversity và quota. Không giảm quota âm thầm; thay blueprint có chủ đích hoặc nhập/duyệt thêm nguồn.
 - `ASSEMBLY_SEARCH_LIMIT`: blueprint/pool gây search quá rộng; chia section/quota rõ hơn hoặc tối ưu engine có test, không tăng giới hạn tùy tiện trong production.
+- `MIGRATION_LOCK_TIMEOUT`: một migrator khác đang giữ advisory lock; kiểm tra deployment/job đang chạy, không tăng timeout để chạy song song.
+- `MIGRATION_CHECKSUM_DRIFT`/`MIGRATION_SEQUENCE_DRIFT`/`MIGRATION_FILE_MISSING`: source deploy không khớp lịch sử; dừng rollout và phục hồi đúng artifact, không sửa ledger.
+- `MIGRATION_PARTIALLY_APPLIED`/`MIGRATION_SCHEMA_INCONSISTENT`: cô lập database, đối chiếu backup và migration; MySQL DDL có thể đã commit từng phần. Không tiếp tục backend cho đến khi restore/repair được review.
 - `MISSING_ASSETS` hoặc `ASSEMBLY_SNAPSHOT_INTEGRITY_FAILED`: cô lập pool/run và kiểm tra published graph/hash; không sửa snapshot/hash để bypass.
 - Retry assembly sau timeout phải giữ nguyên creator/key/blueprint/seed. Assembly run hiện chỉ là technical preview, không insert thủ công vào catalog hoặc tạo attempt.
 - Assembly review: xác minh creator khác reviewer, hashes trong review khớp run và chỉ một decision. Không update review/status thủ công để mở publish.
@@ -76,4 +125,4 @@ Các file `database/init/*.sql` chỉ chạy tự động khi volume MySQL mới
 - Reviewer explanation asset phải đi qua `/api/assemblies/:id/assets/:assetId`; không đổi sang public catalog URL. Public ASSEMBLED asset phải thực sự có trong `student_snapshot_json.assets`.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
-Production deploy chưa cấu hình ngoài CI publish image GHCR. Runtime safety gate không thay thế migration/backup/TLS/monitoring. Không coi image publish là database migration hoặc production rollout; task kế tiếp phải bổ sung migration ledger/runner và diễn tập restore trên bản sao.
+Production deploy chưa cấu hình ngoài CI publish image GHCR. Image backend chứa runner + SQL và Compose có migration gate, nhưng CI publish image không tự rollout database. Rehearsal thủ công đã pass; backup theo lịch, retention, alert restore-failure, TLS/secret deployment và metrics vẫn phải được cấu hình ở hạ tầng đích.

@@ -31,7 +31,9 @@ Session là opaque token lưu trong cookie `HttpOnly`; DB chỉ lưu hash. Reque
 
 ## Production runtime
 
-`backend/src/config.js` là gate typed/fail-fast: production bắt buộc HTTPS origin, secure cookie và DB password không mặc định; proxy hop phải khai đúng topology. `/api/live` chỉ phản ánh process, `/api/ready` phản ánh DB + trạng thái drain. Khi shutdown, readiness phải hạ trước khi đóng realtime/HTTP/pool và luôn có deadline. Frontend Nginx giữ CSP/security headers, `/healthz` và request limit tương thích API; không thêm CDN/third-party runtime nếu chưa đánh giá privacy. Các migration init chưa phải production runner: không chạy SQL thủ công trên DB thật nếu chưa backup/restore rehearsal và ledger/checksum.
+`backend/src/config.js` là gate typed/fail-fast: production bắt buộc HTTPS origin, secure cookie và DB password không mặc định; proxy hop phải khai đúng topology. `/api/live` chỉ phản ánh process, `/api/ready` phản ánh DB + trạng thái drain. Khi shutdown, readiness phải hạ trước khi đóng realtime/HTTP/pool và luôn có deadline. Frontend Nginx giữ CSP/security headers, `/healthz` và request limit tương thích API; không thêm CDN/third-party runtime nếu chưa đánh giá privacy.
+
+Migration production đi qua `backend/scripts/migrate.js`: file `NNN_name.sql` liên tục, checksum bất biến, advisory lock và `schema_migrations` ledger. Mặc định skip seed DEMO. Schema hiện hữu chỉ được `--adopt-existing` sau backup/restore rehearsal và kiểm tra sentinel; không sửa file migration đã ghi ledger, không dùng `docker compose down -v` để xử lý lỗi. MySQL DDL có implicit commit, nên failure một phần phải dừng, restore bản sao hoặc repair có review trước khi retry.
 
 ## Catalog và attempt
 

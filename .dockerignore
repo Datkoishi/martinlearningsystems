@@ -1,0 +1,11 @@
+*
+!backend/
+!backend/package.json
+!backend/package-lock.json
+!backend/src/
+!backend/src/**
+!backend/scripts/
+!backend/scripts/**
+!database/
+!database/init/
+!database/init/*.sql

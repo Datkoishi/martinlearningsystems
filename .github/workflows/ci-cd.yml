@@ -48,7 +48,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [backend, frontend]
+        include:
+          - service: backend
+            context: .
+            dockerfile: backend/Dockerfile
+          - service: frontend
+            context: ./frontend
+            dockerfile: frontend/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,7 +78,8 @@ jobs:
       - name: Build and optionally publish
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.service }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: ${{ github.event_name == 'push' }}
           tags: |
             ${{ steps.image.outputs.name }}:latest

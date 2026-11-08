@@ -29,3 +29,6 @@
 - Mở catalog/attempt dùng chung cho FIXED/ASSEMBLED; published assembly hash được xác minh và reload/retry không reassemble.
 - Thêm production runtime safety baseline: typed fail-fast config, live/ready probes, graceful drain deadline và Docker readiness health.
 - Harden Nginx bằng CSP/security headers, health endpoint, upload 26 MiB, static cache và loại font CDN bên thứ ba.
+- Thêm migration `011_migration_ledger.sql` và runner versioned có sequence/checksum drift guard, advisory lock, schema adoption fail-closed và seed DEMO opt-in.
+- Đóng gói migration trong backend image/CI, thêm one-shot Compose migration gate trước backend và bỏ phụ thuộc MySQL entrypoint init.
+- Diễn tập MySQL 8.4 fresh/retry/adopt/demo/lock/inconsistent-schema cùng backup checksum + restore/ledger verification trên database cô lập.

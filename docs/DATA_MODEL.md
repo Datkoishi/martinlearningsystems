@@ -1,6 +1,6 @@
 # Data model
 
-Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`; blueprint governance/publication: `010_assembled_publication.sql`.
+Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`; blueprint governance/publication: `010_assembled_publication.sql`; migration ledger: `011_migration_ledger.sql`.
 
 ```mermaid
 erDiagram
@@ -44,6 +44,8 @@ erDiagram
 ```
 
 Published versions phải bất biến ở application/service layer; thay đổi tạo version mới. `ExamItem` có check đúng một target. JSON dành cho rich content/answer config đã được validate; grade/subject/type/status là cột quan hệ để lọc.
+
+`schema_migrations` là operational ledger, không thuộc domain assessment. Mỗi `version`/`sequence_number` duy nhất lưu SHA-256 của nguyên file SQL, operation `APPLIED | ADOPTED | SKIPPED | BOOTSTRAPPED`, thời gian chạy, actor và timestamp. Runner từ chối sequence gap, file mất/đổi checksum và dùng advisory lock để chỉ một migrator thay schema tại một thời điểm. Row ledger đã ghi không được sửa để hợp thức hóa source drift.
 
 `users` giữ identity trạng thái; password chỉ lưu scrypt hash. `user_roles` hiện chỉ có global scope. `auth_sessions` lưu hash của opaque session/CSRF token, expiry và revoke timestamp; `audit_logs` lưu event/outcome/resource mà không lưu raw credential/token.
 

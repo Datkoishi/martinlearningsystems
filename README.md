@@ -24,6 +24,8 @@ Sau khi các container sẵn sàng:
 - Backend readiness: http://localhost:3000/api/ready
 - MySQL: `localhost:3307`, database `mls_db`
 
+Compose chạy service một lần `migrate` sau khi MySQL healthy và chỉ khởi động backend khi toàn bộ migration hợp lệ. Seed `003_demo_fixed_exam.sql` bị bỏ qua theo mặc định; chỉ bật rõ trên database mới trong môi trường demo bằng lệnh ở Runbook.
+
 Dừng hệ thống:
 
 ```bash
@@ -95,7 +97,15 @@ Compose mặc định dùng `NODE_ENV=development` để local HTTP hoạt độ
 
 Backend từ chối khởi động nếu cấu hình production không an toàn hoặc sai kiểu. Orchestrator dùng `/api/live` cho liveness và `/api/ready` cho readiness; khi nhận `SIGTERM`/`SIGINT`, readiness chuyển `503` trước khi đóng Socket.IO, HTTP và MySQL pool. Nginx frontend có CSP/security headers, health `/healthz`, giới hạn upload 26 MiB tương thích API ZIP 25 MiB và không tải font từ bên thứ ba.
 
-Đây mới là runtime safety baseline, chưa phải rollout production hoàn chỉnh. Database đang có dữ liệu vẫn cần migration runner/ledger, backup-restore rehearsal, TLS edge, tenant scope, S3/CDN và monitoring trước khi phục vụ dữ liệu thật.
+Migration runner dùng ledger SHA-256, sequence liên tục và advisory lock; retry sau khi thành công là no-op. Kiểm tra trạng thái bằng:
+
+```bash
+npm run db:migrate:status --prefix backend
+```
+
+Database hiện hữu chưa có ledger phải được backup, restore thử trên bản sao và xác minh trước khi chạy một lần với `--adopt-existing`; không sửa file SQL đã được ghi ledger. Quy trình chi tiết và lệnh backup/restore nằm trong `docs/RUNBOOK.md`.
+
+Đây vẫn chưa phải rollout production hoàn chỉnh. TLS edge/secret deployment, backup theo lịch + cảnh báo, tenant scope, S3/CDN và monitoring còn phải hoàn tất trước khi phục vụ dữ liệu thật.
 
 ## CI/CD
 

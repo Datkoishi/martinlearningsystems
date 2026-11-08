@@ -2,6 +2,7 @@
 
 | Entity | Trường chính | Ràng buộc / mục đích |
 |---|---|---|
+| schema_migrations | version, sequence_number, checksum_sha256, operation, execution_ms, applied_by, applied_at | operational ledger bất biến; sequence/checksum bind file SQL, không chứa secret |
 | content_sources | origin_type, generator_metadata | Không chứa secret của provider |
 | usage_licenses | publish_fixed, extract_reuse, derivative_assembly | Ba quyền tách biệt |
 | media_assets | storage_key, mime_type, sha256, size, alt_text, approval_status | Không lưu base64 trong JSON |

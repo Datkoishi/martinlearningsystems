@@ -183,3 +183,24 @@ Lệnh chính: `npm test`; focused Node tests; frontend build; Compose config; M
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 Lệnh chính: `npm test`; focused config/app tests; `docker compose --env-file .env.example config --quiet`; Docker build/run/curl/nginx runtime smoke cho frontend/backend; `git diff --check`. Một lần focused test trong sandbox nhận `listen EPERM`; cùng test trong full gate có quyền loopback PASS. Container/image smoke chỉ chứa cấu hình giả lập, đã dừng và xóa; không dùng dữ liệu người dùng.
+
+## 2026-11-08 — TASK-011
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-OPS-05 migration discovery/checksum | PASS | chỉ nhận `NNN_name.sql`, sắp thứ tự liên tục và SHA-256 byte-exact |
+| UT-OPS-06 sequence gap | PASS | thiếu sequence fail `MIGRATION_SEQUENCE_INVALID` trước khi chạm DB |
+| UT-OPS-07 database pinning | PASS | strip `CREATE DATABASE`/`USE`; lệnh đổi/tạo/xóa database còn lại bị chặn |
+| UT-OPS-08 ledger drift | PASS | sequence/checksum/file-missing đều fail-closed |
+| DB-OPS-01 fresh/retry | PASS | MySQL 8.4 áp dụng 001–011, `003` SKIPPED mặc định; retry operations rỗng, ledger đủ 11 row |
+| DB-OPS-02 advisory lock | PASS | lock bị giữ + timeout 0 trả `MIGRATION_LOCK_TIMEOUT` |
+| DB-OPS-03 existing adoption | PASS | không flag trả `MIGRATION_EXISTING_SCHEMA_UNTRACKED`; verified 001–010 ADOPTED, 011 APPLIED |
+| DB-OPS-04 inconsistent schema | PASS | schema chỉ có một phần migration 005 bị chặn `MIGRATION_SCHEMA_INCONSISTENT` và báo sentinel thiếu |
+| DB-OPS-05 demo opt-in | PASS | database mới với `--include-demo`: 003 APPLIED và có đúng một demo source |
+| DB-OPS-06 backup/restore | PASS | dump 45,894 bytes SHA-256 `7f5337f6f93b8d5e76497d4a1313167d3c2a0348d8d35d31c75b05f7470dc842`; source/restore cùng 34 table, 269 column, 11 ledger row và fixture count |
+| DB-OPS-07 packaging/legacy compatibility | PASS | backend image chạy status đủ 11 migration; legacy entrypoint 001–011 bootstrap 001–010 rồi runner chỉ APPLIED 011 |
+| Backend regression | PASS | 63/63 tests |
+| Frontend production build | PASS | Vite, 38 modules |
+| Compose fresh-volume runtime | PASS | isolated project: MySQL healthy → migrator exit 0 → backend healthy; ledger 11 row, 003 SKIPPED, content source count 0; MySQL không mount init scripts |
+
+Lệnh chính: focused config/migration tests; `npm test`; `docker compose --env-file .env.example config --quiet`; isolated Compose fresh-volume runtime; MySQL 8.4 fresh/adopt/demo/lock/inconsistent/backup-restore smoke; backend Docker build/status; `git diff --check`. Full test lần đầu trong sandbox bị `listen EPERM` ở 3 HTTP test; chạy lại ngoài sandbox PASS 63/63. Dump/database/container/image chỉ chứa fixture kỹ thuật, đã xóa sau kiểm tra; `.env` không được đọc, hiển thị hoặc chỉnh sửa.

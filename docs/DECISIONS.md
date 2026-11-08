@@ -59,3 +59,9 @@ ASSEMBLED nhiều nguồn nên `exams.source_id` nullable; provenance vẫn ở 
 Local Compose mặc định development để HTTP/cookie local còn dùng được; production không được kế thừa mặc định đó. Backend parse typed env trước khi listen và từ chối production nếu origin không HTTPS, cookie không Secure hoặc DB secret trống/mặc định. Liveness không phụ thuộc DB; readiness phụ thuộc DB và trạng thái draining. SIGTERM/SIGINT hạ readiness trước, đóng realtime/HTTP/pool trong deadline hữu hạn.
 
 Nginx là static/reverse-proxy boundary: CSP/security headers, health riêng và upload 26 MiB phải khớp API 25 MiB. Font bên thứ ba bị loại để giảm outbound tracking surface. Đây không thay migration ledger, TLS edge, tenant scope, storage hay monitoring. Chi tiết ở ADR-0010.
+
+## D-014 Migration ledger là release gate, adoption luôn fail-closed
+
+Compose không mount SQL vào MySQL entrypoint; one-shot migrator phải hoàn tất trước backend. File migration có sequence liên tục và SHA-256 bất biến, runner giữ advisory lock theo database, mặc định skip seed DEMO và ghi operation vào `schema_migrations`. Database có schema nhưng không ledger chỉ được adopt sau backup/xác minh rõ bằng flag; sentinel thiếu, schema một phần hoặc later evidence đều bị chặn.
+
+MySQL DDL có implicit commit nên ledger không giả định toàn bộ file rollback nguyên tử. Khi execution lỗi, operator phải dừng rollout và restore/repair có review thay vì sửa ledger. Backup/restore rehearsal trên database cô lập là release evidence; lịch/off-site retention/alerts vẫn là hạ tầng riêng. Chi tiết ở ADR-0011.
