@@ -12,6 +12,12 @@ test('development config keeps local-safe defaults', () => {
   assert.equal(config.importApiEnabled, true);
   assert.equal(config.trustProxy, 0);
   assert.equal(config.shutdownGraceMs, 10000);
+  assert.deepEqual(config.metrics, {
+    enabled: false,
+    port: 9464,
+    bindAddress: '127.0.0.1',
+    bearerToken: ''
+  });
   assert.equal(config.importStoragePath, path.resolve('/srv/eduassess/backend/.data/imports'));
   assert.equal(config.migrationsPath, path.resolve('/srv/eduassess/database/init'));
   assert.equal(config.migrationLockTimeoutSeconds, 30);
@@ -105,4 +111,59 @@ test('object storage accepts S3-compatible development config and rejects insecu
     OBJECT_STORAGE_ENDPOINT: 'http://minio:9000',
     OBJECT_STORAGE_BUCKET: 'eduassess-media'
   }), ConfigError);
+});
+
+test('secrets can be read from absolute files without exposing file contents', () => {
+  const secrets = new Map([
+    ['/run/secrets/mysql_password', 'database-secret\n'],
+    ['/run/secrets/object_access', 'object-access\n'],
+    ['/run/secrets/object_secret', 'object-secret\n'],
+    ['/run/secrets/metrics_token', `${'m'.repeat(40)}\n`]
+  ]);
+  const readFileSync = (file) => {
+    if (!secrets.has(file)) throw new Error('missing fixture');
+    return secrets.get(file);
+  };
+  const config = buildConfig({
+    NODE_ENV: 'production',
+    CLIENT_ORIGIN: 'https://eduassess.example',
+    COOKIE_SECURE: 'true',
+    MYSQL_PASSWORD_FILE: '/run/secrets/mysql_password',
+    OBJECT_STORAGE_ENABLED: 'true',
+    OBJECT_STORAGE_BUCKET: 'eduassess-media',
+    OBJECT_STORAGE_ACCESS_KEY_ID_FILE: '/run/secrets/object_access',
+    OBJECT_STORAGE_SECRET_ACCESS_KEY_FILE: '/run/secrets/object_secret',
+    METRICS_ENABLED: 'true',
+    METRICS_BIND_ADDRESS: '0.0.0.0',
+    METRICS_BEARER_TOKEN_FILE: '/run/secrets/metrics_token'
+  }, '/srv/eduassess/backend', { readFileSync });
+
+  assert.equal(config.database.password, 'database-secret');
+  assert.equal(config.objectStorage.credentials.accessKeyId, 'object-access');
+  assert.equal(config.metrics.bearerToken, 'm'.repeat(40));
+  assert.equal(config.metrics.enabled, true);
+});
+
+test('secret files and metrics configuration fail closed', () => {
+  const reader = () => 'line-one\nline-two\n';
+  assert.throws(() => buildConfig({
+    MYSQL_PASSWORD: 'direct',
+    MYSQL_PASSWORD_FILE: '/run/secrets/mysql'
+  }, process.cwd(), { readFileSync: reader }), /không được cấu hình đồng thời/);
+  assert.throws(() => buildConfig({
+    MYSQL_PASSWORD_FILE: 'relative-secret'
+  }, process.cwd(), { readFileSync: reader }), /đường dẫn tuyệt đối/);
+  assert.throws(() => buildConfig({
+    MYSQL_PASSWORD_FILE: '/run/secrets/mysql'
+  }, process.cwd(), { readFileSync: reader }), /một secret không rỗng/);
+  assert.throws(() => buildConfig({
+    METRICS_ENABLED: 'true',
+    METRICS_BEARER_TOKEN: 'too-short'
+  }), /ít nhất 32/);
+  assert.throws(() => buildConfig({
+    METRICS_ENABLED: 'true',
+    METRICS_BEARER_TOKEN: 'm'.repeat(40),
+    METRICS_PORT: '3000'
+  }), /phải khác PORT/);
+  assert.throws(() => buildConfig({ METRICS_BIND_ADDRESS: '192.0.2.1' }), /không thuộc/);
 });

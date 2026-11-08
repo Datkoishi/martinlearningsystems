@@ -144,11 +144,14 @@ test('S3 storage uses content-addressed keys and verifies existing/uploaded byte
 test('published storage prefers verified object bytes and falls back to archive only when configured', async () => {
   const asset = { ...baseAsset(), storageBackend: 'OBJECT', objectStorageKey: `eduassess/media/sha256/${digest.slice(0, 2)}/${digest}` };
   let archiveReads = 0;
+  const outcomes = [];
+  const telemetry = { recordObjectRead: (outcome) => outcomes.push(outcome) };
   const archiveStorage = { readArchiveEntry: async () => { archiveReads += 1; return bytes; } };
   const valid = new PublishedAssetStorage({
     archiveStorage,
     objectStorage: { readObject: async () => bytes },
-    archiveFallback: true
+    archiveFallback: true,
+    telemetry
   });
   assert.deepEqual(await valid.readPublishedAsset(asset), bytes);
   assert.equal(archiveReads, 0);
@@ -156,7 +159,8 @@ test('published storage prefers verified object bytes and falls back to archive 
   const fallback = new PublishedAssetStorage({
     archiveStorage,
     objectStorage: { readObject: async () => Buffer.from('corrupt') },
-    archiveFallback: true
+    archiveFallback: true,
+    telemetry
   });
   assert.deepEqual(await fallback.readPublishedAsset(asset), bytes);
   assert.equal(archiveReads, 1);
@@ -164,9 +168,11 @@ test('published storage prefers verified object bytes and falls back to archive 
   const strict = new PublishedAssetStorage({
     archiveStorage,
     objectStorage: { readObject: async () => null },
-    archiveFallback: false
+    archiveFallback: false,
+    telemetry
   });
   await assert.rejects(strict.readPublishedAsset(asset), (error) => error.code === 'OBJECT_ASSET_UNAVAILABLE');
+  assert.deepEqual(outcomes, ['object', 'fallback', 'failure']);
 });
 
 test('promotion verifies archive and object before cutover, retries exactly and supports rollback', async () => {

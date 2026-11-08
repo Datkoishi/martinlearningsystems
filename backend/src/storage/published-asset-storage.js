@@ -15,16 +15,27 @@ const isExpectedBytes = (data, asset) => (
 );
 
 export class PublishedAssetStorage {
-  constructor({ archiveStorage, objectStorage = null, archiveFallback = true }) {
+  constructor({ archiveStorage, objectStorage = null, archiveFallback = true, telemetry = null }) {
     this.archiveStorage = archiveStorage;
     this.objectStorage = objectStorage;
     this.archiveFallback = archiveFallback;
+    this.telemetry = telemetry;
   }
 
   async readPublishedAsset(asset) {
     const backend = asset.storageBackend || 'ARCHIVE';
-    if (backend === 'ARCHIVE') return this.archiveStorage.readArchiveEntry(asset.storageKey);
+    if (backend === 'ARCHIVE') {
+      try {
+        const data = await this.archiveStorage.readArchiveEntry(asset.storageKey);
+        this.telemetry?.recordObjectRead('archive');
+        return data;
+      } catch (error) {
+        this.telemetry?.recordObjectRead('failure');
+        throw error;
+      }
+    }
     if (backend !== 'OBJECT' || !asset.objectStorageKey) {
+      this.telemetry?.recordObjectRead('failure');
       throw new PublishedAssetStorageError('ASSET_STORAGE_STATE_INVALID', 'Trạng thái storage của asset không hợp lệ.');
     }
 
@@ -32,7 +43,10 @@ export class PublishedAssetStorage {
     if (this.objectStorage) {
       try {
         const objectData = await this.objectStorage.readObject(asset.objectStorageKey);
-        if (isExpectedBytes(objectData, asset)) return objectData;
+        if (isExpectedBytes(objectData, asset)) {
+          this.telemetry?.recordObjectRead('object');
+          return objectData;
+        }
         objectError = new PublishedAssetStorageError(
           'OBJECT_ASSET_INTEGRITY_FAILED',
           'Object bytes không khớp hash/size của asset.'
@@ -45,8 +59,16 @@ export class PublishedAssetStorage {
     }
 
     if (!this.archiveFallback) {
+      this.telemetry?.recordObjectRead('failure');
       throw new PublishedAssetStorageError('OBJECT_ASSET_UNAVAILABLE', 'Object asset không khả dụng và archive fallback đã tắt.', objectError);
     }
-    return this.archiveStorage.readArchiveEntry(asset.storageKey);
+    try {
+      const data = await this.archiveStorage.readArchiveEntry(asset.storageKey);
+      this.telemetry?.recordObjectRead('fallback');
+      return data;
+    } catch (error) {
+      this.telemetry?.recordObjectRead('failure');
+      throw error;
+    }
   }
 }

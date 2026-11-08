@@ -239,3 +239,21 @@ Lệnh chính: `npm test`; Compose config; isolated `--profile backup` MySQL/mig
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 Lệnh chính: focused config/media/migration tests; full `npm test`; Node 24 container tests; Docker backend/frontend builds; Compose config; MySQL 8.4 + Adobe S3Mock 5.2.3 end-to-end CLI/runtime smoke; production audit; `git diff --check`. Fixture chỉ chứa bytes kỹ thuật, database/container/network/image/thư mục tạm đều đã xóa; `.env` không bị hiển thị hoặc chỉnh sửa, smoke dùng env fixture explicit. Lần thử LocalStack đầu bị Docker read-only do host chỉ còn 136 MiB; npm cache có thể tải lại đã được dọn, Docker phục hồi sạch, sau đó smoke chạy bằng S3Mock và PASS.
+
+## 2026-11-08 — TASK-014
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-OPS-11 secret-file/metrics config | PASS | direct + `_FILE` conflict, relative/multiline/short token/bind/port fail; DB/object/metrics file secret hợp lệ được trim đúng một newline |
+| UT-OPS-12 bounded backend metrics | PASS | readiness, HTTP counter/histogram, structured error và object outcome; unmatched path không chứa UUID; listener 401 không token và 200 với Bearer đúng |
+| UT-OPS-13 backup metrics/secret lifecycle | PASS | atomic textfile healthy 1→0 theo failure ordering; age/timestamps; password file đọc được nhưng không export từ scheduler loop |
+| Backend regression | PASS | 72/72 ngoài sandbox và 72/72 trong `node:24-alpine` với source read-only; lượt sandbox đầu chỉ fail 5 HTTP tests do `listen EPERM` |
+| Operations/frontend regression | PASS | backup script suite PASS; Vite production build 38 modules |
+| Compose production merge | PASS | Compose v5.6.1; reset direct DB secrets/MySQL+backend ports; only frontend 80/443; internal/edge/egress networks và read-only/secret mounts hợp lệ |
+| IMG-OPS-03 TLS edge | PASS | Nginx syntax; HTTP 308; HTTPS HTTP/2 200; HSTS/CSP/Permissions/Referrer/nosniff; `/api/live` và `/api/ready` qua TLS PASS |
+| Monitoring config | PASS | Prometheus 3.13.5 `promtool`: config + 8 rules; Alertmanager 0.34.1 `amtool`: receiver config; node_exporter 1.12.1 image/binary PASS |
+| Production dependency audit | PASS | `npm audit --omit=dev`: 0 vulnerability; lượt sandbox DNS fail rồi chạy lại có network PASS |
+| E2E-OPS-01 full production fixture stack | PASS | MySQL/backend/frontend/backup healthy, migrate exit 0, backup READY; protected metrics 401/200; Prometheus backend `up=1` + backup healthy `1`; Alertmanager ready 200 + 8 loaded rules |
+| Target delivery/off-site | BLOCKED | chưa có production domain/certificate, real webhook receiver, encrypted off-site target hoặc bucket identity do người dùng/hạ tầng chưa cung cấp |
+
+Lệnh chính: `npm test --prefix backend` ngoài sandbox; `bash ops/backup/test.sh`; frontend build; Compose merge/config; pinned `promtool`/`amtool`/node_exporter checks; Nginx self-signed TLS smoke; full production Compose build/up/curl/internal Prometheus query/down. Smoke lần đầu phát hiện edge chỉ nối internal network nên port không publish, và backup loop export secret làm lần validate con xung đột; cả hai được sửa rồi full stack chạy lại PASS. Health frontend cũng đổi `localhost` sang `127.0.0.1` sau khi IPv6 loopback bị từ chối. Mọi secret/certificate/database/container/network/volume/image fixture đã xóa; `.env` không bị đọc, hiển thị hoặc chỉnh sửa.

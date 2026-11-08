@@ -41,3 +41,7 @@
 - Thêm S3-compatible content-addressed promotion CLI có dry-run/batch/retry, conditional PUT, GET/hash verification và rollback chỉ sau archive verification.
 - Nối object-first catalog delivery với archive fallback có cấu hình; giữ archive/object khi rollback để recovery/retry an toàn.
 - Nâng backend/frontend image, CI và engine baseline từ Node 20 EOL lên Node 24 LTS.
+- Thêm production Compose overlay: TLS 1.2/1.3 + HTTP/2/HSTS, chỉ publish edge 80/443, Docker secret files, read-only service hardening và network tách internal/egress/edge.
+- Thêm protected backend metrics listener với bounded HTTP route labels, readiness/error và object archive/object/fallback/failure telemetry; graceful shutdown đóng listener.
+- Thêm atomic backup textfile metrics, node_exporter, Prometheus credential-file scrape, 8 alert rules và Alertmanager webhook secret config.
+- Thêm production env template/runbook cho validate/deploy/rotation/rollback; full-stack fixture smoke xác minh migration, TLS/API health, backup, Prometheus và Alertmanager.

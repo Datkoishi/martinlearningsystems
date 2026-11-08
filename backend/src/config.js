@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import fs from 'node:fs';
 import path from 'node:path';
 
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
@@ -28,6 +29,30 @@ const booleanFromEnv = (name, value, fallback) => {
   throw new ConfigError(`${name} chỉ nhận true hoặc false.`);
 };
 
+const secretFromEnv = (env, name, readFileSync) => {
+  const direct = env[name];
+  const fileName = `${name}_FILE`;
+  const secretFile = env[fileName];
+  const hasDirect = direct !== undefined && direct !== '';
+  const hasFile = secretFile !== undefined && secretFile !== '';
+  if (hasDirect && hasFile) {
+    throw new ConfigError(`${name} và ${fileName} không được cấu hình đồng thời.`);
+  }
+  if (!hasFile) return hasDirect ? String(direct) : '';
+  if (!path.isAbsolute(secretFile)) throw new ConfigError(`${fileName} phải là đường dẫn tuyệt đối.`);
+
+  let value;
+  try {
+    value = String(readFileSync(secretFile, 'utf8')).replace(/\r?\n$/, '');
+  } catch {
+    throw new ConfigError(`${fileName} không đọc được.`);
+  }
+  if (!value || /[\0\r\n]/.test(value)) {
+    throw new ConfigError(`${fileName} phải chứa đúng một secret không rỗng trên một dòng.`);
+  }
+  return value;
+};
+
 const originFromEnv = (value, production) => {
   let origin;
   try {
@@ -44,7 +69,7 @@ const originFromEnv = (value, production) => {
   return origin.origin;
 };
 
-const objectStorageFromEnv = (env, production) => {
+const objectStorageFromEnv = (env, production, readSecret) => {
   const enabled = booleanFromEnv('OBJECT_STORAGE_ENABLED', env.OBJECT_STORAGE_ENABLED, false);
   const endpointValue = env.OBJECT_STORAGE_ENDPOINT || '';
   let endpoint = null;
@@ -67,8 +92,8 @@ const objectStorageFromEnv = (env, production) => {
   const bucket = env.OBJECT_STORAGE_BUCKET || '';
   const region = env.OBJECT_STORAGE_REGION || 'ap-southeast-1';
   const keyPrefix = env.OBJECT_STORAGE_KEY_PREFIX || 'eduassess/media';
-  const accessKeyId = env.OBJECT_STORAGE_ACCESS_KEY_ID || '';
-  const secretAccessKey = env.OBJECT_STORAGE_SECRET_ACCESS_KEY || '';
+  const accessKeyId = readSecret('OBJECT_STORAGE_ACCESS_KEY_ID');
+  const secretAccessKey = readSecret('OBJECT_STORAGE_SECRET_ACCESS_KEY');
   if (enabled && !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
     throw new ConfigError('OBJECT_STORAGE_BUCKET không hợp lệ hoặc chưa được cấu hình.');
   }
@@ -95,14 +120,20 @@ const objectStorageFromEnv = (env, production) => {
   };
 };
 
-export const buildConfig = (env = process.env, cwd = process.cwd()) => {
+export const buildConfig = (env = process.env, cwd = process.cwd(), { readFileSync = fs.readFileSync } = {}) => {
   const nodeEnv = env.NODE_ENV || 'development';
   if (!['development', 'test', 'production'].includes(nodeEnv)) {
     throw new ConfigError('NODE_ENV phải là development, test hoặc production.');
   }
   const production = nodeEnv === 'production';
   const cookieSecure = booleanFromEnv('COOKIE_SECURE', env.COOKIE_SECURE, production);
-  const databasePassword = env.MYSQL_PASSWORD || '';
+  const port = integerFromEnv('PORT', env.PORT || env.BACKEND_PORT, 3000, { min: 1, max: 65535 });
+  const readSecret = (name) => secretFromEnv(env, name, readFileSync);
+  const databasePassword = readSecret('MYSQL_PASSWORD');
+  const metricsEnabled = booleanFromEnv('METRICS_ENABLED', env.METRICS_ENABLED, false);
+  const metricsPort = integerFromEnv('METRICS_PORT', env.METRICS_PORT, 9464, { min: 1, max: 65535 });
+  const metricsBindAddress = env.METRICS_BIND_ADDRESS || '127.0.0.1';
+  const metricsBearerToken = readSecret('METRICS_BEARER_TOKEN');
 
   if (production && !cookieSecure) {
     throw new ConfigError('COOKIE_SECURE phải là true khi NODE_ENV=production.');
@@ -110,10 +141,19 @@ export const buildConfig = (env = process.env, cwd = process.cwd()) => {
   if (production && (!databasePassword || /^change_me(?:_|$)/i.test(databasePassword))) {
     throw new ConfigError('MYSQL_PASSWORD production phải được cấu hình bằng secret không mặc định.');
   }
+  if (!['127.0.0.1', '0.0.0.0', '::1', '::'].includes(metricsBindAddress)) {
+    throw new ConfigError('METRICS_BIND_ADDRESS không thuộc danh sách địa chỉ bind được phép.');
+  }
+  if (metricsEnabled && metricsPort === port) {
+    throw new ConfigError('METRICS_PORT phải khác PORT của API.');
+  }
+  if (metricsEnabled && metricsBearerToken.length < 32) {
+    throw new ConfigError('METRICS_BEARER_TOKEN phải có ít nhất 32 ký tự khi bật metrics.');
+  }
 
   return {
     nodeEnv,
-    port: integerFromEnv('PORT', env.PORT || env.BACKEND_PORT, 3000, { min: 1, max: 65535 }),
+    port,
     clientOrigin: originFromEnv(env.CLIENT_ORIGIN, production),
     importApiEnabled: booleanFromEnv('ENABLE_IMPORT_API', env.ENABLE_IMPORT_API, !production),
     importStoragePath: path.resolve(cwd, env.IMPORT_STORAGE_PATH || '.data/imports'),
@@ -121,6 +161,12 @@ export const buildConfig = (env = process.env, cwd = process.cwd()) => {
     cookieSecure,
     trustProxy: integerFromEnv('TRUST_PROXY', env.TRUST_PROXY, 0, { min: 0, max: 10 }),
     shutdownGraceMs: integerFromEnv('SHUTDOWN_GRACE_MS', env.SHUTDOWN_GRACE_MS, 10000, { min: 1000, max: 60000 }),
+    metrics: {
+      enabled: metricsEnabled,
+      port: metricsPort,
+      bindAddress: metricsBindAddress,
+      bearerToken: metricsBearerToken
+    },
     migrationsPath: path.resolve(cwd, env.MIGRATIONS_PATH || '../database/init'),
     migrationLockTimeoutSeconds: integerFromEnv(
       'MIGRATION_LOCK_TIMEOUT_SECONDS',
@@ -128,7 +174,7 @@ export const buildConfig = (env = process.env, cwd = process.cwd()) => {
       30,
       { min: 0, max: 300 }
     ),
-    objectStorage: objectStorageFromEnv(env, production),
+    objectStorage: objectStorageFromEnv(env, production, readSecret),
     database: {
       host: env.MYSQL_HOST || 'localhost',
       port: integerFromEnv('MYSQL_PORT', env.MYSQL_PORT, 3306, { min: 1, max: 65535 }),

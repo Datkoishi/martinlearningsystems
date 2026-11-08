@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  Browser[Browser] --> Edge[Nginx static + reverse proxy\nCSP / 26 MiB upload / healthz]
+  Browser[Browser] -->|HTTPS 1.2/1.3| Edge[Nginx TLS/static + reverse proxy\nHSTS / CSP / healthz]
   Edge --> UI[React/Vite\nRichContent renderer]
   Edge -->|/api + /socket.io| API[Express API]
   UI -->|session cookie + CSRF| API
@@ -17,6 +17,11 @@ flowchart LR
   Backup --> ImportVolume[(import_data read-only)]
   Backup --> BackupStore[(backup_data / off-site target)]
   Backup --> BackupHealth[health + restore marker]
+  BackupHealth --> BackupMetrics[node_exporter textfile]
+  API --> Metrics[Protected metrics listener\nHTTP / readiness / object outcomes]
+  Metrics --> Prometheus[Prometheus internal]
+  BackupMetrics --> Prometheus
+  Prometheus --> Alertmanager[Alertmanager webhook]
   API --> Identity[Identity/access\nopaque session + global RBAC]
   Identity --> IdentityDB[(users / roles / sessions / audit)]
   UI -->|GET /api/exams/demo-fixed| API
@@ -62,11 +67,13 @@ flowchart LR
 
 Backend được giữ modular monolith để phù hợp repo nhỏ. `backend/src/domain` chứa logic thuần; route chỉ chuyển HTTP. Frontend không render raw HTML/SVG từ payload. Asset DEMO là SVG nội bộ tin cậy; asset import tương lai phải sanitize/convert và phục vụ từ storage.
 
-Runtime production parse/validate toàn bộ boolean/integer/origin quan trọng trước khi listen. `NODE_ENV=production` bắt buộc HTTPS origin, secure cookie và database password không mặc định. Express chỉ tin số proxy hop được cấu hình; liveness không chạm DB, readiness phụ thuộc DB và trạng thái draining. SIGTERM/SIGINT chỉ xử lý một lần, ngừng readiness rồi đóng realtime/HTTP/pool trong deadline hữu hạn. Nginx phục vụ static cùng CSP/security headers và không gọi font CDN bên thứ ba.
+Runtime production parse/validate toàn bộ boolean/integer/origin quan trọng trước khi listen. `NODE_ENV=production` bắt buộc HTTPS origin, secure cookie và database password không mặc định; DB/object/metrics secret hỗ trợ file mount và từ chối cấu hình đồng thời plaintext + `_FILE`. Express chỉ tin số proxy hop được cấu hình; liveness không chạm DB, readiness phụ thuộc DB và trạng thái draining. SIGTERM/SIGINT chỉ xử lý một lần, ngừng readiness rồi đóng realtime/HTTP/metrics/pool trong deadline hữu hạn. Nginx production terminate TLS 1.2/1.3, redirect HTTP, bật HTTP/2/HSTS/CSP và không gọi font CDN bên thứ ba.
+
+`backend/src/operations/metrics.js` giữ registry in-process không phụ thuộc public API: counter/histogram HTTP chỉ label method, route template và status; readiness/error code và published asset outcome đều bounded. Listener port 9464 yêu cầu Bearer token constant-time, không đi qua Nginx và không publish host port. `ops/backup/backup-metrics.sh` dùng atomic rename tạo textfile world-readable trong volume metrics nhưng status/source backup vẫn private. Node exporter chỉ bật textfile collector. Prometheus đọc token từ secret file; Alertmanager đọc webhook URL từ secret file. Overlay tách `app_network` internal, `edge_network` cho port publish và `egress_network` cho backend/object + Alertmanager/webhook.
 
 `backend/src/operations/migration-runner.js` là upgrade boundary trước backend. Runner yêu cầu file `NNN_name.sql` liên tục, hash SHA-256 bất biến, giữ MySQL advisory lock theo database và ghi từng kết quả `APPLIED | ADOPTED | SKIPPED | BOOTSTRAPPED` vào `schema_migrations`. Compose không giao schema cho entrypoint MySQL; one-shot `migrate` hoàn tất mới mở backend. Database cũ không ledger bị chặn cho đến khi operator backup/xác minh và dùng `--adopt-existing`; sentinel schema ngăn adopt prefix thiếu hoặc không nhất quán. Seed DEMO bị skip mặc định. Vì MySQL DDL implicit-commit, restore rehearsal và recovery có review vẫn là bắt buộc.
 
-`ops/backup` là data-protection boundary opt-in, được đóng gói thành image riêng trong CI/GHCR. Loop tạo MySQL single-transaction dump trước, rồi archive local import volume chỉ đọc; mỗi set có manifest, ledger/schema invariants, SHA-256 và `READY` marker cuối cùng. Lock chống concurrent run, retention chỉ chạm complete set, health fail khi failure mới hơn success hoặc set quá tuổi. Restore checker chỉ nhận database prefix `eduassess_restore_`, yêu cầu xác nhận drop chính xác, so ledger/invariants và cleanup target. Compose `backup_data` là local baseline; encryption, off-site replication và alert delivery thuộc deployment.
+`ops/backup` là data-protection boundary opt-in, được đóng gói thành image riêng trong CI/GHCR. Loop tạo MySQL single-transaction dump trước, rồi archive local import volume chỉ đọc; mỗi set có manifest, ledger/schema invariants, SHA-256 và `READY` marker cuối cùng. Lock chống concurrent run, retention chỉ chạm complete set, health fail khi failure mới hơn success hoặc set quá tuổi và cùng logic phát metrics. Restore checker chỉ nhận database prefix `eduassess_restore_`, yêu cầu xác nhận drop chính xác, so ledger/invariants và cleanup target. Compose `backup_data` là local baseline; encryption/off-site replication và receiver delivery thật thuộc target deployment.
 
 `backend/src/imports` có repository/storage adapters. Runtime dùng MySQL + local persistent volume; tests dùng repository memory + thư mục tạm. ZIP được đọc trong bộ nhớ ở giới hạn request 25 MiB, giải nén logic tối đa 50 MiB và không ghi entry ra filesystem. Gói có path/symlink/encryption/tỷ lệ nén nguy hiểm bị từ chối trước staging.
 
@@ -88,4 +95,4 @@ Submit khóa attempt, chỉ chấm response đã commit và tạo một immutabl
 
 ## Boundaries kế tiếp
 
-`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED delivery, runtime safety, migration, backup/restore automation và S3-compatible promotion baseline đã có; identity vẫn mới global role. Off-site/alert deployment, CDN/telemetry, Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.
+`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED delivery, runtime safety, TLS/secrets, migration, backup/restore, S3 promotion và metrics/alert baseline đã có; identity vẫn mới global role. Target/off-site/webhook delivery, bucket identity/CDN, Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.

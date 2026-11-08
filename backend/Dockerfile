@@ -13,5 +13,5 @@ COPY backend/scripts ./scripts
 COPY database/init ./database/init
 RUN mkdir -p /app/.data/imports && chown -R node:node /app/.data
 USER node
-EXPOSE 3000
+EXPOSE 3000 9464
 CMD ["node", "src/server.js"]

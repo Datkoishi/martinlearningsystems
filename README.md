@@ -86,16 +86,32 @@ Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực 
 
 ## Runtime production
 
-Compose mặc định dùng `NODE_ENV=development` để local HTTP hoạt động. Trước khi chạy public production, tối thiểu phải cấu hình:
+Compose mặc định dùng `NODE_ENV=development` để local HTTP hoạt động. Production dùng overlay `docker-compose.production.yml` (Docker Compose 2.24.4+) để chỉ publish Nginx 80/443, giữ MySQL/API/Prometheus/Alertmanager trên network nội bộ, mount TLS/DB/metrics/webhook bằng Docker secrets và bật root filesystem read-only ở các service phù hợp.
+
+Sao chép `ops/production/production.env.example` ra vị trí ngoài Git, sửa origin/port và đường dẫn tới secret thật. DB password, metrics token và webhook URL phải là file một dòng; certificate/key là PEM. Sau đó validate trước khi chạy:
+
+```bash
+docker compose --env-file /secure/eduassess/production.env \
+  -f docker-compose.yml -f docker-compose.production.yml \
+  --profile backup config --quiet
+
+docker compose --env-file /secure/eduassess/production.env \
+  -f docker-compose.yml -f docker-compose.production.yml \
+  --profile backup up -d --build
+```
+
+Các gate bắt buộc gồm:
 
 - `NODE_ENV=production`;
 - `CLIENT_ORIGIN` là origin HTTPS chính xác, không kèm path;
 - `COOKIE_SECURE=true`;
-- `MYSQL_PASSWORD` lấy từ secret manager và không còn giá trị mẫu;
+- `MYSQL_PASSWORD_FILE`/Docker secret chứa giá trị không mặc định;
 - `TRUST_PROXY` đúng số reverse proxy tin cậy (`1` khi backend chỉ nằm sau một proxy);
 - `SHUTDOWN_GRACE_MS` nằm trong 1–60 giây.
 
-Backend từ chối khởi động nếu cấu hình production không an toàn hoặc sai kiểu. Orchestrator dùng `/api/live` cho liveness và `/api/ready` cho readiness; khi nhận `SIGTERM`/`SIGINT`, readiness chuyển `503` trước khi đóng Socket.IO, HTTP và MySQL pool. Nginx frontend có CSP/security headers, health `/healthz`, giới hạn upload 26 MiB tương thích API ZIP 25 MiB và không tải font từ bên thứ ba.
+Backend từ chối khởi động nếu cấu hình production không an toàn hoặc sai kiểu. Orchestrator dùng `/api/live` cho liveness và `/api/ready` cho readiness; khi nhận `SIGTERM`/`SIGINT`, readiness chuyển `503` trước khi đóng Socket.IO, HTTP, metrics listener và MySQL pool. Nginx terminate TLS 1.2/1.3, redirect HTTP 308, bật HSTS/CSP/security headers, health `/healthz`, giới hạn upload 26 MiB và không tải font từ bên thứ ba.
+
+Metrics backend chạy listener riêng port 9464, không publish ra host và yêu cầu Bearer token ít nhất 32 ký tự. Prometheus đọc token bằng file, scrape HTTP/readiness/object fallback/failure và backup textfile metrics; 8 alert rules chuyển sang Alertmanager webhook đọc từ secret file. UI Prometheus/Alertmanager không được publish. Xem cách rotate secret, kiểm tra target/rule và rollback ở `docs/RUNBOOK.md`.
 
 Migration runner dùng ledger SHA-256, sequence liên tục và advisory lock; retry sau khi thành công là no-op. Kiểm tra trạng thái bằng:
 
@@ -124,7 +140,7 @@ docker compose exec -T backend npm run media:promote -- --limit 100
 
 Object key là content-address theo SHA-256. CLI chỉ cut over DB sau PUT + GET/hash/size verification; retry không upload/ghi event trùng. Rollback một asset dùng `npm run media:rollback -- --asset-id <uuid>` và chỉ chuyển về archive sau khi source archive được verify. Object không bị xóa khi rollback. Xem cấu hình, thứ tự rollout và incident guard trong `docs/RUNBOOK.md`.
 
-Đây vẫn chưa phải rollout production hoàn chỉnh. TLS edge/secret deployment, backup destination/alert thực tế, tenant scope, CDN/observability và monitoring còn phải hoàn tất trước khi phục vụ dữ liệu thật.
+Bundle production trong repo đã được smoke end-to-end bằng certificate/secret fixture. Đây chưa phải xác nhận deploy trên host thật: operator vẫn phải provision certificate/domain, webhook có thể nhận alert, encrypted off-site backup, bucket/workload identity/CDN và tenant-scoped access trước khi phục vụ dữ liệu thật.
 
 ## CI/CD
 

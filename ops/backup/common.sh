@@ -20,6 +20,32 @@ require_env() {
   [[ -n "${!name:-}" ]] || backup_fail "Thiếu biến môi trường bắt buộc: $name"
 }
 
+resolve_secret_env() {
+  local name="$1"
+  local file_name="${name}_FILE"
+  local direct_value="${!name:-}"
+  local secret_file="${!file_name:-}"
+  if [[ -n "$direct_value" && -n "$secret_file" ]]; then
+    backup_fail "$name và $file_name không được cấu hình đồng thời."
+    return 1
+  fi
+  if [[ -z "$secret_file" ]]; then
+    [[ "$direct_value" != *$'\n'* && "$direct_value" != *$'\r'* ]] || backup_fail "$name phải nằm trên một dòng."
+    return
+  fi
+  [[ "$secret_file" == /* && -f "$secret_file" && -r "$secret_file" ]] || {
+    backup_fail "$file_name phải là file tuyệt đối có thể đọc."
+    return 1
+  }
+  local value
+  value="$(<"$secret_file")"
+  [[ -n "$value" && "$value" != *$'\n'* && "$value" != *$'\r'* ]] || {
+    backup_fail "$file_name phải chứa đúng một secret không rỗng trên một dòng."
+    return 1
+  }
+  printf -v "$name" '%s' "$value"
+}
+
 require_uint_range() {
   local name="$1"
   local value="${!name:-}"
@@ -52,6 +78,7 @@ validate_backup_config() {
   : "${BACKUP_STALE_LOCK_SECONDS:=21600}"
   : "${BACKUP_RUN_ON_START:=true}"
 
+  resolve_secret_env MYSQL_PASSWORD
   require_env MYSQL_HOST
   require_env MYSQL_PORT
   require_env MYSQL_DATABASE

@@ -7,6 +7,7 @@
 - `database/init/`: migration/seed SQL có ledger/checksum; dùng `npm run db:migrate:status --prefix backend` để kiểm tra và `npm run db:migrate --prefix backend` để nâng schema. Compose giao schema cho one-shot `migrate`, không mount SQL vào MySQL entrypoint.
 - `ops/backup/`: backup database + import archive, checksum/retention/health và restore rehearsal. Chạy `npm run test:ops`; không đưa credential vào argument hoặc backup artifact.
 - `backend/src/storage/` + `backend/scripts/media-storage.js`: dual-read archive/object, content-addressed S3 promotion và rollback. Luôn giữ archive cho đến khi rollout/restore window được duyệt; không sửa storage state bằng SQL tay.
+- `docker-compose.production.yml` + `ops/{production,monitoring}`: TLS/file-secret production overlay, protected Prometheus/Alertmanager và backup textfile metrics. Validate bằng Compose 2.24.4+, `promtool`/`amtool`; không publish DB/API/monitoring UI hoặc kết luận alert delivery chỉ từ readiness.
 - Cài đặt: `npm run install:all`. Kiểm tra chung: `npm test`.
 
 ## Trước khi code

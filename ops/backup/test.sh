@@ -34,6 +34,10 @@ now_epoch="$(date -u '+%s')"
 printf '%s\n' "$now_epoch" > "$test_root/status/last_success_epoch"
 printf '%s\n' "$((now_epoch - 1))" > "$test_root/status/last_failure_epoch"
 BACKUP_ROOT="$test_root" BACKUP_MAX_AGE_SECONDS=60 "$SCRIPT_DIRECTORY/healthcheck.sh"
+metrics_file="$test_root/metrics/eduassess_backup.prom"
+grep -qx 'eduassess_backup_healthy 1' "$metrics_file"
+grep -qx "eduassess_backup_last_success_timestamp_seconds $now_epoch" "$metrics_file"
+grep -Eq '^eduassess_backup_age_seconds [0-9]+$' "$metrics_file"
 
 stub_directory="$test_root/stubs"
 concurrent_root="$test_root/concurrent"
@@ -60,6 +64,15 @@ if BACKUP_ROOT="$test_root" BACKUP_MAX_AGE_SECONDS=60 "$SCRIPT_DIRECTORY/healthc
   printf 'healthcheck phải fail khi failure mới hơn success.\n' >&2
   exit 1
 fi
+grep -qx 'eduassess_backup_healthy 0' "$metrics_file"
+
+secret_file="$test_root/mysql-password"
+printf 'fixture-from-file\n' > "$secret_file"
+MYSQL_HOST=mysql MYSQL_PORT=3306 MYSQL_DATABASE=mls MYSQL_USER=user MYSQL_PASSWORD_FILE="$secret_file" \
+  BACKUP_ROOT="$test_root/secret-config" IMPORT_STORAGE_PATH="$concurrent_imports" \
+  BACKUP_RETENTION_DAYS=14 BACKUP_INTERVAL_SECONDS=60 BACKUP_MAX_AGE_SECONDS=60 \
+  BACKUP_STALE_LOCK_SECONDS=300 BACKUP_RUN_ON_START=true \
+  bash -c "source '$SCRIPT_DIRECTORY/common.sh'; validate_backup_config; [[ \"\$MYSQL_PASSWORD\" == fixture-from-file ]]"
 
 printf 'tampered\n' >> "$backup_directory/database.sql"
 if BACKUP_ROOT="$test_root" "$SCRIPT_DIRECTORY/verify-backup.sh" >/dev/null 2>&1; then

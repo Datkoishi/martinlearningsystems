@@ -13,6 +13,10 @@ import { attemptService as defaultAttemptService } from './attempts/index.js';
 import { assemblyService as defaultAssemblyService } from './assembly/index.js';
 import { ROLE } from './auth/auth-service.js';
 import {
+  createHttpMetricsMiddleware,
+  metricsRegistry as defaultMetricsRegistry
+} from './operations/metrics.js';
+import {
   clearAuthCookies,
   createAuthenticate,
   createLoginRateLimiter,
@@ -53,7 +57,8 @@ export const createApp = ({
   assemblyService = defaultAssemblyService,
   importsEnabled = config.importApiEnabled,
   readinessCheck = () => true,
-  trustProxy = config.trustProxy
+  trustProxy = config.trustProxy,
+  metricsRegistry = defaultMetricsRegistry
 } = {}) => {
   const app = express();
   app.set('trust proxy', trustProxy);
@@ -67,6 +72,7 @@ export const createApp = ({
   const editorOrReviewer = requireRoles(ROLE.CONTENT_EDITOR, ROLE.ACADEMIC_REVIEWER, ROLE.SUPER_ADMIN);
   const studentOnly = requireRoles(ROLE.STUDENT);
 
+  app.use(createHttpMetricsMiddleware(metricsRegistry));
   app.use(helmet());
   app.use(cors({ origin: config.clientOrigin, credentials: true }));
 
@@ -144,8 +150,11 @@ export const createApp = ({
   app.get('/api/ready', async (_request, response) => {
     response.set('Cache-Control', 'no-store');
     try {
-      response.json(await getReadinessStatus(databaseCheck, readinessCheck));
+      const status = await getReadinessStatus(databaseCheck, readinessCheck);
+      metricsRegistry.setReady(true);
+      response.json(status);
     } catch (error) {
+      metricsRegistry.setReady(false);
       response.status(503).json({
         status: 'not_ready',
         database: error?.code === 'SERVICE_DRAINING' ? 'unknown' : 'disconnected',
@@ -494,6 +503,7 @@ export const createApp = ({
   });
 
   app.use((error, _request, response, _next) => {
+    metricsRegistry.recordError(error?.code || 'INTERNAL_ERROR');
     if (error instanceof PackageReadError) return response.status(error.statusCode).json({ code: error.code, message: error.message });
     if (error?.type === 'entity.too.large') return response.status(413).json({ code: 'PACKAGE_TOO_LARGE', message: 'ZIP vượt quá giới hạn tải lên 25 MiB.' });
     if (error?.statusCode && error?.code) return response.status(error.statusCode).json({

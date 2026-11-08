@@ -11,6 +11,7 @@ done
 require_env RESTORE_MYSQL_HOST
 require_env RESTORE_MYSQL_PORT
 require_env RESTORE_MYSQL_USER
+resolve_secret_env RESTORE_MYSQL_PASSWORD
 require_env RESTORE_MYSQL_PASSWORD
 require_env RESTORE_CHECK_DATABASE
 require_env RESTORE_CHECK_CONFIRM_DROP

@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { LocalImportStorage } from '../imports/local-import-storage.js';
 import { PublishedAssetStorage } from '../storage/published-asset-storage.js';
 import { S3ObjectStorage } from '../storage/s3-object-storage.js';
+import { metricsRegistry } from '../operations/metrics.js';
 import { CatalogService } from './catalog-service.js';
 import { MysqlCatalogRepository } from './mysql-catalog-repository.js';
 
@@ -14,7 +15,8 @@ export const catalogService = new CatalogService({
   storage: new PublishedAssetStorage({
     archiveStorage,
     objectStorage,
-    archiveFallback: config.objectStorage.archiveFallback
+    archiveFallback: config.objectStorage.archiveFallback,
+    telemetry: metricsRegistry
   })
 });
 

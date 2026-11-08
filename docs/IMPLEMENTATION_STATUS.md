@@ -38,6 +38,10 @@
 - Published media hỗ trợ S3-compatible object storage opt-in: content-addressed conditional PUT, read-after-write hash/size, transaction cutover, object-first/archive-fallback delivery và immutable promotion/rollback event + audit.
 - Operator CLI có status, dry-run, batch/single promote, explicit re-promote sau rollback và rollback chỉ sau archive verification; migration 012 giữ mọi asset cũ ở ARCHIVE mặc định.
 - Runtime/CI/container baseline đã nâng từ Node 20 EOL lên Node 24 LTS.
+- Production Compose overlay chỉ publish TLS edge 80/443; MySQL/API/metrics/Prometheus/Alertmanager nằm trên network nội bộ. DB/metrics/TLS/webhook đọc qua file-mounted Docker secrets; plaintext DB secret và direct service ports từ base Compose bị reset.
+- Nginx production redirect HTTP 308, terminate TLS 1.2/1.3, bật HTTP/2 + HSTS/CSP; frontend/backend/backup/MySQL health và one-shot migration đã pass full-stack fixture smoke.
+- Backend có protected Prometheus listener riêng: HTTP counter/histogram theo route template, readiness/error và published asset archive/object/fallback/failure; graceful shutdown đóng cả metrics server.
+- Backup health ghi atomic node_exporter textfile metrics; Prometheus scrape bằng credentials file, Alertmanager dùng webhook URL file và 8 alert rules cho backend/5xx/object/backup/restore signals.
 
 ## Partial / giới hạn
 
@@ -47,10 +51,10 @@
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
 - Chưa có browser visual QA trong sandbox.
 - Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
-- Production vẫn cần TLS edge/secret manager thực tế; import feature flag mặc định tắt để rollout có chủ đích.
-- Object promotion đã có nhưng bucket/identity/CDN/replication/telemetry thực tế chưa được provision trong repo; archive fallback vẫn phải bật khi rollout.
-- Backup schedule/retention/health đã có trong repo nhưng production chưa map encrypted/off-site destination, alert delivery, lịch restore-check và RPO/RTO dashboard trên hạ tầng đích.
+- TLS/secret/monitoring bundle đã verified bằng fixture nhưng chưa được deploy với domain/certificate/secret manager thật; import feature flag mặc định tắt để rollout có chủ đích.
+- Object promotion + fallback/failure telemetry đã có nhưng bucket/identity/CDN/replication thực tế chưa được provision; archive fallback vẫn phải bật khi rollout.
+- Backup schedule/metrics/alerts đã có trong repo nhưng production chưa map encrypted/off-site destination, xác nhận webhook delivery, lịch restore-check và RPO/RTO dashboard trên hạ tầng đích.
 
 ## Chưa làm
 
-Off-site backup/alert deployment, object bucket/identity/CDN/telemetry deployment, tenant-scoped RBAC, account lifecycle/recovery/MFA, blueprint authoring revisions, manual essay/regrade, assessment/reporting.
+Target production provisioning, off-site backup + alert delivery drill, object bucket/identity/CDN, tenant-scoped RBAC, account lifecycle/recovery/MFA, blueprint authoring revisions, manual essay/regrade, assessment/reporting.

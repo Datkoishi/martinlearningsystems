@@ -23,7 +23,7 @@ Production image/CI dùng Node 24 LTS; không deploy bằng Node 20 EOL. Compose
 NODE_ENV=production
 CLIENT_ORIGIN=https://<origin-chính-xác>
 COOKIE_SECURE=true
-MYSQL_PASSWORD=<secret-không-mặc-định>
+MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
 TRUST_PROXY=<số-proxy-hop-tin-cậy>
 SHUTDOWN_GRACE_MS=10000
 ```
@@ -33,9 +33,65 @@ Backend fail-fast trước khi listen nếu enum/boolean/integer sai, origin pro
 - Liveness: `GET /api/live`, không chạm DB.
 - Readiness: `GET /api/ready`, chỉ 200 khi chưa draining và DB kết nối.
 - Frontend/Nginx: `GET /healthz`; upload limit 26 MiB cho API ZIP tối đa 25 MiB.
-- SIGTERM/SIGINT: readiness chuyển 503, đóng Socket.IO/HTTP/pool; orchestrator phải có termination grace lớn hơn `SHUTDOWN_GRACE_MS` (Compose hiện 15 giây cho grace 10 giây).
+- SIGTERM/SIGINT: readiness chuyển 503, đóng Socket.IO/HTTP/metrics listener/pool; orchestrator phải có termination grace lớn hơn `SHUTDOWN_GRACE_MS` (Compose hiện 15 giây cho grace 10 giây).
 
-Nginx áp CSP và security headers cho UI, đồng thời dùng system font để không gửi IP/user-agent của trẻ em sang font CDN. TLS vẫn phải terminate tại edge/load balancer bên ngoài cấu hình repo hiện tại.
+Nginx áp CSP và security headers cho UI, đồng thời dùng system font để không gửi IP/user-agent của trẻ em sang font CDN. Overlay production terminate TLS 1.2/1.3 ngay tại Nginx; nếu dùng load balancer phía trước, vẫn giữ hop count/network allowlist đúng topology và không mở backend trực tiếp.
+
+## Production Compose: TLS, secrets và monitoring
+
+Yêu cầu Docker Compose 2.24.4+ vì overlay dùng `!reset`/`!override` để xóa port và plaintext secret từ file base. Tạo env file ngoài repo từ `ops/production/production.env.example`; không dùng `.env` development cho deploy. Tất cả đường dẫn secret phải là file host tuyệt đối, quyền đọc tối thiểu cho Docker daemon:
+
+- `MYSQL_PASSWORD_SECRET_FILE`, `MYSQL_ROOT_PASSWORD_SECRET_FILE`: secret một dòng;
+- `TLS_CERTIFICATE_SECRET_FILE`, `TLS_PRIVATE_KEY_SECRET_FILE`: certificate chain/private key PEM;
+- `METRICS_BEARER_TOKEN_SECRET_FILE`: token ngẫu nhiên một dòng, ít nhất 32 ký tự;
+- `ALERT_WEBHOOK_URL_SECRET_FILE`: HTTPS webhook URL một dòng của notification receiver.
+
+Validate merge và certificate trước deploy:
+
+```bash
+docker compose --env-file /secure/eduassess/production.env \
+  -f docker-compose.yml -f docker-compose.production.yml \
+  --profile backup config --quiet
+
+docker run --rm --add-host backend:127.0.0.1 --entrypoint=nginx \
+  -v "$PWD/ops/production/nginx.production.conf:/etc/nginx/conf.d/default.conf:ro" \
+  -v /secure/eduassess/tls-certificate.pem:/run/secrets/tls_certificate:ro \
+  -v /secure/eduassess/tls-private-key.pem:/run/secrets/tls_private_key:ro \
+  nginx:1.27-alpine -t
+```
+
+Deploy và kiểm tra edge:
+
+```bash
+docker compose --env-file /secure/eduassess/production.env \
+  -f docker-compose.yml -f docker-compose.production.yml \
+  --profile backup up -d --build
+
+curl -I http://<production-host>/
+curl --fail https://<production-host>/healthz
+curl --fail https://<production-host>/api/ready
+```
+
+HTTP phải trả 308 sang HTTPS; HTTPS phải dùng certificate hợp lệ, trả HSTS/CSP và readiness 200. MySQL/backend/metrics/Prometheus/Alertmanager không được có host port. `migrate` phải exit 0; `mysql`, `backend`, `frontend`, `backup` phải healthy. Dừng rollout nếu bất kỳ điều kiện nào sai.
+
+Backend metrics chỉ listen trong network tại `backend:9464`. `/metrics` không có token phải trả 401; Prometheus dùng `authorization.credentials_file`. Node exporter chỉ bật textfile collector và đọc `backup_data:/backups/metrics` read-only. Các signal chính:
+
+- `eduassess_http_requests_total` và duration histogram, route là template không chứa UUID;
+- `eduassess_backend_ready`, `eduassess_errors_total`;
+- `eduassess_published_asset_reads_total{outcome="archive|object|fallback|failure"}`;
+- `eduassess_backup_healthy`, age, success/verify/failure/restore timestamps.
+
+Prometheus nạp 8 alert rules cho target down, HTTP 5xx, object fallback/failure, backup down/unhealthy/stale và restore rehearsal stale. Alertmanager ready không chứng minh webhook nhận được notification: trước go-live phải kích hoạt alert fixture có kiểm soát, xác nhận receiver nhận/resolved message rồi ghi bằng chứng change record. Không publish Prometheus/Alertmanager UI ra Internet; truy cập tạm phải qua SSH tunnel/VPN có audit.
+
+Rotation:
+
+1. Ghi secret/certificate mới bằng atomic replace ở secret manager/host.
+2. Với DB password, rotate MySQL credential và file trong cùng maintenance procedure; kiểm tra migrator/readiness trên staging trước.
+3. Với metrics token, cập nhật file rồi recreate đồng thời `backend` và `prometheus`; khoảng scrape lỗi ngắn phải được dự kiến.
+4. Với TLS hoặc webhook, recreate `frontend` hoặc `alertmanager`, sau đó kiểm certificate/`/-/ready` và test delivery.
+5. Không log/cat secret vào ticket; chỉ ghi version/fingerprint, thời gian và actor.
+
+Rollback overlay/application không được dùng `down -v`. Giữ migration backward-compatible, giữ archive fallback và recovery volumes; deploy image/config trước đó rồi xác minh `/api/ready`, metrics và alert. Certificate hết hạn/sai key là stop-ship, không rollback sang HTTP.
 
 ## Migration
 
@@ -221,4 +277,4 @@ Giữ `OBJECT_STORAGE_ARCHIVE_FALLBACK=true` qua cửa sổ quan sát/recovery �
 - Reviewer explanation asset phải đi qua `/api/assemblies/:id/assets/:assetId`; không đổi sang public catalog URL. Public ASSEMBLED asset phải thực sự có trong `student_snapshot_json.assets`.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
-Production deploy chưa cấu hình ngoài CI publish image GHCR. Image backend chứa runner + SQL và Compose có migration gate, nhưng CI publish image không tự rollout database. Backup scheduler/retention/restore-check và object promotion/rollback baseline đã smoke pass; encrypted/off-site destination, alert wiring, lịch restore rehearsal, TLS/secret deployment, CDN và metrics vẫn phải được cấu hình ở hạ tầng đích.
+CI publish image GHCR nhưng không tự deploy. Repo đã có production overlay cho migration, TLS/file secrets, backup, metrics và alert rules; full-stack fixture smoke không thay target rollout. Hạ tầng đích vẫn phải cung cấp domain/certificate/secret files, encrypted off-site destination, webhook delivery drill, lịch restore rehearsal, bucket identity/CDN và tenant boundary trước go-live.

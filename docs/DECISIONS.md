@@ -77,3 +77,9 @@ Restore checker chỉ chạy trên database cô lập có prefix `eduassess_rest
 `media_assets.storage_key` không bị rewrite: nó tiếp tục trỏ source ZIP bất biến để provenance/rollback/recovery còn độc lập với object store. Object key là content-address SHA-256; service verify archive, conditional PUT và GET/hash/size trước khi transactionally đổi read preference. Runtime OBJECT luôn kiểm bytes và có archive fallback theo flag. Event/audit ghi mỗi transition; rollback verify archive, không xóa object và chặn batch tự promote lại.
 
 Upload nằm ngoài DB transaction nên lỗi DB sau PUT có thể để object content-addressed chưa referenced; đây là orphan an toàn, retry sẽ verify/reuse chứ không duplicate/overwrite. Không cleanup archive/object tự động trong slice này. Node production đồng thời nâng lên 24 LTS vì Node 20 đã EOL và AWS SDK báo vòng đời hỗ trợ. Bucket identity, CDN, replication, metrics và alert là deployment boundary tiếp theo. Chi tiết ở ADR-0013.
+
+## D-017 Production edge/secrets và monitoring là overlay fail-closed
+
+Base Compose tiếp tục phục vụ local development; production phải merge overlay có version requirement rõ, reset MySQL/backend host ports và plaintext DB secret, chỉ publish Nginx 80/443. Nginx terminate TLS 1.2/1.3 + HSTS; secret được mount bằng file. Network internal giữ DB/API/monitoring kín, edge network riêng mới cho phép Docker publish TLS frontend; backend/Alertmanager có egress riêng cho object store/webhook.
+
+Metrics chạy listener riêng, Bearer token đọc từ file và không được proxy/public. HTTP labels chỉ là method/route template/status; object read và backup health có outcome hữu hạn. Backup ghi textfile atomically cho node_exporter; Prometheus dùng credential file và Alertmanager dùng webhook URL file. Readiness của stack/Alertmanager không thay bằng chứng notification delivery hoặc off-site durability trên target thật. Chi tiết ở ADR-0014.
