@@ -221,3 +221,22 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `1e2dede` (`feat(ops): automate backup recovery checks`).
 - Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `1e2dede`.
+
+## [2026-11-08 12:58 +07:00] TASK-013 — Verified S3-compatible media promotion
+
+- Mục tiêu / feature IDs: OPS-001d; promote archive-backed published media sang S3-compatible storage với dual-read, hash verification, audit và rollback an toàn.
+- Trạng thái: VERIFIED (unit/full regression/Node 24 image/Compose/MySQL 8.4/S3-compatible end-to-end gates hoàn thành; browser visual/a11y QA chưa có tooling).
+- Phạm vi thực hiện: typed object config; AWS SDK v3 adapter; content-addressed conditional PUT; GET/read-after-write verification; object-first/archive-fallback delivery; batch/single/dry-run CLI; immutable transition/audit; rollback archive verification; re-promotion guard; graceful S3 client shutdown; Node 24 LTS baseline.
+- Files created: `backend/src/storage/*`, `backend/src/operations/{media-promotion-service,mysql-media-promotion-repository}.js`, `backend/scripts/media-storage.js`, `backend/test/media-storage.test.js`, `database/init/012_object_storage_promotion.sql`, `docs/adr/0013-content-addressed-object-promotion.md`.
+- Files modified: config/catalog/server/migration runner; package/lock/Docker/CI/Compose/env example; AGENTS/README và tài liệu architecture/data/status/roadmap/runbook/test/decision.
+- DB migration / data impact: migration 012 thêm backend/object key/promoted/rolled-back timestamps trên `media_assets` và `media_asset_storage_events`; row hiện hữu mặc định ARCHIVE. Archive key không rewrite; rollback giữ object key/bytes. Không sửa/xóa production data.
+- API / UI behavior: không thêm public API/UI. Catalog asset tự chọn OBJECT/ARCHIVE theo DB/config và vẫn verify bytes. Operator dùng `media:status`, `media:promote`, `media:rollback`; object storage mặc định tắt và archive fallback mặc định bật.
+- Test commands actually run: focused Node tests; full `npm test`; `npm audit --omit=dev`; Compose config; backend/frontend Node 24 Docker builds; 68 backend tests trong `node:24-alpine`; MySQL 8.4 + Adobe S3Mock 5.2.3 migration/status/dry-run/promote/retry/object-read/rollback/event/audit/negative smoke; diff/staged diff/secret-pattern checks.
+- Test results: backend 68/68 PASS trên host và Node 24 container; ops suite PASS; frontend build 38 modules; production audit 0 vulnerability; migration 001–012 PASS; fixture 43 bytes đi pending→active→rolledBack, retry no-op, 2 event + 2 audit, object/archive cùng SHA-256; Compose/diff/image runtime PASS (`v24.22.2`).
+- Document files updated: AGENTS, README, PROJECT_OVERVIEW/SKILL, ARCHITECTURE, DATA_MODEL/DICTIONARY, FEATURE_MATRIX, ROADMAP, IMPLEMENTATION_STATUS, GAP_ANALYSIS, DECISIONS, RUNBOOK, TEST_PLAN/REPORT, CHANGELOG, ADR, PROGRESS.
+- Security/privacy considerations: custom production endpoint buộc HTTPS; credential pair fail-fast và không log; deterministic prefix/key validation; DB cutover chỉ sau hash/size; fallback/rollback fail-closed; event/audit không chứa credential/bytes. Fixture không có dữ liệu người dùng; `.env` không bị hiển thị/chỉnh sửa và không được stage.
+- Known issues / trade-offs: bucket/workload identity/CDN/replication/metrics/alert chưa provision; fallback có thể che outage nếu deployment không đo; archive vẫn phải nằm trong recovery set; object orphan content-addressed có thể còn khi PUT thành công nhưng DB commit lỗi; chưa có cleanup policy. Lần đầu tải LocalStack gặp host chỉ còn 136 MiB và Docker read-only; đã xóa npm cache 9.8 GiB có thể tải lại, force-recover Docker, dọn mọi fixture/image smoke và chạy lại bằng S3Mock PASS.
+- Next actionable task: OPS-001e — TLS/secret deployment + metrics/alert wiring trên hạ tầng đích, gồm backup/object-store signals; task sản phẩm vẫn là ASM-001c.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `b5a90cc` (`feat(ops): add verified object media promotion`).
+- Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `b5a90cc`.
