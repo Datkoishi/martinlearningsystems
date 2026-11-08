@@ -183,3 +183,22 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `94b18aa` (`feat(ops): harden production runtime`).
 - Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `94b18aa`.
+
+## [2026-11-08 07:33 +07:00] TASK-011 — Versioned migration gate và restore rehearsal
+
+- Mục tiêu / feature IDs: OPS-001b; migration ledger/runner an toàn cho fresh/existing database và bằng chứng backup/restore trước rollout.
+- Trạng thái: VERIFIED (unit/full regression/build/Compose/MySQL 8.4/image/backup-restore gates hoàn thành).
+- Phạm vi thực hiện: ordered SQL discovery; SHA-256/sequence ledger validation; advisory lock; DEMO opt-in; existing-schema sentinel adoption; partial/inconsistent fail-closed; JSON CLI; one-shot Compose gate; root-context backend image/CI packaging; backup/restore runbook và ADR.
+- Files created: `.dockerignore`, `backend/scripts/migrate.js`, `backend/src/operations/migration-runner.js`, `backend/test/migration-runner.test.js`, `database/init/011_migration_ledger.sql`, `docs/adr/0011-versioned-migration-ledger.md`.
+- Files modified: env/config/package/Docker/Compose/CI và tài liệu README/architecture/data/status/roadmap/runbook/test/decision.
+- DB migration / data impact: thêm `schema_migrations`; fresh runner áp 001–011 và mặc định ghi 003 `SKIPPED`. Legacy entrypoint có thể bootstrap checksum 001–010; schema hiện hữu chỉ ghi `ADOPTED` khi operator dùng flag và sentinel đầy đủ. Không xóa/sửa domain data.
+- API / UI behavior: không đổi product API/UI. Thêm `npm run db:migrate`, `npm run db:migrate:status`; Compose chỉ mở backend sau migrator exit 0 và không còn mount init SQL vào MySQL.
+- Test commands actually run: focused config/migration tests; `npm test`; `docker compose --env-file .env.example config --quiet`; isolated Compose fresh-volume build/up/query/ready/down; MySQL 8.4 fresh/retry/lock/adopt/inconsistent/demo/legacy-entrypoint/backup-restore smoke; backend image status; `git diff --check`; staged secret-pattern scan.
+- Test results: backend 63/63 PASS, frontend build PASS (38 modules), Compose runtime PASS; fresh ledger 11 row + DEMO skipped; lock/adoption/inconsistent/demo cases đúng error/operation; dump 45,894 bytes có SHA-256 và restore khớp 34 table, 269 column, 11 ledger row + fixture. Full test trong sandbox đầu tiên có 3 `listen EPERM`; chạy lại ngoài sandbox PASS.
+- Document files updated: AGENTS, README, PROJECT_OVERVIEW/SKILL, ARCHITECTURE, DATA_MODEL/DICTIONARY, FEATURE_MATRIX, ROADMAP, IMPLEMENTATION_STATUS, GAP_ANALYSIS, DECISIONS, RUNBOOK, TEST_PLAN/REPORT, CHANGELOG, ADR, PROGRESS.
+- Security/privacy considerations: runner pin configured database, không log password, checksum/file drift fail-closed, concurrent migration bị lock; dump/container chỉ có fixture kỹ thuật và artifact tạm đã xóa. `.env` không được đọc, hiển thị hoặc chỉnh sửa.
+- Known issues / trade-offs: MySQL DDL implicit commit nên partial failure cần restore/repair có review; backup mới rehearsal thủ công, chưa có schedule/encryption/off-site retention/RPO-RTO alert; TLS/secret manager, tenant scope, metrics và S3/CDN vẫn pending.
+- Next actionable task: OPS-001c — backup scheduling/retention/restore alert và promotion archive-backed media sang S3-compatible storage; task sản phẩm vẫn là ASM-001c.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `237c431` (`feat(ops): add versioned migration gate`).
+- Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `237c431`.
