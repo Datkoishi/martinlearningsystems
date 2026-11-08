@@ -295,4 +295,4 @@
 - Next actionable task: `ASMNT-002` — framework học thuật pilot + framework revision và tenant/class-scoped Teacher reporting; hoặc `PLAY-001c` — manual essay/regrade. Production `OPS-001f` vẫn chờ target inputs thật.
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `4c0a267` (`feat(assessment): add approved evidence interpretation`).
-- Push status: `PENDING` — sẽ push sau commit progress này.
+- Push status: `PUSHED` — feature commit `4c0a267` và báo cáo progress đã được đẩy lên `origin/feat/eduassess-rich-content`.
