@@ -202,3 +202,22 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `237c431` (`feat(ops): add versioned migration gate`).
 - Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `237c431`.
+
+## [2026-11-08 08:16 +07:00] TASK-012 — Scheduled backup recovery set
+
+- Mục tiêu / feature IDs: OPS-001c; tự động backup MySQL + import archive, retention/health và guarded restore rehearsal.
+- Trạng thái: VERIFIED (unit/full regression/build/packaged-image/Compose fresh-volume/MySQL restore gates hoàn thành).
+- Phạm vi thực hiện: opt-in backup scheduler; DB-first/import-volume recovery set; SHA-256 + manifest/ledger/invariants + READY/latest; concurrent/stale lock; retention; staleness/failure health; prefix/exact-confirm restore cleanup; backup image + CI/GHCR matrix; sửa MySQL temporary-init readiness race.
+- Files created: `ops/backup/{Dockerfile,.dockerignore,common.sh,backup-once.sh,backup-loop.sh,verify-backup.sh,healthcheck.sh,restore-check.sh,test.sh}`, `docs/adr/0012-scheduled-backup-recovery-set.md`.
+- Files modified: Compose/env/root test/CI, migration CLI connection error boundary và tài liệu README/architecture/status/roadmap/runbook/test/decision.
+- DB migration / data impact: không thêm migration và không sửa production data. Restore checker chỉ tạo database có prefix `eduassess_restore_` khi exact confirmation khớp, drop trước success marker và thử cleanup trên failure path.
+- API / UI behavior: không đổi product API/UI. Thêm Compose profile/image `backup`; mặc định local không bật. MySQL health giờ query application database/user thay vì root ping để không pass trong temporary init server.
+- Test commands actually run: `npm test`; `bash ops/backup/test.sh`; Compose config; backup Docker build + in-image test; nhiều isolated Compose fresh-volume projects; 60-second repeated schedule; concurrency/lock/retention/health; guarded MySQL restore; migration connection-failure JSON; `git diff --check`; secret-pattern scan.
+- Test results: backend 63/63 PASS; ops suite PASS; frontend build PASS (38 modules); fresh MySQL migration 11/11 + packaged backup image healthy; DB dump khoảng 45,8 KiB + import archive/ledger/invariants verified; 3 scheduled sets; foreign lock được giữ; failure làm unhealthy rồi success phục hồi; expired complete set bị xóa; restore ledger/schema khớp và target schema count về 0.
+- Document files updated: AGENTS, README, PROJECT_OVERVIEW/SKILL, ARCHITECTURE, FEATURE_MATRIX, ROADMAP, IMPLEMENTATION_STATUS, GAP_ANALYSIS, DECISIONS, RUNBOOK, TEST_PLAN/REPORT, CHANGELOG, ADR, PROGRESS.
+- Security/privacy considerations: source volume read-only; root filesystem read-only + tmpfs + no-new-privileges; artifact/manifest không chứa credential; path/config/database-name/drop guards fail-closed; checksum tamper bị chặn. Không đọc, hiển thị hoặc chỉnh `.env`; mọi Docker fixture/container/image/volume tạm đã xóa.
+- Known issues / trade-offs: named `backup_data` là same-host baseline; production còn phải map encrypted/off-site destination, wire alert delivery và lập lịch restore theo RPO/RTO. Backup image chạy root để đọc source mode 0600 nhưng bị giới hạn mount/capability như trên. S3 asset cutover chưa triển khai.
+- Next actionable task: OPS-001d — S3-compatible media promotion với dual-read, hash verification và rollback; task sản phẩm vẫn là ASM-001c.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `1e2dede` (`feat(ops): automate backup recovery checks`).
+- Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `1e2dede`.
