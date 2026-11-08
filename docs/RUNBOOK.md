@@ -17,7 +17,7 @@ Role bootstrap hợp lệ: `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `SU
 
 ## Production runtime gate
 
-Compose local mặc định `NODE_ENV=development`. Public production phải inject secret từ môi trường/secret manager và đặt đồng thời:
+Production image/CI dùng Node 24 LTS; không deploy bằng Node 20 EOL. Compose local mặc định `NODE_ENV=development`. Public production phải inject secret từ môi trường/secret manager và đặt đồng thời:
 
 ```text
 NODE_ENV=production
@@ -67,7 +67,7 @@ Adoption chỉ ghi nhận prefix migration có sentinel schema đầy đủ; sch
 
 Mỗi migration mới phải có tên `NNN_name.sql`, sequence liên tục và chỉ additive/backward-compatible trong rollout tương ứng. Tuyệt đối không sửa, đổi tên hoặc xóa file đã có trong ledger: checksum/sequence drift làm runner dừng. Retry sau lần chạy thành công là no-op. MySQL DDL có implicit commit, nên migration lỗi giữa chừng có thể để lại schema một phần; dừng rollout, giữ log, restore bản sao hoặc repair có review rồi mới retry, không tự sửa ledger.
 
-`001`–`010` giữ lịch sử schema hiện tại; `011_migration_ledger.sql` tạo ledger và bootstrap checksum cho hệ thống từng chạy qua entrypoint cũ. Migration 010 backfill run cũ thành BlueprintVersion 1 `REJECTED` vì thiếu frozen reviewer payload và nới `exams.source_id` nullable cho ASSEMBLED nhiều nguồn.
+`001`–`010` giữ lịch sử schema domain; `011_migration_ledger.sql` tạo ledger và bootstrap checksum cho hệ thống từng chạy qua entrypoint cũ. Migration 010 backfill run cũ thành BlueprintVersion 1 `REJECTED` vì thiếu frozen reviewer payload và nới `exams.source_id` nullable cho ASSEMBLED nhiều nguồn. Migration 012 thêm state/key/timestamps cho media và immutable storage event ledger; mọi row cũ mặc định `ARCHIVE` nên migration additive không đổi đường đọc khi object storage còn tắt.
 
 ## Backup và restore rehearsal
 
@@ -130,6 +130,53 @@ unset RESTORE_CHECK_DATABASE RESTORE_CHECK_CONFIRM_DROP
 
 Lập lịch restore rehearsal ít nhất theo RPO/RTO đã duyệt và alert nếu `last_restore_success_epoch` quá hạn. Health mặc định chỉ phản ánh backup + checksum verification hằng ngày; alert restore rehearsal phải do orchestrator/monitor đọc marker hoặc exit status của job định kỳ.
 
+## Object storage promotion và rollback
+
+Bucket phải tồn tại trước; ứng dụng không tự tạo bucket. Dùng workload identity/instance role khi có thể; nếu dùng static credential thì luôn cấu hình cả `OBJECT_STORAGE_ACCESS_KEY_ID` và `OBJECT_STORAGE_SECRET_ACCESS_KEY` qua secret manager, không commit/log. Quyền tối thiểu cho prefix cấu hình là đọc/ghi object; operator/deployment giữ quyền bucket policy riêng. Endpoint AWS mặc định để trống; custom S3-compatible production bắt buộc HTTPS.
+
+```text
+OBJECT_STORAGE_ENABLED=true
+OBJECT_STORAGE_ENDPOINT=
+OBJECT_STORAGE_BUCKET=<bucket>
+OBJECT_STORAGE_REGION=<region>
+OBJECT_STORAGE_KEY_PREFIX=eduassess/media
+OBJECT_STORAGE_FORCE_PATH_STYLE=false
+OBJECT_STORAGE_ARCHIVE_FALLBACK=true
+MEDIA_PROMOTION_ACTOR=<deployment-or-operator-id>
+```
+
+Rollout theo thứ tự, không bỏ qua backup/restore gate:
+
+1. Tạo recovery set `READY`, xác minh off-site copy và rehearsal restore gần nhất.
+2. Deploy migration 012 + code trong khi `OBJECT_STORAGE_ENABLED=false`; kiểm tra backend/readiness và asset archive cũ.
+3. Inject endpoint/bucket/identity, bật object storage nhưng giữ `OBJECT_STORAGE_ARCHIVE_FALLBACK=true`; restart/drain bình thường.
+4. Kiểm tra và dry-run. Dry-run đọc + verify archive nhưng không PUT/cutover:
+
+```bash
+docker compose exec -T backend npm run media:status
+docker compose exec -T backend npm run media:promote -- --limit 100 --dry-run
+```
+
+5. Promote batch nhỏ, kiểm tra status/log, sample asset qua public và protected routes, rồi tăng batch có kiểm soát:
+
+```bash
+docker compose exec -T backend npm run media:promote -- --limit 100
+docker compose exec -T backend npm run media:status
+```
+
+CLI chỉ chọn `PUBLISHED + ARCHIVE + chưa rollback`. Source archive phải khớp metadata; object key là content-address SHA-256; conditional PUT không overwrite key có bytes khác; GET sau PUT phải khớp hash/size trước transaction cutover. Retry cùng asset là no-op đã verify. `media_asset_storage_events` và `audit_logs` phải tăng đúng một lần cho mỗi transition.
+
+Rollback một asset khi object delivery có sự cố:
+
+```bash
+docker compose exec -T backend npm run media:rollback -- --asset-id <uuid>
+docker compose exec -T backend npm run media:status
+```
+
+Rollback chỉ commit sau khi đọc lại archive và khớp hash/size; object không bị xóa. Asset đã rollback bị loại khỏi batch để tránh vòng lặp. Chỉ sau điều tra và xác nhận mới promote lại rõ ràng bằng `npm run media:promote -- --asset-id <uuid> --allow-rolled-back`.
+
+Giữ `OBJECT_STORAGE_ARCHIVE_FALLBACK=true` qua cửa sổ quan sát/recovery đã duyệt. Chỉ tắt fallback khi mọi asset active đã sample/monitor, bucket durability/replication/alert/backup được xác nhận và rollback rehearsal pass. Việc tắt fallback không cho phép xóa `import_data`: source ZIP còn là recovery/provenance artifact và backup set hiện bao gồm nó. CDN không nằm trong slice này; không public bucket tùy tiện, không đổi app sang URL object trực tiếp.
+
 ## Kiểm tra và sự cố
 
 - API degraded: kiểm tra MySQL health/host/port và secret ở môi trường, không log password.
@@ -145,7 +192,11 @@ Lập lịch restore rehearsal ít nhất theo RPO/RTO đã duyệt và alert n�
 - `PACKAGE_HASH_CHANGED`, `VALIDATION_REPORT_CHANGED` hoặc `PACKAGE_REVALIDATION_FAILED`: cô lập job và kiểm tra archive/storage; không sửa hash/report/approval để bypass. Upload package/version mới sau khi xác minh.
 - `FORMAL_ASSESSMENT_DISABLED`: đúng theo policy mặc định; không đổi purpose trực tiếp trong DB.
 - Publish retry sau timeout là an toàn: cùng ImportJob trả `import_publications` cũ. Không chạy SQL thủ công để đổi job sang `PUBLISHED`.
-- Source ZIP của job đã publish đang giữ asset bytes cho archive-backed storage key; không cleanup cho đến khi S3/object promotion và reference rewrite đã commit.
+- Source ZIP của job đã publish là provenance/recovery source; không cleanup kể cả sau object promotion nếu chưa có retention policy, backup và rollback design thay thế được duyệt.
+- `OBJECT_STORAGE_DISABLED`: bật config/bucket/identity trước promote; không đổi DB state thủ công.
+- `ARCHIVE_ASSET_INTEGRITY_FAILED`: dừng batch/rollback, cô lập source và khôi phục từ recovery set đã verify; không sửa hash để ép pass.
+- `OBJECT_KEY_COLLISION`, `OBJECT_UPLOAD_VERIFICATION_FAILED` hoặc `OBJECT_ASSET_INTEGRITY_FAILED`: dừng promotion, giữ archive fallback, kiểm tra bucket/prefix/replication; không overwrite/delete object trước khi giữ bằng chứng.
+- `MEDIA_ASSET_ROLLED_BACK`: đúng guard chống tự promote lại; chỉ dùng `--allow-rolled-back` sau incident review.
 - Catalog không thấy đề: kiểm tra `ExamVersion`, mọi question/stimulus/asset reference đều `PUBLISHED`, mode `FIXED` và purpose không phải formal; không nới query để bỏ gate.
 - `IDEMPOTENCY_KEY_REUSED`: client đã dùng cùng key cho đề khác; tạo key mới cho hành động mới, không sửa row cũ.
 - `ATTEMPT_SNAPSHOT_INTEGRITY_FAILED`: cô lập attempt và kiểm tra DB/storage/audit; không cập nhật hash để bypass.
@@ -170,4 +221,4 @@ Lập lịch restore rehearsal ít nhất theo RPO/RTO đã duyệt và alert n�
 - Reviewer explanation asset phải đi qua `/api/assemblies/:id/assets/:assetId`; không đổi sang public catalog URL. Public ASSEMBLED asset phải thực sự có trong `student_snapshot_json.assets`.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
-Production deploy chưa cấu hình ngoài CI publish image GHCR. Image backend chứa runner + SQL và Compose có migration gate, nhưng CI publish image không tự rollout database. Backup scheduler/retention/restore-check đã có và smoke pass; encrypted/off-site destination, alert wiring, lịch restore rehearsal, TLS/secret deployment và metrics vẫn phải được cấu hình ở hạ tầng đích.
+Production deploy chưa cấu hình ngoài CI publish image GHCR. Image backend chứa runner + SQL và Compose có migration gate, nhưng CI publish image không tự rollout database. Backup scheduler/retention/restore-check và object promotion/rollback baseline đã smoke pass; encrypted/off-site destination, alert wiring, lịch restore rehearsal, TLS/secret deployment, CDN và metrics vẫn phải được cấu hình ở hạ tầng đích.

@@ -1,6 +1,6 @@
 # Data model
 
-Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`; blueprint governance/publication: `010_assembled_publication.sql`; migration ledger: `011_migration_ledger.sql`.
+Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`; blueprint governance/publication: `010_assembled_publication.sql`; migration ledger: `011_migration_ledger.sql`; object promotion: `012_object_storage_promotion.sql`.
 
 ```mermaid
 erDiagram
@@ -16,6 +16,7 @@ erDiagram
   QUESTION_GROUP ||--o{ QUESTION_GROUP_ITEM : contains
   QUESTION_VERSION ||--o{ QUESTION_GROUP_ITEM : selected
   MEDIA_ASSET ||--o{ ASSET_REFERENCE : referenced
+  MEDIA_ASSET ||--o{ MEDIA_ASSET_STORAGE_EVENT : transitions
   QUESTION_VERSION ||--o{ SOURCE_PROVENANCE : traces
   CONTENT_SOURCE ||--o{ SOURCE_PROVENANCE : contributes
   USER ||--o{ USER_ROLE : receives
@@ -46,6 +47,8 @@ erDiagram
 Published versions phải bất biến ở application/service layer; thay đổi tạo version mới. `ExamItem` có check đúng một target. JSON dành cho rich content/answer config đã được validate; grade/subject/type/status là cột quan hệ để lọc.
 
 `schema_migrations` là operational ledger, không thuộc domain assessment. Mỗi `version`/`sequence_number` duy nhất lưu SHA-256 của nguyên file SQL, operation `APPLIED | ADOPTED | SKIPPED | BOOTSTRAPPED`, thời gian chạy, actor và timestamp. Runner từ chối sequence gap, file mất/đổi checksum và dùng advisory lock để chỉ một migrator thay schema tại một thời điểm. Row ledger đã ghi không được sửa để hợp thức hóa source drift.
+
+Migration 012 giữ `media_assets.storage_key` làm archive reference và thêm `storage_backend`, `object_storage_key`, promoted/rolled-back timestamps. `OBJECT` bắt buộc có key; key do service tạo theo `<prefix>/sha256/<2-ký-tự>/<sha256>`. `media_asset_storage_events` ghi bất biến PROMOTED/ROLLED_BACK với from/to backend, cả hai key, hash/size và actor. Rollback không xóa object key để hỗ trợ điều tra/retry; batch chỉ chọn PUBLISHED + ARCHIVE chưa từng rollback.
 
 `users` giữ identity trạng thái; password chỉ lưu scrypt hash. `user_roles` hiện chỉ có global scope. `auth_sessions` lưu hash của opaque session/CSRF token, expiry và revoke timestamp; `audit_logs` lưu event/outcome/resource mà không lưu raw credential/token.
 

@@ -24,7 +24,11 @@ flowchart LR
   Present --> Validate[Rich content validator]
   API -. slices kế tiếp .-> DB[(MySQL 8.4)]
   DB --> Versions[Exam / Question / Stimulus versions]
-  Assets[Archive-backed asset delivery\nS3/CDN chưa triển khai] -. assetId .-> UI
+  Assets[Dual-read asset delivery\nobject preferred + archive fallback] -. assetId .-> UI
+  Promoter[Media promotion CLI\nPUT + GET/hash + DB cutover] --> ObjectStore[(S3-compatible bucket)]
+  Promoter --> Store
+  Promoter --> DB
+  Assets --> ObjectStore
   Lab[Import Lab] -->|application/zip| Import[Import service]
   Import --> SafeZip[Path/size/ratio/checksum/MIME validation]
   Import --> Store[(Local import volume)]
@@ -68,7 +72,9 @@ Runtime production parse/validate toàn bộ boolean/integer/origin quan trọng
 
 `backend/src/auth` xác thực password scrypt, tạo opaque session/CSRF token và chỉ lưu hash token trong MySQL. Cookie session là `HttpOnly`, `SameSite=Strict`; role guard chạy phía server. Import ghi creator/audit trong transaction. Preview không lưu bản nội dung mới: service đọc lại `source.zip`, dựng projection reviewer và phục vụ asset theo `assetId` với `no-store`. Technical và academic decision khóa ImportJob bằng `SELECT ... FOR UPDATE`, cấm creator tự review và ghi hai scope bất biến trong `import_reviews`.
 
-Publish đọc lại archive, xác minh source SHA-256, revalidate và so canonical report hash với approval. `package-publication.js` dựng plan UUID nội bộ, đổi rich asset/answer-option references và giữ stable identity để tạo version kế tiếp. Repository khóa job và commit source/license/assets/stimuli/questions/groups/exam/publication/audit/status trong một transaction. Nếu bất kỳ insert nào lỗi, toàn bộ rollback; nếu client retry sau commit, `import_publications.import_job_id` trả lại publication cũ. Media storage key hiện là archive-backed (`source.zip#entry`), nên source ZIP published không được cleanup trước khi có object-storage promotion.
+Publish đọc lại archive, xác minh source SHA-256, revalidate và so canonical report hash với approval. `package-publication.js` dựng plan UUID nội bộ, đổi rich asset/answer-option references và giữ stable identity để tạo version kế tiếp. Repository khóa job và commit source/license/assets/stimuli/questions/groups/exam/publication/audit/status trong một transaction. Nếu bất kỳ insert nào lỗi, toàn bộ rollback; nếu client retry sau commit, `import_publications.import_job_id` trả lại publication cũ. `storage_key` tiếp tục là archive reference bất biến; object promotion không rewrite/xóa source này.
+
+`backend/src/storage` là media delivery boundary. Asset `ARCHIVE` đọc source ZIP; asset `OBJECT` ưu tiên GET object content-addressed và xác minh size/SHA-256, rồi mới fallback archive khi flag cho phép. Promotion xác minh archive, dùng conditional PUT, GET/read-after-write verification rồi transactionally đổi `storage_backend` và ghi event/audit. DB không bao giờ trỏ object chưa verify. Rollback xác minh lại archive trước transaction, giữ object key/bytes để retry và đánh dấu rollback để batch không tự promote lại. `media_asset_storage_events` là ledger bất biến; operator dùng CLI thay vì SQL tay.
 
 `backend/src/catalog` chỉ đọc ExamVersion `PUBLISHED + non-formal`. FIXED dựng lại relational graph rồi chạy student-safe presentation; ASSEMBLED đọc immutable publication snapshot và kiểm tra hash/metadata binding. Projection loại answer/explanation. Public asset query chỉ chấp nhận reference student-visible từ FIXED graph hoặc ASSEMBLED student snapshot, sau đó xác minh bytes với metadata hash/size.
 
@@ -82,4 +88,4 @@ Submit khóa attempt, chỉ chấm response đã commit và tạo một immutabl
 
 ## Boundaries kế tiếp
 
-`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED delivery, runtime safety, migration và backup/restore automation baseline đã có; identity vẫn mới global role. Off-site/alert deployment, object storage promotion, Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.
+`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED delivery, runtime safety, migration, backup/restore automation và S3-compatible promotion baseline đã có; identity vẫn mới global role. Off-site/alert deployment, CDN/telemetry, Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.

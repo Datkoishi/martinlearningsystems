@@ -37,6 +37,8 @@ Migration production đi qua `backend/scripts/migrate.js`: file `NNN_name.sql` l
 
 Backup production đi qua `ops/backup`: DB dump và `import_data` archive là một set, checksum trước `READY`, concurrent run bị lock và retention chỉ xóa complete set hết hạn. Container health là signal cho backup success/age, không thay alert delivery. Restore check chỉ được chạy trên host/database cô lập có prefix guard + exact drop confirmation. Named volume local không phải off-site backup; deployment phải mã hóa, replicate, giới hạn quyền và diễn tập restore theo RPO/RTO.
 
+Media promotion đi qua `backend/scripts/media-storage.js`, không update `media_assets` bằng SQL tay. Archive reference luôn được giữ; upload dùng key SHA-256, conditional PUT và GET/hash/size trước DB cutover. Runtime đọc object trước, chỉ fallback archive khi flag cho phép và vẫn kiểm tra integrity ở catalog. Rollback phải verify archive trước khi đổi state, không xóa object; asset đã rollback chỉ được promote lại bằng flag rõ ràng. Production custom endpoint bắt buộc HTTPS, credential phải inject qua secret manager và least privilege bucket/prefix.
+
 ## Catalog và attempt
 
 Catalog chỉ đọc ExamVersion `PUBLISHED + non-formal`: FIXED dựng từ relational graph, ASSEMBLED đọc publication snapshot. Student projection phải loại answer key, explanation, scoring fields và asset chỉ dùng trong lời giải. Public asset phải có reference student-visible từ published FIXED graph hoặc ASSEMBLED snapshot và bytes phải khớp metadata hash/size.

@@ -1,9 +1,9 @@
-FROM node:20-alpine AS dependencies
+FROM node:24-alpine AS dependencies
 WORKDIR /app
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
 
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules

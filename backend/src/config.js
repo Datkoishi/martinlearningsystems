@@ -44,6 +44,57 @@ const originFromEnv = (value, production) => {
   return origin.origin;
 };
 
+const objectStorageFromEnv = (env, production) => {
+  const enabled = booleanFromEnv('OBJECT_STORAGE_ENABLED', env.OBJECT_STORAGE_ENABLED, false);
+  const endpointValue = env.OBJECT_STORAGE_ENDPOINT || '';
+  let endpoint = null;
+  if (endpointValue) {
+    try {
+      const parsed = new URL(endpointValue);
+      if (!['http:', 'https:'].includes(parsed.protocol) || parsed.origin !== parsed.href.replace(/\/$/, '')) {
+        throw new Error('invalid endpoint');
+      }
+      if (production && parsed.protocol !== 'https:') {
+        throw new ConfigError('OBJECT_STORAGE_ENDPOINT production phải dùng HTTPS.');
+      }
+      endpoint = parsed.origin;
+    } catch (error) {
+      if (error instanceof ConfigError) throw error;
+      throw new ConfigError('OBJECT_STORAGE_ENDPOINT phải là HTTP(S) origin hợp lệ, không có path/query/hash.');
+    }
+  }
+
+  const bucket = env.OBJECT_STORAGE_BUCKET || '';
+  const region = env.OBJECT_STORAGE_REGION || 'ap-southeast-1';
+  const keyPrefix = env.OBJECT_STORAGE_KEY_PREFIX || 'eduassess/media';
+  const accessKeyId = env.OBJECT_STORAGE_ACCESS_KEY_ID || '';
+  const secretAccessKey = env.OBJECT_STORAGE_SECRET_ACCESS_KEY || '';
+  if (enabled && !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
+    throw new ConfigError('OBJECT_STORAGE_BUCKET không hợp lệ hoặc chưa được cấu hình.');
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9/_=+.-]{0,199}$/.test(keyPrefix)
+    || keyPrefix.includes('//') || keyPrefix.split('/').includes('..')) {
+    throw new ConfigError('OBJECT_STORAGE_KEY_PREFIX không hợp lệ.');
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,62}$/.test(region)) {
+    throw new ConfigError('OBJECT_STORAGE_REGION không hợp lệ.');
+  }
+  if (Boolean(accessKeyId) !== Boolean(secretAccessKey)) {
+    throw new ConfigError('OBJECT_STORAGE_ACCESS_KEY_ID và OBJECT_STORAGE_SECRET_ACCESS_KEY phải được cấu hình cùng nhau.');
+  }
+
+  return {
+    enabled,
+    endpoint,
+    bucket,
+    region,
+    keyPrefix,
+    forcePathStyle: booleanFromEnv('OBJECT_STORAGE_FORCE_PATH_STYLE', env.OBJECT_STORAGE_FORCE_PATH_STYLE, Boolean(endpoint)),
+    archiveFallback: booleanFromEnv('OBJECT_STORAGE_ARCHIVE_FALLBACK', env.OBJECT_STORAGE_ARCHIVE_FALLBACK, true),
+    credentials: accessKeyId ? { accessKeyId, secretAccessKey } : null
+  };
+};
+
 export const buildConfig = (env = process.env, cwd = process.cwd()) => {
   const nodeEnv = env.NODE_ENV || 'development';
   if (!['development', 'test', 'production'].includes(nodeEnv)) {
@@ -77,6 +128,7 @@ export const buildConfig = (env = process.env, cwd = process.cwd()) => {
       30,
       { min: 0, max: 300 }
     ),
+    objectStorage: objectStorageFromEnv(env, production),
     database: {
       host: env.MYSQL_HOST || 'localhost',
       port: integerFromEnv('MYSQL_PORT', env.MYSQL_PORT, 3306, { min: 1, max: 65535 }),

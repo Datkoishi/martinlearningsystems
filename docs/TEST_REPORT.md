@@ -221,3 +221,21 @@ Lệnh chính: focused config/migration tests; `npm test`; `docker compose --env
 | Frontend production build | PASS | Vite, 38 modules |
 
 Lệnh chính: `npm test`; Compose config; isolated `--profile backup` MySQL/migrate/backup runtime; repeated schedule/concurrency/retention/health; guarded restore-check; cleanup project volumes/images; `git diff --check`. Mọi Docker artifact chỉ chứa fixture kỹ thuật và đã bị xóa; `.env` không được đọc, hiển thị hoặc chỉnh sửa.
+
+## 2026-11-08 — TASK-013
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-OPS-10 object config/storage/promotion | PASS | disabled defaults; production HTTP endpoint reject; content-address validation; collision/read-after-write; dual-read fallback; promote/retry/rollback/integrity negative cases |
+| DB-OPS-11 MySQL 8.4 + S3-compatible promotion | PASS | migration 001–012; fixture 43 bytes; dry-run không đổi state; conditional PUT + GET SHA-256; pending→active→rolledBack; 2 immutable event + 2 success audit |
+| Object delivery/retention | PASS | object-first read trả đúng SHA-256 khi archive adapter bị khóa; retry `changed=false`; rollback đọc đúng archive và object verified vẫn còn |
+| Rollback/re-promotion guards | PASS | rollback chỉ sau archive hash; asset rollback bị loại khỏi batch; promote thiếu `--allow-rolled-back` trả `MEDIA_ASSET_ROLLED_BACK` |
+| CLI argument guard | PASS | `status --asset-id` exit 2 JSON; status/rollback/promotion flags bị scope rõ |
+| Backend regression | PASS | 68/68 tests trên host; 68/68 riêng trong `node:24-alpine`, source mount read-only |
+| Operations/frontend regression | PASS | backup script suite PASS; Vite production build 38 modules |
+| Node 24 images | PASS | backend/frontend Docker build; backend runtime `v24.22.2`; backend `npm ci --omit=dev` audit 0 |
+| Production dependency audit | PASS | `npm audit --omit=dev`: 0 vulnerability |
+| Compose/diff | PASS | `.env.example` Compose config và `git diff --check` |
+| Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
+
+Lệnh chính: focused config/media/migration tests; full `npm test`; Node 24 container tests; Docker backend/frontend builds; Compose config; MySQL 8.4 + Adobe S3Mock 5.2.3 end-to-end CLI/runtime smoke; production audit; `git diff --check`. Fixture chỉ chứa bytes kỹ thuật, database/container/network/image/thư mục tạm đều đã xóa; `.env` không bị hiển thị hoặc chỉnh sửa, smoke dùng env fixture explicit. Lần thử LocalStack đầu bị Docker read-only do host chỉ còn 136 MiB; npm cache có thể tải lại đã được dọn, Docker phục hồi sạch, sau đó smoke chạy bằng S3Mock và PASS.

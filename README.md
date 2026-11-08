@@ -4,7 +4,7 @@ Nền tảng web đánh giá năng lực học sinh. Repo hiện có luồng imp
 
 ## Yêu cầu
 
-- Node.js 20+
+- Node.js 24 LTS+
 - npm 10+
 - Docker Desktop (bao gồm Docker Compose v2)
 
@@ -114,7 +114,17 @@ docker compose --profile backup ps backup
 
 Job ghép MySQL single-transaction dump với archive của `import_data`, kiểm tra SHA-256, giữ retention và phát health signal khi backup lỗi hoặc quá hạn. Named volume `backup_data` chỉ là baseline local; production phải map nó sang storage mã hóa/off-site và alert trên container health. Restore rehearsal có guard riêng trong `docs/RUNBOOK.md`.
 
-Đây vẫn chưa phải rollout production hoàn chỉnh. TLS edge/secret deployment, backup destination/alert thực tế, tenant scope, S3/CDN và monitoring còn phải hoàn tất trước khi phục vụ dữ liệu thật.
+Published media có thể được promote theo batch sang AWS S3 hoặc endpoint S3-compatible. Tính năng mặc định tắt; rollout phải giữ `OBJECT_STORAGE_ARCHIVE_FALLBACK=true`, chạy migration và kiểm tra trước:
+
+```bash
+docker compose exec -T backend npm run media:status
+docker compose exec -T backend npm run media:promote -- --limit 100 --dry-run
+docker compose exec -T backend npm run media:promote -- --limit 100
+```
+
+Object key là content-address theo SHA-256. CLI chỉ cut over DB sau PUT + GET/hash/size verification; retry không upload/ghi event trùng. Rollback một asset dùng `npm run media:rollback -- --asset-id <uuid>` và chỉ chuyển về archive sau khi source archive được verify. Object không bị xóa khi rollback. Xem cấu hình, thứ tự rollout và incident guard trong `docs/RUNBOOK.md`.
+
+Đây vẫn chưa phải rollout production hoàn chỉnh. TLS edge/secret deployment, backup destination/alert thực tế, tenant scope, CDN/observability và monitoring còn phải hoàn tất trước khi phục vụ dữ liệu thật.
 
 ## CI/CD
 

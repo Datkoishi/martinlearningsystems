@@ -69,6 +69,15 @@ const MIGRATION_SHAPES = new Map([
     checks: [
       ['exams.source_id is nullable', (schema) => schema.columns.get(columnKey('exams', 'source_id'))?.isNullable === 'YES']
     ]
+  }],
+  [12, {
+    tables: ['media_asset_storage_events'],
+    columns: [
+      ['media_assets', 'storage_backend'],
+      ['media_assets', 'object_storage_key'],
+      ['media_assets', 'object_promoted_at'],
+      ['media_assets', 'object_rolled_back_at']
+    ]
   }]
 ]);
 

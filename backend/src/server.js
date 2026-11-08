@@ -3,6 +3,7 @@ import { Server } from 'socket.io';
 import { createApp } from './app.js';
 import { config } from './config.js';
 import { db } from './db.js';
+import { closeCatalogStorage } from './catalog/index.js';
 
 let shuttingDown = false;
 const app = createApp({ readinessCheck: () => !shuttingDown });
@@ -51,6 +52,7 @@ const shutdown = (signal) => {
   shutdownPromise = (async () => {
     await closeRealtime();
     await closeHttp();
+    closeCatalogStorage();
     await db.end();
     clearTimeout(deadline);
     process.exitCode = 0;

@@ -37,3 +37,7 @@
 - Bổ sung CI tests cho syntax, checksum tamper, stale health, config/path guard và lock ownership; tách S3 media promotion thành OPS-001d.
 - Sửa MySQL Compose healthcheck dùng application database query để loại race với temporary init server; migration CLI bọc cả lỗi kết nối thành JSON fail-closed.
 - Đóng gói backup tools thành image riêng và thêm vào CI/GHCR publish matrix, không phụ thuộc bind-mount source repo khi deploy.
+- Thêm migration `012_object_storage_promotion.sql`, dual-read object/archive và immutable media storage event ledger.
+- Thêm S3-compatible content-addressed promotion CLI có dry-run/batch/retry, conditional PUT, GET/hash verification và rollback chỉ sau archive verification.
+- Nối object-first catalog delivery với archive fallback có cấu hình; giữ archive/object khi rollback để recovery/retry an toàn.
+- Nâng backend/frontend image, CI và engine baseline từ Node 20 EOL lên Node 24 LTS.

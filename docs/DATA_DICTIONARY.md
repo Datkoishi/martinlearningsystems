@@ -5,7 +5,8 @@
 | schema_migrations | version, sequence_number, checksum_sha256, operation, execution_ms, applied_by, applied_at | operational ledger bất biến; sequence/checksum bind file SQL, không chứa secret |
 | content_sources | origin_type, generator_metadata | Không chứa secret của provider |
 | usage_licenses | publish_fixed, extract_reuse, derivative_assembly | Ba quyền tách biệt |
-| media_assets | storage_key, mime_type, sha256, size, alt_text, approval_status | Không lưu base64 trong JSON |
+| media_assets | storage_key, storage_backend, object_storage_key, promoted/rolled-back timestamps, mime_type, sha256, size, alt_text, approval_status | archive key bất biến; OBJECT cần content-addressed key; không lưu base64 trong JSON |
+| media_asset_storage_events | asset, event_type, from/to backend, archive/object key, sha256, size, actor, created_at | ledger PROMOTED/ROLLED_BACK bất biến cho cutover/rollback |
 | exams / exam_versions | stable_key, optional source, version, mode, purpose, grade, subject, status | source required by FIXED workflow; nullable for multi-source ASSEMBLED; unique version; grade 1–12 |
 | exam_sections / exam_items | position, instruction_json, version/group target | thứ tự FIXED ổn định; đúng một target |
 | stimuli / stimulus_versions | content_json, schema_version, status | nội dung dùng chung có version |

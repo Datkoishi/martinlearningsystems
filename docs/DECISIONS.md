@@ -71,3 +71,9 @@ MySQL DDL có implicit commit nên ledger không giả định toàn bộ file r
 Backup job dump MySQL single-transaction trước rồi archive `import_data` read-only, vì source/report được ghi trước ImportJob và không đổi sau publish. Mỗi set chỉ usable khi đủ manifest, ledger/schema invariants, SHA-256 và `READY`; lock chặn concurrent run, retention chỉ xóa complete set hết hạn. Health fail nếu failure mới hơn success hoặc backup quá tuổi để orchestrator alert.
 
 Restore checker chỉ chạy trên database cô lập có prefix `eduassess_restore_` và exact drop confirmation, so ledger/invariants rồi cleanup. Compose profile là opt-in; named volume chỉ baseline local. Encryption, off-site replication, alert delivery và lịch restore theo RPO/RTO là deployment responsibility. Object storage promotion được tách thành OPS-001d để không gộp hai failure domain. Chi tiết ở ADR-0012.
+
+## D-016 Object promotion giữ archive reference và cutover sau verification
+
+`media_assets.storage_key` không bị rewrite: nó tiếp tục trỏ source ZIP bất biến để provenance/rollback/recovery còn độc lập với object store. Object key là content-address SHA-256; service verify archive, conditional PUT và GET/hash/size trước khi transactionally đổi read preference. Runtime OBJECT luôn kiểm bytes và có archive fallback theo flag. Event/audit ghi mỗi transition; rollback verify archive, không xóa object và chặn batch tự promote lại.
+
+Upload nằm ngoài DB transaction nên lỗi DB sau PUT có thể để object content-addressed chưa referenced; đây là orphan an toàn, retry sẽ verify/reuse chứ không duplicate/overwrite. Không cleanup archive/object tự động trong slice này. Node production đồng thời nâng lên 24 LTS vì Node 20 đã EOL và AWS SDK báo vòng đời hỗ trợ. Bucket identity, CDN, replication, metrics và alert là deployment boundary tiếp theo. Chi tiết ở ADR-0013.
