@@ -48,3 +48,8 @@
 - Thêm immutable Blueprint revision trên cùng identity: chỉ latest rejected/published được nối version mới, stale/parallel branch bị chặn và exact idempotency được giữ.
 - Thêm owner governance queue và Reviewer queue có allowlisted filter/pagination; queue summary không chứa answer, explanation hay student/scoring snapshot.
 - Nâng Assembly Lab/Reviewer workspace với revision form và selectable queue; bổ sung MySQL 8.4 integration test cho transaction version/query thật.
+- Thêm migration `013_evidence_assessment.sql` cho framework identity/version, independent review và immutable owner-scoped assessment results.
+- Thêm `eduassess-assessment-v1`: đọc score revision `FINAL`, kiểm minimum evidence/difficulty/task-type coverage trước bốn mức và trả `Chưa đủ bằng chứng` khi thiếu.
+- Thêm role `ASSESSMENT_SPECIALIST`, API Specialist/Reviewer/Student có CSRF/idempotency/self-review/IDOR guard và `/#assessment` workspace.
+- Giữ threshold/guidance trong approved config thay vì hardcode; public result loại raw evidence/submitted/correct answer. Framework mặc định là DEMO và nội dung thật vẫn chờ academic approval.
+- Bổ sung MySQL 8.4 assessment integration; sửa canonical hash timestamp sang ISO để evidence/result giữ toàn vẹn qua JSON database round-trip.

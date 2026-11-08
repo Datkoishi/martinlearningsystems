@@ -89,3 +89,9 @@ Metrics chạy listener riêng, Bearer token đọc từ file và không đượ
 Blueprint content không sửa tại chỗ. Revision nhận full Blueprint + seed mới, chạy lại deterministic engine và nối version trên cùng identity chỉ khi latest version đã `REJECTED` hoặc `PUBLISHED`. `NEEDS_REVIEW`/`APPROVED` khóa revision để không sinh nhánh governance song song; source không còn latest bị từ chối. Transaction khóa identity/latest version, còn unique version number là guard cuối cùng. Exact idempotency retry vẫn trả run cũ.
 
 Editor queue scope theo creator; Reviewer queue loại chính creator để phản ánh self-review gate. Queue chỉ trả metadata/review/publication summary và hashes, không trả student/scoring snapshot hay answer/explanation. Reviewer payload nhạy cảm chỉ tải sau khi chọn một run cụ thể. Schema 010 đã đủ nên không thêm migration chỉ để kích hoạt workflow này. Chi tiết ở ADR-0015.
+
+## D-019 Assessment là interpretation có evidence gate, không phải đổi điểm sang nhãn
+
+Scoring revision `FINAL` chỉ là nguồn evidence. Mỗi framework giữ purpose, allowed scoring versions, minimum attempts/items, skill/topic mapping, difficulty/task-type coverage, bốn threshold và guidance trong config versioned/hash; engine không hardcode giá trị threshold. Specialist tạo, Academic Reviewer khác người tạo bind một decision bất biến với config hash. Chỉ framework approved mới chạy.
+
+Nếu bất kỳ global/indicator coverage gate nào thiếu, engine không gán level và trả đúng `Chưa đủ bằng chứng`. Evidence snapshot nội bộ + interpretation được hash bất biến; public Student projection loại raw evidence và answer payload, query owner-scoped. Teacher cross-student khóa tới khi có tenant/class ownership. Framework UI là DEMO, nên technical verification không được ghi thành academic approval cho nội dung thật. Chi tiết ở ADR-0016.

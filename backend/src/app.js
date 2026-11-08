@@ -11,6 +11,7 @@ import { authService as defaultAuthService } from './auth/index.js';
 import { catalogService as defaultCatalogService } from './catalog/index.js';
 import { attemptService as defaultAttemptService } from './attempts/index.js';
 import { assemblyService as defaultAssemblyService } from './assembly/index.js';
+import { assessmentService as defaultAssessmentService } from './assessment/index.js';
 import { ROLE } from './auth/auth-service.js';
 import {
   createHttpMetricsMiddleware,
@@ -55,6 +56,7 @@ export const createApp = ({
   catalogService = defaultCatalogService,
   attemptService = defaultAttemptService,
   assemblyService = defaultAssemblyService,
+  assessmentService = defaultAssessmentService,
   importsEnabled = config.importApiEnabled,
   readinessCheck = () => true,
   trustProxy = config.trustProxy,
@@ -71,6 +73,7 @@ export const createApp = ({
   const reviewerOnly = requireRoles(ROLE.ACADEMIC_REVIEWER, ROLE.SUPER_ADMIN);
   const editorOrReviewer = requireRoles(ROLE.CONTENT_EDITOR, ROLE.ACADEMIC_REVIEWER, ROLE.SUPER_ADMIN);
   const studentOnly = requireRoles(ROLE.STUDENT);
+  const assessmentSpecialistOnly = requireRoles(ROLE.ASSESSMENT_SPECIALIST, ROLE.SUPER_ADMIN);
 
   app.use(createHttpMetricsMiddleware(metricsRegistry));
   app.use(helmet());
@@ -313,6 +316,115 @@ export const createApp = ({
         'Content-Disposition': 'inline'
       });
       return response.send(asset.data);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assessment-frameworks', authenticate, assessmentSpecialistOnly, requireCsrf, async (request, response, next) => {
+    const { stableKey, framework } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    try {
+      const created = await assessmentService.createFramework({
+        creatorUserId: request.auth.user.id,
+        idempotencyKey,
+        stableKey,
+        framework
+      });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(created.duplicate ? 200 : 201).json(created);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessment-frameworks/review-queue', authenticate, reviewerOnly, async (request, response, next) => {
+    try {
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(await assessmentService.listReviewQueue(request.auth.user.id));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessment-frameworks/available', authenticate, studentOnly, async (_request, response, next) => {
+    try {
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(await assessmentService.listAvailable());
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessment-frameworks/:id/reviewer-preview', authenticate, reviewerOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_FRAMEWORK_ID', message: 'FrameworkVersion id không hợp lệ.' });
+    try {
+      const framework = await assessmentService.getForReview(request.params.id);
+      if (!framework) return response.status(404).json({ code: 'ASSESSMENT_FRAMEWORK_NOT_FOUND', message: 'Không tìm thấy assessment framework.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(framework);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assessment-frameworks/:id/reviews', authenticate, reviewerOnly, requireCsrf, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_FRAMEWORK_ID', message: 'FrameworkVersion id không hợp lệ.' });
+    const { decision, reason } = request.body || {};
+    try {
+      const framework = await assessmentService.reviewFramework({
+        id: request.params.id,
+        reviewerUserId: request.auth.user.id,
+        decision,
+        reason
+      });
+      if (!framework) return response.status(404).json({ code: 'ASSESSMENT_FRAMEWORK_NOT_FOUND', message: 'Không tìm thấy assessment framework.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(201).json(framework);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assessments', authenticate, studentOnly, requireCsrf, async (request, response, next) => {
+    const { frameworkVersionId } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validUuid(frameworkVersionId)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_FRAMEWORK_ID', message: 'FrameworkVersion id không hợp lệ.' });
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    try {
+      const result = await assessmentService.generate({
+        studentUserId: request.auth.user.id,
+        frameworkVersionId,
+        idempotencyKey
+      });
+      if (!result) return response.status(404).json({ code: 'ASSESSMENT_FRAMEWORK_NOT_AVAILABLE', message: 'Framework chưa được duyệt hoặc không tồn tại.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(result.duplicate ? 200 : 201).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessments/latest', authenticate, studentOnly, async (request, response, next) => {
+    if (!validUuid(request.query.frameworkVersionId)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_FRAMEWORK_ID', message: 'FrameworkVersion id không hợp lệ.' });
+    try {
+      const result = await assessmentService.getLatestOwned(request.query.frameworkVersionId, request.auth.user.id);
+      if (!result) return response.status(404).json({ code: 'ASSESSMENT_RESULT_NOT_FOUND', message: 'Chưa có assessment result cho framework này.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessments/:id', authenticate, studentOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_RESULT_ID', message: 'AssessmentResult id không hợp lệ.' });
+    try {
+      const result = await assessmentService.getOwned(request.params.id, request.auth.user.id);
+      if (!result) return response.status(404).json({ code: 'ASSESSMENT_RESULT_NOT_FOUND', message: 'Không tìm thấy assessment result.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(result);
     } catch (error) {
       return next(error);
     }

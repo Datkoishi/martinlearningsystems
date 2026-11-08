@@ -78,6 +78,12 @@ const MIGRATION_SHAPES = new Map([
       ['media_assets', 'object_promoted_at'],
       ['media_assets', 'object_rolled_back_at']
     ]
+  }],
+  [13, {
+    tables: [
+      'assessment_definitions', 'assessment_framework_versions',
+      'assessment_framework_reviews', 'assessment_results'
+    ]
   }]
 ]);
 

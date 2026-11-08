@@ -28,6 +28,10 @@
 - Catalog chung hiển thị FIXED/ASSEMBLED; attempt từ ASSEMBLED sao chép đúng published snapshot, dùng chung autosave/submit/scoring và không reassemble khi reload/retry.
 - Editor tạo immutable revision trên cùng Blueprint identity từ latest `REJECTED|PUBLISHED`; transaction cấp version tuần tự, chặn source stale/nhánh song song và giữ exact idempotency. Version/run cũ không bị sửa.
 - Assembly Lab có owned governance queue và revision form; Reviewer workspace có queue mặc định `NEEDS_REVIEW`. Queue lọc status/purpose/title, phân trang, loại self-review và không mang answer/scoring snapshot.
+- Assessment Specialist tạo framework config 1.0.0 có stable identity, version/hash, purpose, minimum evidence, difficulty/task-type coverage, bốn mức có threshold và rule-based guidance. Config mới luôn `NEEDS_REVIEW`; Academic Reviewer độc lập ghi một decision bất biến bind hash.
+- Assessment engine `eduassess-assessment-v1` chỉ đọc current score revision `FINAL` của owned Student attempt khớp grade/subject/exam purpose. Scoring ratio chỉ là evidence input; thiếu attempt/items/difficulty/task type trả đúng `Chưa đủ bằng chứng` và không ép level.
+- Assessment result lưu evidence snapshot nội bộ + interpretation/hash bất biến, exact idempotency và audit. Student API/UI chỉ trả interpretation owner-scoped; raw evidence, submitted/correct answer và scoring snapshot không xuất hiện trong public payload.
+- Migration 013 và repository transaction đã pass MySQL 8.4 thật; canonical timestamp hash được chuẩn hóa ISO sau khi integration gate phát hiện round-trip mismatch.
 - Production config fail-fast kiểm tra typed env, HTTPS origin, secure cookie và DB secret; Express trust proxy chỉ theo hop count cấu hình.
 - Runtime có liveness/readiness tách biệt, readiness chuyển not-ready khi drain và graceful shutdown có deadline; Docker health dùng readiness.
 - MySQL Compose health query bằng application user/database nên không báo sẵn sàng trong temporary initialization server; migrator chỉ chạy sau khi schema target thực sự truy cập được.
@@ -56,7 +60,8 @@
 - TLS/secret/monitoring bundle đã verified bằng fixture nhưng chưa được deploy với domain/certificate/secret manager thật; import feature flag mặc định tắt để rollout có chủ đích.
 - Object promotion + fallback/failure telemetry đã có nhưng bucket/identity/CDN/replication thực tế chưa được provision; archive fallback vẫn phải bật khi rollout.
 - Backup schedule/metrics/alerts đã có trong repo nhưng production chưa map encrypted/off-site destination, xác nhận webhook delivery, lịch restore-check và RPO/RTO dashboard trên hạ tầng đích.
+- Assessment framework trên UI chỉ là `[DEMO]`; threshold/guidance dùng thật vẫn `ACADEMIC_APPROVAL_PENDING`. Teacher cross-student/reporting chưa mở vì chưa có tenant/school/class ownership.
 
 ## Chưa làm
 
-Target production provisioning, off-site backup + alert delivery drill, object bucket/identity/CDN, tenant-scoped RBAC, account lifecycle/recovery/MFA, assembly failure/history optimization, manual essay/regrade, assessment/reporting.
+Target production provisioning, off-site backup + alert delivery drill, object bucket/identity/CDN, tenant-scoped RBAC, account lifecycle/recovery/MFA, assembly failure/history optimization, manual essay/regrade, framework học thuật production/pilot và Teacher/guardian/school reporting.

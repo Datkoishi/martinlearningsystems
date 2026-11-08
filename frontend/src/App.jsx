@@ -3,6 +3,7 @@ import RichContent from './RichContent.jsx';
 import ImportPanel from './ImportPanel.jsx';
 import PublishedCatalog from './PublishedCatalog.jsx';
 import AssemblyLab from './AssemblyLab.jsx';
+import AssessmentWorkspace from './AssessmentWorkspace.jsx';
 import { csrfHeaders } from './auth.js';
 
 const AppHeader = ({ view, onViewChange, user, onLogout }) => (
@@ -16,6 +17,7 @@ const AppHeader = ({ view, onViewChange, user, onLogout }) => (
       <button className={view === 'catalog' ? 'active' : ''} type="button" onClick={() => onViewChange('catalog')}>Đề đã publish</button>
       <button className={view === 'imports' ? 'active' : ''} type="button" onClick={() => onViewChange('imports')}>Nhập gói đề</button>
       <button className={view === 'assembly' ? 'active' : ''} type="button" onClick={() => onViewChange('assembly')}>Assembly Lab</button>
+      <button className={view === 'assessment' ? 'active' : ''} type="button" onClick={() => onViewChange('assessment')}>Đánh giá</button>
     </nav>
     {user && (
       <div className="session-chip">
@@ -90,6 +92,7 @@ export default function App() {
     if (window.location.hash === '#imports') return 'imports';
     if (window.location.hash === '#catalog') return 'catalog';
     if (window.location.hash === '#assembly') return 'assembly';
+    if (window.location.hash === '#assessment') return 'assessment';
     return 'exam';
   });
   const [user, setUser] = useState(undefined);
@@ -138,7 +141,10 @@ export default function App() {
 
   const changeView = (nextView) => {
     setView(nextView);
-    const hash = nextView === 'imports' ? '#imports' : nextView === 'catalog' ? '#catalog' : nextView === 'assembly' ? '#assembly' : '';
+    const hash = nextView === 'imports' ? '#imports'
+      : nextView === 'catalog' ? '#catalog'
+        : nextView === 'assembly' ? '#assembly'
+          : nextView === 'assessment' ? '#assessment' : '';
     window.history.replaceState(null, '', `${window.location.pathname}${hash}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -181,6 +187,16 @@ export default function App() {
       <div className="app-shell">
         <AppHeader view={view} onViewChange={changeView} user={user} onLogout={logout} />
         <AssemblyLab authUser={user} onLogin={setUser} />
+        {notice && <div className="toast" role="status">{notice}</div>}
+      </div>
+    );
+  }
+
+  if (view === 'assessment') {
+    return (
+      <div className="app-shell">
+        <AppHeader view={view} onViewChange={changeView} user={user} onLogout={logout} />
+        <AssessmentWorkspace authUser={user} onLogin={setUser} />
         {notice && <div className="toast" role="status">{notice}</div>}
       </div>
     );

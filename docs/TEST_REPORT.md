@@ -272,3 +272,21 @@ Lệnh chính: `npm test --prefix backend` ngoài sandbox; `bash ops/backup/test
 | Browser responsive/a11y QA | BLOCKED | không có browser QA tool trong workflow hiện tại |
 
 Lệnh chính: focused `node --test test/assembly.test.js test/app.test.js` ngoài sandbox (21/21); root `npm test` (73 pass, 1 opt-in skip + ops/build PASS); isolated MySQL 8.4 migration 001–012 và `mysql-assembly-repository.integration.test.js` (1/1 PASS); `git diff --check`. MySQL container dùng fixture kỹ thuật, đã dừng và tự xoá; `.env` không bị hiển thị, chỉnh sửa hoặc stage.
+
+## 2026-11-08 — TASK-016
+
+| Gate | Kết quả | Evidence |
+|---|---|---|
+| UT-ASMNT-01 framework validation | PASS | threshold trong config, đúng bốn mức, purpose/coverage/mapping fail-closed |
+| UT-ASMNT-02 insufficient evidence | PASS | exact `Chưa đủ bằng chứng`, level null, lý do attempts/items/difficulty/task type |
+| UT-ASMNT-03 sufficient classification | PASS | chỉ phân mức sau mọi coverage gate; guidance theo approved rule |
+| UT-ASMNT-04 scoring quality | PASS | unapproved scoring version hoặc điểm ngoài range chặn classification |
+| UT-ASMNT-05 approval/idempotency/ownership | PASS | independent review, self-review block, exact retry, result owner scope, no answer/raw evidence public |
+| HTTP-ASMNT-01 role/CSRF/API | PASS | Specialist author, Reviewer queue/preview/review, Student available/generate/latest/get; negative roles/CSRF |
+| DB-ASMNT-01 MySQL 8.4 repository | PASS | migration 001–013; approve framework; FINAL evidence; immutable result; retry; IDOR; hash round-trip |
+| Migration ledger | PASS | 13/13 `APPLIED`, latest `013_evidence_assessment.sql`, no untracked schema/checksum drift |
+| Backend regression | PASS | 81 cases = 79 pass + 2 opt-in MySQL tests skipped trong default suite |
+| Ops regression | PASS | backup script suite PASS |
+| Frontend production build | PASS | Vite 6.4.5, 39 modules, assessment workspace included |
+
+Lần đầu root test trong sandbox có 6 HTTP tests fail vì `listen EPERM`; chạy lại ngoài sandbox đạt regression. Lần đầu MySQL assessment integration phát hiện canonical hash xem `Date` khác chuỗi ISO sau JSON round-trip; canonicalizer được sửa để chuẩn hóa timestamp, sau đó integration 1/1 PASS. MySQL 8.4 fixture chỉ chứa dữ liệu kỹ thuật, đã dừng và tự xoá. `.env` không bị hiển thị, chỉnh sửa hoặc stage.

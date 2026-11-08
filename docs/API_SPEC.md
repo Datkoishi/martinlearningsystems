@@ -144,6 +144,40 @@ Yêu cầu Reviewer/Admin + CSRF; body `{decision: "APPROVE|REJECT", reason}`. C
 
 Yêu cầu Reviewer/Admin + CSRF. Chỉ BlueprintVersion `APPROVED` với hash binding nguyên vẹn được publish. Transaction tạo ExamVersion ASSEMBLED, published student/scoring snapshots, publication record và audit; lần đầu `201`, retry `200 duplicate: true`. Formal assessment vẫn khóa.
 
+## Evidence-based assessment
+
+### `POST /api/assessment-frameworks`
+
+Yêu cầu `ASSESSMENT_SPECIALIST | SUPER_ADMIN`, CSRF và `Idempotency-Key`. Body `{stableKey, framework}` dùng schema 1.0.0. Server validate purpose/approved scoring-version allowlist/minimum/indicator mapping/coverage/four ordered levels/guidance, canonical-hash config và tạo version `NEEDS_REVIEW`; exact retry trả `200 duplicate: true`, lần đầu `201`.
+
+### `GET /api/assessment-frameworks/review-queue`
+
+Yêu cầu `ACADEMIC_REVIEWER | SUPER_ADMIN`. Trả tối đa 100 framework `NEEDS_REVIEW` không do chính reviewer tạo; payload là metadata/hash, không chứa evidence hoặc Student data.
+
+### `GET /api/assessment-frameworks/:id/reviewer-preview`
+
+Yêu cầu Reviewer/Admin. Trả toàn bộ versioned framework config để kiểm tra threshold, coverage và interpretation rule. Response `private, no-store`.
+
+### `POST /api/assessment-frameworks/:id/reviews`
+
+Yêu cầu Reviewer/Admin + CSRF; body `{decision: "APPROVE"|"REJECT", reason}`. Creator không được tự duyệt. Một framework chỉ có một review bất biến, bind `configSha256`; success `201`.
+
+### `GET /api/assessment-frameworks/available`
+
+Yêu cầu `STUDENT`. Chỉ trả summary của framework `APPROVED`; không trả threshold/config đầy đủ.
+
+### `POST /api/assessments`
+
+Yêu cầu `STUDENT`, CSRF và `Idempotency-Key`; body `{frameworkVersionId}`. Server chỉ đọc attempt `SCORED` có current score revision `FINAL` của chính Student, cùng grade/subject/exam purpose. Result `201` hoặc exact retry `200`; public payload chỉ có interpretation, không có raw evidence snapshot/submitted answer/correct answer. Thiếu bất kỳ evidence/coverage gate nào trả state `INSUFFICIENT_EVIDENCE`, message `Chưa đủ bằng chứng` và không gán level.
+
+### `GET /api/assessments/latest?frameworkVersionId=...`
+
+Yêu cầu `STUDENT`; trả result gần nhất của chính Student cho framework, hoặc 404. Query owner-scoped.
+
+### `GET /api/assessments/:id`
+
+Yêu cầu `STUDENT`; chỉ trả result có cả result ID và authenticated Student ID khớp. Cross-owner trả 404.
+
 ## Identity/session
 
 - `POST /api/auth/login`: nhận `{email, password}`, trả public user và đặt cookie session `HttpOnly` cùng cookie CSRF. Credential sai luôn trả thông báo chung; login bị giới hạn theo IP trong process.
@@ -180,4 +214,4 @@ Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Nhận cùng decision/rea
 
 Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Chỉ publish job `ACADEMICALLY_APPROVED`; source hash, validation report và approval phải khớp. Trả `201` cho publication mới, `200` và `duplicate: true` khi retry job đã publish. Transaction ghi toàn bộ versioned content hoặc rollback; purpose `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
 
-Manual essay scoring/regrade và assessment APIs chưa triển khai; không được coi route dự kiến là API đang hoạt động.
+Manual essay scoring/regrade và Teacher cross-student assessment/reporting chưa triển khai; không được coi route dự kiến là API đang hoạt động.

@@ -22,6 +22,8 @@ Catalog metadata/projection student-safe là public. Tạo attempt, autosave và
 
 Assembly create yêu cầu Editor/Admin + CSRF + idempotency; owner GET trả student-safe preview, không scoring snapshot. Reviewer/Admin có route riêng trả answer/lời giải và chỉ asset thuộc selected run. Creator không được tự review; decision bất biến bind hashes. Chỉ APPROVED mới publish; Student chỉ thấy ExamVersion ASSEMBLED đã publish qua catalog và không truy cập technical run/reviewer route.
 
+Assessment dùng role `ASSESSMENT_SPECIALIST` riêng để tạo versioned framework; Specialist không được duyệt framework của mình. `ACADEMIC_REVIEWER | SUPER_ADMIN` xem review queue/config và ghi một decision bind config hash. `STUDENT` chỉ thấy framework đã duyệt, tạo assessment từ score revision `FINAL` của chính mình và đọc result owner-scoped; public payload không có raw evidence/answer. Teacher cross-student bị khóa cho tới khi có tenant/school/class assignment scope và negative IDOR tests. Framework `[DEMO]` không thay thế academic approval cho nội dung dùng thật.
+
 Academic approval không đồng nghĩa formal assessment approval. Package `FORMAL_ASSESSMENT` luôn bị chặn ở publish cho đến khi có role/policy/validation record chuyên biệt. Published version không được sửa tại chỗ; thay đổi phải tạo package/version mới.
 
 Production vẫn mặc định `ENABLE_IMPORT_API=false` để rollout có chủ đích; feature flag không thay thế auth. Trước public deployment phải bổ sung tenant scope, account recovery/MFA theo rủi ro, session cleanup/rotation, distributed rate limit và negative IDOR tests khi có tài nguyên tenant.

@@ -1,6 +1,6 @@
 # Data model
 
-Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`; blueprint governance/publication: `010_assembled_publication.sql`; migration ledger: `011_migration_ledger.sql`; object promotion: `012_object_storage_promotion.sql`.
+Migration nền tảng: `database/init/002_eduassess_foundation.sql`; attempt snapshot: `007_attempt_snapshots.sql`; response/scoring: `008_attempt_scoring.sql`; assembly foundation: `009_assembly_foundation.sql`; blueprint governance/publication: `010_assembled_publication.sql`; migration ledger: `011_migration_ledger.sql`; object promotion: `012_object_storage_promotion.sql`; evidence assessment: `013_evidence_assessment.sql`.
 
 ```mermaid
 erDiagram
@@ -42,6 +42,12 @@ erDiagram
   ASSEMBLY_RUN ||--o| ASSEMBLY_REVIEW : reviewed
   ASSEMBLY_RUN ||--o| ASSEMBLY_PUBLICATION : publishes
   ASSEMBLY_PUBLICATION ||--|| EXAM_VERSION : exposes
+  USER ||--o{ ASSESSMENT_DEFINITION : creates
+  ASSESSMENT_DEFINITION ||--o{ ASSESSMENT_FRAMEWORK_VERSION : versions
+  ASSESSMENT_FRAMEWORK_VERSION ||--o| ASSESSMENT_FRAMEWORK_REVIEW : reviewed
+  USER ||--o{ ASSESSMENT_FRAMEWORK_REVIEW : performs
+  USER ||--o{ ASSESSMENT_RESULT : owns
+  ASSESSMENT_FRAMEWORK_VERSION ||--o{ ASSESSMENT_RESULT : interprets
 ```
 
 Published versions phải bất biến ở application/service layer; thay đổi tạo version mới. `ExamItem` có check đúng một target. JSON dành cho rich content/answer config đã được validate; grade/subject/type/status là cột quan hệ để lọc.
@@ -67,3 +73,7 @@ Migration 009 bổ sung các cột relational/indexed trên `question_versions`:
 Migration 010 cho phép `exams.source_id` nullable riêng cho ASSEMBLED nhiều nguồn; provenance thật vẫn nằm trên từng QuestionVersion/selection manifest. `exam_blueprints` giữ identity, `exam_blueprint_versions` giữ JSON version bất biến + approval status. Mỗi run gắn đúng một version; revision dùng lại identity và transactionally nối `version_number + 1` từ latest `REJECTED|PUBLISHED`, không update JSON/run cũ. Unique `(blueprint_id, version_number)` là guard cuối cùng; identity row được khóa để serialize concurrent revision. Run có trước reviewer-payload contract được backfill thành version 1 `REJECTED` và có thể làm nguồn cho revision mới, không được mở publish gate âm thầm.
 
 `assembly_reviews` unique theo run, bind reviewer/decision/reason với selection + source snapshot hashes. `assembly_publications` unique theo run/blueprint/exam version, lưu published student/scoring snapshots + hash và publisher. Publish tạo `exam_versions.mode=ASSEMBLED`; không tạo ExamSection/Item bản sao vì frozen publication snapshot là source of truth. Attempt vẫn FK cùng ExamVersion và sao chép publication snapshot vào attempt.
+
+Migration 013 thêm AssessmentDefinition identity và immutable AssessmentFrameworkVersion. Version lưu purpose/grade/subject/source exam purpose ở cột lọc, canonical config JSON + SHA-256, creator/idempotency/request hash và trạng thái approval. `assessment_framework_reviews` unique theo version, bind reviewer decision/reason với đúng config hash; creator self-review bị chặn ở service và transaction.
+
+`assessment_results` thuộc một Student và một approved framework version, unique theo `(student_user_id, idempotency_key)`. Row lưu evidence snapshot nội bộ, public interpretation, state và SHA-256 bao phủ cả hai; timestamp evidence chuẩn hóa ISO trước hash. Evidence chỉ tham chiếu current score revision `FINAL`; public service không map raw evidence snapshot hoặc answer payload. Result bất biến; đánh giá lại tạo row/idempotency key mới.

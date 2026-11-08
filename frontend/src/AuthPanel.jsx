@@ -28,16 +28,26 @@ export default function AuthPanel({ onLogin, mode = 'content' }) {
   };
 
   const studentMode = mode === 'student';
+  const assessmentMode = mode === 'assessment';
 
   return (
     <section className="auth-panel">
       <div className="auth-copy">
         <p className="eyebrow">Khu vực được bảo vệ</p>
-        <h1>{studentMode ? 'Đăng nhập để bắt đầu lượt làm bài' : 'Đăng nhập để quản lý nội dung'}</h1>
+        <h1>{studentMode ? 'Đăng nhập để bắt đầu lượt làm bài' : assessmentMode ? 'Đăng nhập vào workspace đánh giá' : 'Đăng nhập để quản lý nội dung'}</h1>
         {studentMode ? (
           <>
             <p>Catalog có thể xem công khai, nhưng chỉ tài khoản Student mới được tạo attempt gắn với danh tính của mình.</p>
             <ul><li><strong>Student</strong> — chỉ nhận snapshot không chứa đáp án và lời giải.</li></ul>
+          </>
+        ) : assessmentMode ? (
+          <>
+            <p>Framework, review và báo cáo bằng chứng đều được bảo vệ bằng role phía server.</p>
+            <ul>
+              <li><strong>Student</strong> — chỉ xem kết quả của chính mình.</li>
+              <li><strong>Assessment Specialist</strong> — cấu hình framework versioned.</li>
+              <li><strong>Academic Reviewer</strong> — duyệt độc lập interpretation rules.</li>
+            </ul>
           </>
         ) : (
           <>

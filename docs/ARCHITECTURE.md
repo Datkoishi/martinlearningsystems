@@ -54,6 +54,13 @@ flowchart LR
   Attempt --> AttemptDB[(exam_attempts + responses\nstudent/scoring snapshots)]
   Attempt --> Score[Deterministic scoring v1\nreveal projection]
   Score --> ScoreDB[(score revisions +\nidempotent operations)]
+  ScoreDB --> Evidence[Assessment evidence reader\nFINAL revisions only]
+  Specialist[Assessment Specialist] --> Framework[Versioned evidence framework\nthresholds + coverage rules]
+  Framework --> FrameworkReview[Independent academic review\nconfig hash binding]
+  FrameworkReview --> Assessment[Assessment engine v1\ncoverage before level]
+  Evidence --> Assessment
+  Assessment --> AssessmentDB[(assessment results\nevidence + interpretation hash)]
+  AssessmentDB -->|owner-scoped interpretation| UI
   Lab --> Assembly[Assembly Lab\nEditor-only blueprint]
   Assembly --> Pool[Published FIXED question pool\nmetadata + derivative license]
   Assembly --> Engine[Deterministic backtracking\nseed + hard quotas]
@@ -93,6 +100,8 @@ Submit khóa attempt, chỉ chấm response đã commit và tạo một immutabl
 
 `backend/src/assembly` tách engine thuần, service projection/hash/governance và MySQL repository. Repository lọc QuestionVersion published thuộc graph FIXED non-formal, provenance/license derivative còn hiệu lực và metadata assembly đầy đủ. Engine biến direct/atomic/split group thành selection unit, sắp thứ tự bằng seeded SHA-256 rank rồi backtrack hard constraints. Service lưu student/scoring snapshot riêng cùng selection/snapshot hash. BlueprintVersion cần Reviewer độc lập; review bind hashes. Revision giữ Blueprint identity, chỉ nối tiếp latest `REJECTED|PUBLISHED`, khóa identity/version trong transaction và không sửa snapshot cũ. Owner/Reviewer queue là projection metadata phân trang, không mang answer/scoring payload. Publication transaction tạo ExamVersion ASSEMBLED cùng published snapshot/hash/audit. Catalog dispatch theo mode: FIXED dựng graph, ASSEMBLED đọc snapshot; attempt dùng chung flow và không gọi engine.
 
+`backend/src/assessment` giữ assessment tách khỏi scoring. Specialist tạo config framework 1.0.0 có version/hash; threshold, minimum evidence, difficulty/task coverage và guidance nằm trong config thay vì hardcode. Academic Reviewer độc lập bind decision với config hash. Repository chỉ đọc current `FINAL` score revision của owned Student attempt có grade/subject/purpose khớp. Engine chỉ gán một trong bốn mức khi mọi global/indicator coverage gate đạt; nếu thiếu bất kỳ gate nào, result không có level và trả đúng `Chưa đủ bằng chứng`. Evidence snapshot nội bộ và interpretation được hash/lưu bất biến; public projection bỏ raw evidence và answer payload. Teacher aggregation chưa mở do chưa có tenant/class scope.
+
 ## Boundaries kế tiếp
 
-`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED revision/governance/delivery, runtime safety, TLS/secrets, migration, backup/restore, S3 promotion và metrics/alert baseline đã có; identity vẫn mới global role. Target/off-site/webhook delivery, bucket identity/CDN, tenant/school scope, assembly failure/history optimization và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.
+`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED revision/governance/delivery, Student-owned assessment, runtime safety, TLS/secrets, migration, backup/restore, S3 promotion và metrics/alert baseline đã có; identity vẫn mới global role. Framework production thật còn chờ academic approval. Target/off-site/webhook delivery, bucket identity/CDN, tenant/school/class scope, Teacher reporting, assembly failure/history optimization và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.

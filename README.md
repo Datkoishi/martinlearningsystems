@@ -74,13 +74,15 @@ printf '%s' "$EDUASSESS_NEW_PASSWORD" | docker compose exec -T backend npm run a
 unset EDUASSESS_NEW_PASSWORD
 ```
 
-Các role bootstrap hiện hỗ trợ `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER` và `SUPER_ADMIN`; nên cấp mỗi người đúng role cần thiết. Sau khi đăng nhập ở Import Lab, Editor có thể tải ZIP. Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
+Các role bootstrap hiện hỗ trợ `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `ASSESSMENT_SPECIALIST` và `SUPER_ADMIN`; nên cấp mỗi người đúng role cần thiết. Sau khi đăng nhập ở Import Lab, Editor có thể tải ZIP. Gói nguồn và validation report được lưu dưới `IMPORT_STORAGE_PATH`; không commit thư mục này.
 
 Package `READY_FOR_REVIEW` có thể mở bằng chính Rich Content renderer khi session có role `ACADEMIC_REVIEWER`. Reviewer ID lấy từ session, Editor không đọc được answer payload và người nhập package không thể tự review. Workflow tách technical review, academic approval và publish. Publish đọc lại ZIP, kiểm tra hash/report rồi ghi source, license, asset, question/stimulus/group và `ExamVersion` trong một transaction; retry trả publication cũ thay vì nhân đôi. `FORMAL_ASSESSMENT` vẫn bị khóa cho đến khi có formal approval policy.
 
 Catalog công khai không trả answer key/explanation hoặc asset chỉ xuất hiện trong lời giải. Các API ghi attempt yêu cầu session `STUDENT`, CSRF và `Idempotency-Key`; server lưu riêng student snapshot và scoring snapshot, kèm SHA-256 toàn vẹn. Chỉ chủ sở hữu đọc được attempt và API không bao giờ trả scoring snapshot. Scoring hiện hỗ trợ choice, đúng/sai, số có tolerance và short text; bài tự luận đã trả lời chuyển `PENDING_MANUAL_SCORING`, không dùng AI để kết luận. Chỉ bài `PRACTICE` đã chấm `FINAL` mới mở đáp án đúng; lời giải và rubric không được mở ở slice này.
 
 Assembly Lab ở `/#assembly`: Editor tạo deterministic technical run, xem owned governance queue và tạo immutable revision trên cùng Blueprint identity sau version rejected/published; Academic Reviewer chọn snapshot từ queue, mở answer payload, ghi một quyết định bất biến và publish bản approved. Engine chỉ đọc QuestionVersion `PUBLISHED` trong graph FIXED non-formal, có metadata đầy đủ và license `derivative_assembly`; quota/source diversity/group policy là điều kiện cứng. Queue không chứa answer/scoring snapshot. Publication tạo `ExamVersion(mode=ASSEMBLED)` cùng student/scoring snapshot riêng; catalog và Student attempt dùng đúng snapshot đã publish, không reassemble khi reload. Formal assessment vẫn khóa.
+
+Assessment Workspace ở `/#assessment`: Assessment Specialist cấu hình framework versioned; Academic Reviewer khác người tạo duyệt rule/threshold theo hash; Student chỉ chạy framework đã duyệt trên các score revision `FINAL` của mình. Engine kiểm tra minimum evidence, difficulty và task-type coverage trước khi phân bốn mức. Thiếu bất kỳ gate nào trả `Chưa đủ bằng chứng`, không ép mức. Config mặc định có nhãn `[DEMO]`; framework dùng pilot/production phải do chuyên gia học thuật tạo và phê duyệt. Teacher cross-student chưa mở trước khi có tenant/class scope.
 
 Tài liệu bắt đầu tại `docs/PROJECT_OVERVIEW.md`; trạng thái thực tế tại `docs/IMPLEMENTATION_STATUS.md` và `docs/FEATURE_MATRIX.md`.
 

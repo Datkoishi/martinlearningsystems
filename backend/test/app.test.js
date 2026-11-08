@@ -453,3 +453,162 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
   assert.equal(published.status, 201);
   assert.deepEqual(calls.at(-1), ['publish', { id: assemblyId, publisherUserId: reviewerId }]);
 });
+
+test('assessment routes enforce specialist authoring, independent review and Student ownership', async (context) => {
+  const specialistId = '00000000-0000-4000-8000-000000000611';
+  const reviewerId = '00000000-0000-4000-8000-000000000612';
+  const studentId = '00000000-0000-4000-8000-000000000613';
+  const frameworkId = '00000000-0000-4000-8000-000000000614';
+  const resultId = '00000000-0000-4000-8000-000000000615';
+  const calls = [];
+  const authService = {
+    async authenticate(token) {
+      const identity = token === 'specialist-session'
+        ? { id: specialistId, role: 'ASSESSMENT_SPECIALIST' }
+        : token === 'reviewer-session'
+          ? { id: reviewerId, role: 'ACADEMIC_REVIEWER' }
+          : token === 'student-session'
+            ? { id: studentId, role: 'STUDENT' }
+            : { id: '00000000-0000-4000-8000-000000000616', role: 'CONTENT_EDITOR' };
+      return {
+        expiresAt: new Date('2026-11-09T00:00:00Z'),
+        csrfTokenHash: 'test-only',
+        user: { id: identity.id, roles: [identity.role] }
+      };
+    },
+    validateCsrf: (_auth, token) => token === 'csrf-token'
+  };
+  const assessmentService = {
+    async createFramework(command) {
+      calls.push(['create-framework', command]);
+      return { id: frameworkId, approvalStatus: 'NEEDS_REVIEW', duplicate: false };
+    },
+    async listReviewQueue(userId) {
+      calls.push(['framework-queue', userId]);
+      return { items: [{ id: frameworkId }] };
+    },
+    async listAvailable() {
+      calls.push(['available']);
+      return { items: [{ id: frameworkId }] };
+    },
+    async getForReview(id) {
+      calls.push(['framework-preview', id]);
+      return { id, approvalStatus: 'NEEDS_REVIEW' };
+    },
+    async reviewFramework(command) {
+      calls.push(['framework-review', command]);
+      return { id: command.id, approvalStatus: 'APPROVED' };
+    },
+    async generate(command) {
+      calls.push(['generate-assessment', command]);
+      return { id: resultId, state: 'INSUFFICIENT_EVIDENCE', duplicate: false };
+    },
+    async getLatestOwned(id, userId) {
+      calls.push(['latest-assessment', { id, userId }]);
+      return { id: resultId, frameworkVersionId: id };
+    },
+    async getOwned(id, userId) {
+      calls.push(['get-assessment', { id, userId }]);
+      return { id, state: 'INSUFFICIENT_EVIDENCE' };
+    }
+  };
+  const app = createApp({ authService, assessmentService, importsEnabled: false });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const cookie = (session) => `eduassess_session=${session}; eduassess_csrf=csrf-token`;
+  const frameworkBody = JSON.stringify({ stableKey: 'demo.math.5', framework: { schemaVersion: '1.0.0' } });
+
+  const missingCsrf = await fetch(`${baseUrl}/api/assessment-frameworks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('specialist-session'),
+      'Idempotency-Key': 'framework-create-key-001'
+    },
+    body: frameworkBody
+  });
+  assert.equal(missingCsrf.status, 403);
+
+  const studentCreate = await fetch(`${baseUrl}/api/assessment-frameworks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('student-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'framework-create-key-001'
+    },
+    body: frameworkBody
+  });
+  assert.equal(studentCreate.status, 403);
+
+  const created = await fetch(`${baseUrl}/api/assessment-frameworks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('specialist-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'framework-create-key-001'
+    },
+    body: frameworkBody
+  });
+  assert.equal(created.status, 201);
+  assert.equal(calls.at(-1)[1].creatorUserId, specialistId);
+
+  const queue = await fetch(`${baseUrl}/api/assessment-frameworks/review-queue`, {
+    headers: { Cookie: cookie('reviewer-session') }
+  });
+  assert.equal(queue.status, 200);
+  assert.deepEqual((await queue.json()).items, [{ id: frameworkId }]);
+  assert.deepEqual(calls.at(-1), ['framework-queue', reviewerId]);
+
+  const preview = await fetch(`${baseUrl}/api/assessment-frameworks/${frameworkId}/reviewer-preview`, {
+    headers: { Cookie: cookie('reviewer-session') }
+  });
+  assert.equal(preview.status, 200);
+
+  const reviewed = await fetch(`${baseUrl}/api/assessment-frameworks/${frameworkId}/reviews`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('reviewer-session'),
+      'X-CSRF-Token': 'csrf-token'
+    },
+    body: JSON.stringify({ decision: 'APPROVE', reason: 'Đã kiểm tra toàn bộ coverage và interpretation rules.' })
+  });
+  assert.equal(reviewed.status, 201);
+  assert.equal(calls.at(-1)[1].reviewerUserId, reviewerId);
+
+  const available = await fetch(`${baseUrl}/api/assessment-frameworks/available`, {
+    headers: { Cookie: cookie('student-session') }
+  });
+  assert.equal(available.status, 200);
+
+  const generated = await fetch(`${baseUrl}/api/assessments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('student-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'assessment-generate-key-001'
+    },
+    body: JSON.stringify({ frameworkVersionId: frameworkId })
+  });
+  assert.equal(generated.status, 201);
+  assert.equal(calls.at(-1)[1].studentUserId, studentId);
+
+  const latest = await fetch(`${baseUrl}/api/assessments/latest?frameworkVersionId=${frameworkId}`, {
+    headers: { Cookie: cookie('student-session') }
+  });
+  assert.equal(latest.status, 200);
+  assert.deepEqual(calls.at(-1), ['latest-assessment', { id: frameworkId, userId: studentId }]);
+
+  const result = await fetch(`${baseUrl}/api/assessments/${resultId}`, {
+    headers: { Cookie: cookie('student-session') }
+  });
+  assert.equal(result.status, 200);
+  assert.deepEqual(calls.at(-1), ['get-assessment', { id: resultId, userId: studentId }]);
+
+  const reviewerGenerate = await fetch(`${baseUrl}/api/assessments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('reviewer-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'assessment-generate-key-002'
+    },
+    body: JSON.stringify({ frameworkVersionId: frameworkId })
+  });
+  assert.equal(reviewerGenerate.status, 403);
+});

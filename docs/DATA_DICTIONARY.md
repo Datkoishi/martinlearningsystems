@@ -30,5 +30,9 @@
 | exam_blueprints / versions | stable key, version, blueprint JSON, approval status, creator | identity có nhiều immutable version tuần tự; chỉ latest rejected/published được nối revision; status chỉ workflow mutation |
 | assembly_reviews | run/version, reviewer, decision, reason, selection/snapshot hashes | một quyết định bất biến/run; creator không tự duyệt |
 | assembly_publications | run/version/ExamVersion, publisher, source/published hashes, student/scoring snapshots | một publication/run; source cho catalog ASSEMBLED và attempt |
+| assessment_definitions | stable_key, creator, created_at | identity ổn định cho các framework version; stable key unique |
+| assessment_framework_versions | definition/version, purpose, grade/subject/source purpose, config JSON/hash, approval, creator, idempotency/request hash | rule/threshold versioned; chỉ APPROVED được chạy; config không sửa tại chỗ |
+| assessment_framework_reviews | framework version, reviewer, decision, reason, config hash | một review bất biến/version; bind đúng config; creator không tự duyệt |
+| assessment_results | student, framework version, idempotency/request hash, state, evidence snapshot, interpretation, snapshot hash | immutable owner-scoped result; evidence nội bộ, public API chỉ trả interpretation |
 
 Retention/xóa mềm đầy đủ chưa triển khai; entity đã được tham chiếu không được hard-delete ở feature tương lai.
