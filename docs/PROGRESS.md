@@ -277,3 +277,22 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `5a60210` (`feat(assembly): add blueprint revision governance`).
 - Push status: `PUSHED` — `origin/feat/eduassess-rich-content` cập nhật thành công tới `5a60210`.
+
+## [2026-11-08 18:55 +07:00] TASK-016 — Approved evidence-based assessment
+
+- Mục tiêu / feature IDs: ASMNT-001; AC-14 và Phase 4 technical slice.
+- Trạng thái: `VERIFIED_TECH / ACADEMIC_APPROVAL_PENDING` — hạ tầng/rule engine/API/UI/MySQL đã xác minh; framework `[DEMO]` không phải nội dung học thuật dùng thật.
+- Phạm vi thực hiện: framework identity/version/hash; Specialist authoring; independent Academic Reviewer approval; FINAL-score evidence reader; minimum attempt/item/difficulty/task-type/scoring-quality gates; conservative four-level interpretation; rule-based guidance/reassessment; owner-only Student result.
+- Files created: `backend/src/assessment/*`, `backend/test/assessment.test.js`, `backend/test/mysql-assessment-repository.integration.test.js`, `database/init/013_evidence_assessment.sql`, `frontend/src/AssessmentWorkspace.jsx`, `docs/adr/0016-approved-evidence-assessment.md`.
+- Files modified: auth role/CLI, Express routes/tests, migration shape, App/AuthPanel/CSS, README và docs architecture/domain/API/status/roadmap/test/decision.
+- DB migration / data impact: migration 013 thêm `assessment_definitions`, `assessment_framework_versions`, `assessment_framework_reviews`, `assessment_results`; additive, không seed framework thật và không sửa/xóa production data. Config/evidence/interpretation bind SHA-256; review/result bất biến.
+- API / UI behavior: `/#assessment`; Specialist tạo config có threshold/coverage/guidance/scoring-version allowlist; Reviewer khác creator duyệt; Student chỉ thấy approved framework, tạo/read result của mình. Thiếu bất kỳ gate nào trả exact `Chưa đủ bằng chứng` và level null. Public payload không có raw evidence/submitted/correct answer.
+- Test commands actually run: focused assessment tests; root `npm test` ngoài sandbox; isolated MySQL 8.4 migration 001–013 + opt-in repository integration; migration status/no-drift; `git diff --check`; staged diff/secret-pattern scan.
+- Test results: backend 81 cases = 79 PASS + 2 opt-in SKIP; ops backup suite PASS; frontend build PASS (39 modules); MySQL migration 13/13 + assessment integration 1/1 PASS. Integration lần đầu phát hiện Date/ISO hash round-trip mismatch; canonical timestamp được sửa rồi test lại PASS.
+- Security/privacy considerations: role/CSRF/idempotency phía server; creator self-review bị cấm; Student query owner-scoped/IDOR 404; chỉ current `FINAL` score revision khớp purpose; formal assessment vẫn khóa; Teacher cross-student chưa mở khi thiếu tenant/class ownership. Fixture MySQL chỉ chứa dữ liệu kỹ thuật, đã dừng/tự xóa; `.env` không bị hiển thị, chỉnh sửa hoặc stage.
+- Known issues / trade-offs: chưa có framework học thuật production/pilot được phê duyệt; chưa Teacher/guardian/school reporting, tenant/class assignment, manual essay/regrade hoặc browser visual/a11y QA. AssessmentDefinition schema hỗ trợ version; authoring slice hiện tạo version đầu, workflow revision framework là mở rộng tiếp theo nếu rule thay đổi.
+- Tiến độ feature matrix: 20/20 feature đã bắt đầu/triển khai; 18 technical VERIFIED (ASMNT-001 kèm academic pending), 2 IMPLEMENTED chờ browser/academic QA; không còn feature `NOT_STARTED`.
+- Next actionable task: `ASMNT-002` — framework học thuật pilot + framework revision và tenant/class-scoped Teacher reporting; hoặc `PLAY-001c` — manual essay/regrade. Production `OPS-001f` vẫn chờ target inputs thật.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit SHA: `4c0a267` (`feat(assessment): add approved evidence interpretation`).
+- Push status: `PENDING` — sẽ push sau commit progress này.
