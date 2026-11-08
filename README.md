@@ -105,7 +105,16 @@ npm run db:migrate:status --prefix backend
 
 Database hiện hữu chưa có ledger phải được backup, restore thử trên bản sao và xác minh trước khi chạy một lần với `--adopt-existing`; không sửa file SQL đã được ghi ledger. Quy trình chi tiết và lệnh backup/restore nằm trong `docs/RUNBOOK.md`.
 
-Đây vẫn chưa phải rollout production hoàn chỉnh. TLS edge/secret deployment, backup theo lịch + cảnh báo, tenant scope, S3/CDN và monitoring còn phải hoàn tất trước khi phục vụ dữ liệu thật.
+Backup scheduler là Compose profile opt-in, không tự bật ở local:
+
+```bash
+docker compose --profile backup up -d backup
+docker compose --profile backup ps backup
+```
+
+Job ghép MySQL single-transaction dump với archive của `import_data`, kiểm tra SHA-256, giữ retention và phát health signal khi backup lỗi hoặc quá hạn. Named volume `backup_data` chỉ là baseline local; production phải map nó sang storage mã hóa/off-site và alert trên container health. Restore rehearsal có guard riêng trong `docs/RUNBOOK.md`.
+
+Đây vẫn chưa phải rollout production hoàn chỉnh. TLS edge/secret deployment, backup destination/alert thực tế, tenant scope, S3/CDN và monitoring còn phải hoàn tất trước khi phục vụ dữ liệu thật.
 
 ## CI/CD
 
@@ -113,7 +122,7 @@ Workflow `.github/workflows/ci-cd.yml` chạy khi mở pull request hoặc push 
 
 1. Cài dependency bằng `npm ci`.
 2. Chạy test backend và build frontend.
-3. Build cả hai Docker image.
+3. Build Docker image backend, frontend và backup.
 4. Khi push vào `main`, publish image lên GitHub Container Registry (GHCR) với tag `latest` và commit SHA.
 
 Để package trên GHCR có thể được pull công khai, đổi visibility của package trong GitHub Package settings sau lần publish đầu tiên. Việc deploy tiếp lên VPS/Kubernetes cần thêm thông tin máy chủ đích và secrets tương ứng.

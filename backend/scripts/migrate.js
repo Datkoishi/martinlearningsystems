@@ -10,12 +10,13 @@ if (unknown.length > 0) {
   process.exit(2);
 }
 
-const connection = await mysql.createConnection({
-  ...config.database,
-  multipleStatements: true
-});
+let connection;
 
 try {
+  connection = await mysql.createConnection({
+    ...config.database,
+    multipleStatements: true
+  });
   const runner = new MigrationRunner({
     connection,
     database: config.database.database,
@@ -39,5 +40,5 @@ try {
   }));
   process.exitCode = 1;
 } finally {
-  await connection.end();
+  if (connection) await connection.end();
 }

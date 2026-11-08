@@ -204,3 +204,20 @@ Lệnh chính: `npm test`; focused config/app tests; `docker compose --env-file 
 | Compose fresh-volume runtime | PASS | isolated project: MySQL healthy → migrator exit 0 → backend healthy; ledger 11 row, 003 SKIPPED, content source count 0; MySQL không mount init scripts |
 
 Lệnh chính: focused config/migration tests; `npm test`; `docker compose --env-file .env.example config --quiet`; isolated Compose fresh-volume runtime; MySQL 8.4 fresh/adopt/demo/lock/inconsistent/backup-restore smoke; backend Docker build/status; `git diff --check`. Full test lần đầu trong sandbox bị `listen EPERM` ở 3 HTTP test; chạy lại ngoài sandbox PASS 63/63. Dump/database/container/image chỉ chứa fixture kỹ thuật, đã xóa sau kiểm tra; `.env` không được đọc, hiển thị hoặc chỉnh sửa.
+
+## 2026-11-08 — TASK-012
+
+| Test | Kết quả | Bằng chứng |
+|---|---|---|
+| UT-OPS-09 backup scripts | PASS | bash syntax; safe-path/config guard; complete-set verify; byte tamper fail; stale health fail; rejected concurrent job giữ nguyên owner lock |
+| DB-OPS-08 scheduled recovery set | PASS | MySQL 8.4 fresh schema; 3 chu kỳ interval 60 giây; mỗi set có DB dump, import archive, ledger/invariants, manifest, checksums và READY; service healthy |
+| DB-OPS-09 guarded restore | PASS | restore vào `eduassess_restore_smoke`, ledger/schema invariants khớp, success marker được ghi và target schema count trở về 0 |
+| DB-OPS-10 lock/retention/health | PASS | concurrent one-shot exit 1 không xóa foreign lock; failure làm unhealthy; lần success kế tiếp tự phục hồi; complete fixture 20 ngày bị xóa, current sets được giữ |
+| Backup image + Compose security/config | PASS | versioned MySQL 8.4-based image; profile opt-in; import volume read-only; root filesystem read-only + tmpfs; no-new-privileges; migration dependency; configurable health grace |
+| Compose fresh-init readiness | PASS | phát hiện root-ping race ở lần smoke đầu; đổi sang application DB query; fresh volume sau sửa migrate đủ 11 version rồi backup READY/healthy, dump 45,801 bytes |
+| Artifact privacy | PASS | manifest/status/checksum không chứa credential; fixture-only volume/container/image đã xóa |
+| Backend regression | PASS | 63/63 tests |
+| Operations regression | PASS | syntax/config/path/checksum/health/concurrency suite |
+| Frontend production build | PASS | Vite, 38 modules |
+
+Lệnh chính: `npm test`; Compose config; isolated `--profile backup` MySQL/migrate/backup runtime; repeated schedule/concurrency/retention/health; guarded restore-check; cleanup project volumes/images; `git diff --check`. Mọi Docker artifact chỉ chứa fixture kỹ thuật và đã bị xóa; `.env` không được đọc, hiển thị hoặc chỉnh sửa.

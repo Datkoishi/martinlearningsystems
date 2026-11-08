@@ -87,6 +87,49 @@ Lưu dump đã mã hóa ngoài máy ứng dụng, hạn chế quyền đọc và
 
 Restore dump vào database cô lập, không ghi đè production. Sau restore: chạy `db:migrate:status` trỏ vào database bản sao; so số table/row quan trọng, toàn bộ ledger version/checksum, publication/attempt/audit counts và sample hash; sau đó chạy migration trên bản sao rồi smoke API/readiness. Chỉ rollout khi restore đọc được và các invariant khớp. Ghi RPO/RTO, vị trí artifact, checksum, thời gian restore và người xác nhận; xóa an toàn bản sao sau thời hạn kiểm thử.
 
+## Backup scheduler, retention và restore alert
+
+Compose profile `backup` chạy `ops/backup/backup-loop.sh`; mặc định tạo backup ngay khi start rồi lặp mỗi 86.400 giây. Mỗi set hoàn chỉnh gồm `database.sql`, `imports.tar.gz`, `ledger.tsv`, `invariants.tsv`, `manifest.env`, `SHA256SUMS` và marker `READY`. Dump DB chạy trước archive volume: source ZIP/report được ghi trước ImportJob và bất biến sau đó, nên mọi reference trong DB snapshot đã có trên volume; file mới hơn snapshot có thể chỉ là dữ liệu dư an toàn khi restore.
+
+```bash
+docker compose --profile backup up -d backup
+docker compose --profile backup ps backup
+docker compose --profile backup logs --no-log-prefix backup
+```
+
+Biến vận hành: `BACKUP_INTERVAL_SECONDS`, `BACKUP_MAX_AGE_SECONDS`, `BACKUP_RETENTION_DAYS`, `BACKUP_STALE_LOCK_SECONDS`, `BACKUP_HEALTH_START_PERIOD`. `BACKUP_MAX_AGE_SECONDS` phải ít nhất bằng interval; health fail nếu chưa có backup/verify, backup quá tuổi hoặc lần failure mới hơn lần success. Cấu hình alert của hạ tầng dựa vào health này. Nếu đặt `BACKUP_RUN_ON_START=false`, start-period phải dài hơn thời gian chờ tới lần đầu; mặc định `true` an toàn hơn.
+
+Job dùng lock directory có stale timeout; concurrent run fail-closed. Retention chỉ xóa directory `backup-*` có `READY`, không xóa set mới nhất đang tạo. Kiểm tra thủ công set mới nhất:
+
+```bash
+docker compose --profile backup run --rm --no-deps \
+  --entrypoint /ops/backup/verify-backup.sh backup
+```
+
+`backup_data` mặc định là named volume cùng host, chỉ phù hợp development/smoke. Production phải thay bằng encrypted/off-site volume hoặc agent đồng bộ bất biến, khóa quyền đọc và cảnh báo khi replication thất bại. Không copy password vào artifact; script dùng `MYSQL_PWD` nội bộ và manifest không chứa credential.
+
+Restore rehearsal phải chạy trên MySQL cô lập bằng account chỉ có quyền trên database rehearsal. Guard yêu cầu tên bắt đầu `eduassess_restore_` và xác nhận drop khớp chính xác; script verify checksum, restore, so ledger/schema invariants, xóa database rehearsal rồi mới ghi success marker. Nếu lỗi giữa chừng, exit trap vẫn thử cleanup và job không được ghi success:
+
+```bash
+export RESTORE_MYSQL_HOST=<restore-host-cô-lập>
+export RESTORE_MYSQL_PORT=3306
+export RESTORE_MYSQL_USER=<restore-check-user>
+read -s RESTORE_MYSQL_PASSWORD
+export RESTORE_MYSQL_PASSWORD
+export RESTORE_CHECK_DATABASE=eduassess_restore_weekly
+export RESTORE_CHECK_CONFIRM_DROP="$RESTORE_CHECK_DATABASE"
+
+docker compose --profile backup run --rm --no-deps \
+  -e RESTORE_MYSQL_HOST -e RESTORE_MYSQL_PORT -e RESTORE_MYSQL_USER \
+  -e RESTORE_MYSQL_PASSWORD -e RESTORE_CHECK_DATABASE -e RESTORE_CHECK_CONFIRM_DROP \
+  --entrypoint /ops/backup/restore-check.sh backup
+
+unset RESTORE_MYSQL_PASSWORD RESTORE_MYSQL_HOST RESTORE_MYSQL_PORT RESTORE_MYSQL_USER
+unset RESTORE_CHECK_DATABASE RESTORE_CHECK_CONFIRM_DROP
+```
+
+Lập lịch restore rehearsal ít nhất theo RPO/RTO đã duyệt và alert nếu `last_restore_success_epoch` quá hạn. Health mặc định chỉ phản ánh backup + checksum verification hằng ngày; alert restore rehearsal phải do orchestrator/monitor đọc marker hoặc exit status của job định kỳ.
+
 ## Kiểm tra và sự cố
 
 - API degraded: kiểm tra MySQL health/host/port và secret ở môi trường, không log password.
@@ -118,6 +161,8 @@ Restore dump vào database cô lập, không ghi đè production. Sau restore: c
 - `MIGRATION_LOCK_TIMEOUT`: một migrator khác đang giữ advisory lock; kiểm tra deployment/job đang chạy, không tăng timeout để chạy song song.
 - `MIGRATION_CHECKSUM_DRIFT`/`MIGRATION_SEQUENCE_DRIFT`/`MIGRATION_FILE_MISSING`: source deploy không khớp lịch sử; dừng rollout và phục hồi đúng artifact, không sửa ledger.
 - `MIGRATION_PARTIALLY_APPLIED`/`MIGRATION_SCHEMA_INCONSISTENT`: cô lập database, đối chiếu backup và migration; MySQL DDL có thể đã commit từng phần. Không tiếp tục backend cho đến khi restore/repair được review.
+- Backup unhealthy: kiểm tra `backup` logs/status, MySQL, quyền đọc `import_data`, dung lượng/destination và lần failure mới nhất. Không xóa lock nếu chưa xác nhận không còn job; stale lock chỉ được script dọn sau timeout cấu hình.
+- Backup checksum/restore mismatch: cô lập set, giữ artifact/log, alert operator và dùng set `READY` trước đó đã verify; không sửa `SHA256SUMS`, ledger hoặc invariant để ép pass.
 - `MISSING_ASSETS` hoặc `ASSEMBLY_SNAPSHOT_INTEGRITY_FAILED`: cô lập pool/run và kiểm tra published graph/hash; không sửa snapshot/hash để bypass.
 - Retry assembly sau timeout phải giữ nguyên creator/key/blueprint/seed. Assembly run hiện chỉ là technical preview, không insert thủ công vào catalog hoặc tạo attempt.
 - Assembly review: xác minh creator khác reviewer, hashes trong review khớp run và chỉ một decision. Không update review/status thủ công để mở publish.
@@ -125,4 +170,4 @@ Restore dump vào database cô lập, không ghi đè production. Sau restore: c
 - Reviewer explanation asset phải đi qua `/api/assemblies/:id/assets/:assetId`; không đổi sang public catalog URL. Public ASSEMBLED asset phải thực sự có trong `student_snapshot_json.assets`.
 - Rollback slice: revert application commit; migration additive được giữ nguyên cho đến khi đánh giá dependency, không drop bảng tùy tiện.
 
-Production deploy chưa cấu hình ngoài CI publish image GHCR. Image backend chứa runner + SQL và Compose có migration gate, nhưng CI publish image không tự rollout database. Rehearsal thủ công đã pass; backup theo lịch, retention, alert restore-failure, TLS/secret deployment và metrics vẫn phải được cấu hình ở hạ tầng đích.
+Production deploy chưa cấu hình ngoài CI publish image GHCR. Image backend chứa runner + SQL và Compose có migration gate, nhưng CI publish image không tự rollout database. Backup scheduler/retention/restore-check đã có và smoke pass; encrypted/off-site destination, alert wiring, lịch restore rehearsal, TLS/secret deployment và metrics vẫn phải được cấu hình ở hạ tầng đích.

@@ -65,3 +65,9 @@ Nginx là static/reverse-proxy boundary: CSP/security headers, health riêng và
 Compose không mount SQL vào MySQL entrypoint; one-shot migrator phải hoàn tất trước backend. File migration có sequence liên tục và SHA-256 bất biến, runner giữ advisory lock theo database, mặc định skip seed DEMO và ghi operation vào `schema_migrations`. Database có schema nhưng không ledger chỉ được adopt sau backup/xác minh rõ bằng flag; sentinel thiếu, schema một phần hoặc later evidence đều bị chặn.
 
 MySQL DDL có implicit commit nên ledger không giả định toàn bộ file rollback nguyên tử. Khi execution lỗi, operator phải dừng rollout và restore/repair có review thay vì sửa ledger. Backup/restore rehearsal trên database cô lập là release evidence; lịch/off-site retention/alerts vẫn là hạ tầng riêng. Chi tiết ở ADR-0011.
+
+## D-015 Backup DB và source archive là một recovery set
+
+Backup job dump MySQL single-transaction trước rồi archive `import_data` read-only, vì source/report được ghi trước ImportJob và không đổi sau publish. Mỗi set chỉ usable khi đủ manifest, ledger/schema invariants, SHA-256 và `READY`; lock chặn concurrent run, retention chỉ xóa complete set hết hạn. Health fail nếu failure mới hơn success hoặc backup quá tuổi để orchestrator alert.
+
+Restore checker chỉ chạy trên database cô lập có prefix `eduassess_restore_` và exact drop confirmation, so ledger/invariants rồi cleanup. Compose profile là opt-in; named volume chỉ baseline local. Encryption, off-site replication, alert delivery và lịch restore theo RPO/RTO là deployment responsibility. Object storage promotion được tách thành OPS-001d để không gộp hai failure domain. Chi tiết ở ADR-0012.

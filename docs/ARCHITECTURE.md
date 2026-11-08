@@ -13,6 +13,10 @@ flowchart LR
   MigrationSQL[database/init/*.sql] --> Migrator
   Migrator --> Ledger[(schema_migrations)]
   Migrator --> DB
+  Backup[Opt-in backup loop\ndump + checksum + retention] --> DB
+  Backup --> ImportVolume[(import_data read-only)]
+  Backup --> BackupStore[(backup_data / off-site target)]
+  Backup --> BackupHealth[health + restore marker]
   API --> Identity[Identity/access\nopaque session + global RBAC]
   Identity --> IdentityDB[(users / roles / sessions / audit)]
   UI -->|GET /api/exams/demo-fixed| API
@@ -58,6 +62,8 @@ Runtime production parse/validate toàn bộ boolean/integer/origin quan trọng
 
 `backend/src/operations/migration-runner.js` là upgrade boundary trước backend. Runner yêu cầu file `NNN_name.sql` liên tục, hash SHA-256 bất biến, giữ MySQL advisory lock theo database và ghi từng kết quả `APPLIED | ADOPTED | SKIPPED | BOOTSTRAPPED` vào `schema_migrations`. Compose không giao schema cho entrypoint MySQL; one-shot `migrate` hoàn tất mới mở backend. Database cũ không ledger bị chặn cho đến khi operator backup/xác minh và dùng `--adopt-existing`; sentinel schema ngăn adopt prefix thiếu hoặc không nhất quán. Seed DEMO bị skip mặc định. Vì MySQL DDL implicit-commit, restore rehearsal và recovery có review vẫn là bắt buộc.
 
+`ops/backup` là data-protection boundary opt-in, được đóng gói thành image riêng trong CI/GHCR. Loop tạo MySQL single-transaction dump trước, rồi archive local import volume chỉ đọc; mỗi set có manifest, ledger/schema invariants, SHA-256 và `READY` marker cuối cùng. Lock chống concurrent run, retention chỉ chạm complete set, health fail khi failure mới hơn success hoặc set quá tuổi. Restore checker chỉ nhận database prefix `eduassess_restore_`, yêu cầu xác nhận drop chính xác, so ledger/invariants và cleanup target. Compose `backup_data` là local baseline; encryption, off-site replication và alert delivery thuộc deployment.
+
 `backend/src/imports` có repository/storage adapters. Runtime dùng MySQL + local persistent volume; tests dùng repository memory + thư mục tạm. ZIP được đọc trong bộ nhớ ở giới hạn request 25 MiB, giải nén logic tối đa 50 MiB và không ghi entry ra filesystem. Gói có path/symlink/encryption/tỷ lệ nén nguy hiểm bị từ chối trước staging.
 
 `backend/src/auth` xác thực password scrypt, tạo opaque session/CSRF token và chỉ lưu hash token trong MySQL. Cookie session là `HttpOnly`, `SameSite=Strict`; role guard chạy phía server. Import ghi creator/audit trong transaction. Preview không lưu bản nội dung mới: service đọc lại `source.zip`, dựng projection reviewer và phục vụ asset theo `assetId` với `no-store`. Technical và academic decision khóa ImportJob bằng `SELECT ... FOR UPDATE`, cấm creator tự review và ghi hai scope bất biến trong `import_reviews`.
@@ -76,4 +82,4 @@ Submit khóa attempt, chỉ chấm response đã commit và tạo một immutabl
 
 ## Boundaries kế tiếp
 
-`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED delivery, runtime safety và migration/restore baseline đã có; identity vẫn mới global role. Backup scheduling/alerts, object storage promotion, Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.
+`import`, `catalog`, `exam-player`, `attempt`, `scoring`, `assembly`, `assessment`, `identity/access`, `audit`, `operations`. Attempt/scoring, ASSEMBLED delivery, runtime safety, migration và backup/restore automation baseline đã có; identity vẫn mới global role. Off-site/alert deployment, object storage promotion, Blueprint authoring revision, tenant/school scope và manual scoring/regrade là boundary tiếp theo. Không tách microservice trước khi có nhu cầu vận hành thực.

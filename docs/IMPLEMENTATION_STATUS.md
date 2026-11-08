@@ -28,10 +28,13 @@
 - Catalog chung hiển thị FIXED/ASSEMBLED; attempt từ ASSEMBLED sao chép đúng published snapshot, dùng chung autosave/submit/scoring và không reassemble khi reload/retry.
 - Production config fail-fast kiểm tra typed env, HTTPS origin, secure cookie và DB secret; Express trust proxy chỉ theo hop count cấu hình.
 - Runtime có liveness/readiness tách biệt, readiness chuyển not-ready khi drain và graceful shutdown có deadline; Docker health dùng readiness.
+- MySQL Compose health query bằng application user/database nên không báo sẵn sàng trong temporary initialization server; migrator chỉ chạy sau khi schema target thực sự truy cập được.
 - Frontend Nginx có CSP/security headers, `/healthz`, upload 26 MiB và static asset cache; browser không còn tải Google Fonts bên thứ ba.
 - Versioned migration runner kiểm tra sequence/checksum, giữ MySQL advisory lock, skip DEMO mặc định và fail-closed với schema hiện hữu chưa adopt hoặc schema áp dụng một phần.
 - Compose dùng one-shot migrator làm gate trước backend; backend image/CI chứa đúng migration source. Fresh/retry/adopt/demo/lock/drift/partial-schema đã được smoke trên MySQL 8.4.
 - Backup single-transaction đã được checksum, restore vào database cô lập và đối chiếu table/column/ledger/fixture; runner xác minh bản restore thành công.
+- Compose profile/image backup chạy ngay + theo interval, ghép DB dump với read-only import archive, checksum/READY, lock, retention và health fail khi lỗi/quá hạn; CI publish artifact versioned cùng backend/frontend.
+- Restore checker có database prefix/exact-confirm guard, đối chiếu ledger/schema invariants, cleanup target trước success marker và thử cleanup lại trên failure path; CI chạy syntax/tamper/health/concurrency tests.
 
 ## Partial / giới hạn
 
@@ -43,8 +46,8 @@
 - Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
 - Production vẫn cần TLS edge/secret manager thực tế; import feature flag mặc định tắt để rollout có chủ đích.
 - Published media hiện được phục vụ từ entry trong source ZIP bất biến trên local volume; chưa có S3 promotion/CDN adapter.
-- Backup/restore hiện mới là rehearsal thủ công; chưa có lịch backup, encryption/retention policy, off-site lifecycle, restore alert hay RPO/RTO monitoring trên hạ tầng đích.
+- Backup schedule/retention/health đã có trong repo nhưng production chưa map encrypted/off-site destination, alert delivery, lịch restore-check và RPO/RTO dashboard trên hạ tầng đích.
 
 ## Chưa làm
 
-Backup scheduling/observability, tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, blueprint authoring revisions, manual essay/regrade, assessment/reporting.
+Off-site backup/alert deployment, tenant-scoped RBAC, account lifecycle/recovery/MFA, S3 object storage, blueprint authoring revisions, manual essay/regrade, assessment/reporting.

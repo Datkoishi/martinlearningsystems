@@ -35,6 +35,8 @@ Session là opaque token lưu trong cookie `HttpOnly`; DB chỉ lưu hash. Reque
 
 Migration production đi qua `backend/scripts/migrate.js`: file `NNN_name.sql` liên tục, checksum bất biến, advisory lock và `schema_migrations` ledger. Mặc định skip seed DEMO. Schema hiện hữu chỉ được `--adopt-existing` sau backup/restore rehearsal và kiểm tra sentinel; không sửa file migration đã ghi ledger, không dùng `docker compose down -v` để xử lý lỗi. MySQL DDL có implicit commit, nên failure một phần phải dừng, restore bản sao hoặc repair có review trước khi retry.
 
+Backup production đi qua `ops/backup`: DB dump và `import_data` archive là một set, checksum trước `READY`, concurrent run bị lock và retention chỉ xóa complete set hết hạn. Container health là signal cho backup success/age, không thay alert delivery. Restore check chỉ được chạy trên host/database cô lập có prefix guard + exact drop confirmation. Named volume local không phải off-site backup; deployment phải mã hóa, replicate, giới hạn quyền và diễn tập restore theo RPO/RTO.
+
 ## Catalog và attempt
 
 Catalog chỉ đọc ExamVersion `PUBLISHED + non-formal`: FIXED dựng từ relational graph, ASSEMBLED đọc publication snapshot. Student projection phải loại answer key, explanation, scoring fields và asset chỉ dùng trong lời giải. Public asset phải có reference student-visible từ published FIXED graph hoặc ASSEMBLED snapshot và bytes phải khớp metadata hash/size.

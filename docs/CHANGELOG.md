@@ -32,3 +32,8 @@
 - Thêm migration `011_migration_ledger.sql` và runner versioned có sequence/checksum drift guard, advisory lock, schema adoption fail-closed và seed DEMO opt-in.
 - Đóng gói migration trong backend image/CI, thêm one-shot Compose migration gate trước backend và bỏ phụ thuộc MySQL entrypoint init.
 - Diễn tập MySQL 8.4 fresh/retry/adopt/demo/lock/inconsistent-schema cùng backup checksum + restore/ledger verification trên database cô lập.
+- Thêm opt-in scheduled backup profile cho MySQL + `import_data`, complete-set checksum/READY, concurrent lock, retention và health signal.
+- Thêm guarded restore checker cho database `eduassess_restore_*`, so migration ledger/schema invariants và cleanup target kể cả khi lỗi.
+- Bổ sung CI tests cho syntax, checksum tamper, stale health, config/path guard và lock ownership; tách S3 media promotion thành OPS-001d.
+- Sửa MySQL Compose healthcheck dùng application database query để loại race với temporary init server; migration CLI bọc cả lỗi kết nối thành JSON fail-closed.
+- Đóng gói backup tools thành image riêng và thêm vào CI/GHCR publish matrix, không phụ thuộc bind-mount source repo khi deploy.
