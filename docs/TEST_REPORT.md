@@ -310,3 +310,16 @@ Lần đầu root test trong sandbox có 6 HTTP tests fail vì `listen EPERM`; c
 | Browser responsive/a11y QA | BLOCKED | chưa có browser QA tooling trong workflow hiện tại |
 
 Lượt focused đầu trong sandbox chỉ fail các HTTP tests do `listen EPERM`; chạy lại ngoài sandbox đạt app 15/15. MySQL container dùng fixture kỹ thuật và file secret tạm; migration/integration xong đã xóa container cùng file tạm. `.env` không bị hiển thị, chỉnh sửa hoặc stage.
+
+## 2026-11-09 — TASK-018 Premium frontend và năm dashboard
+
+| Gate | Kết quả | Evidence |
+|---|---|---|
+| Root regression `npm test` | PASS | backend 88 cases: 85 pass, 3 opt-in MySQL integration skip; ops backup script PASS; frontend Vite 49 modules build PASS |
+| Role route contract | PASS | Node assertion: đúng 5 role/dashboard, mỗi role có menu; `SUPER_ADMIN` không thành dashboard thứ sáu |
+| Browser public flow | PASS | landing desktop/mobile, login validation, account access, DEMO tải qua API và cập nhật 1/3 câu, catalog công khai hiển thị empty state |
+| Docker frontend | PASS | `docker compose up -d --build --no-deps frontend`; `docker compose ps` frontend/backend/MySQL healthy; `/` HTTP 200, `/healthz` = `ok` |
+| Compose/diff | PASS | `docker compose config --quiet`; `git diff --check` |
+| Authenticated dashboard visual QA | PENDING | phiên này không dùng credential/fixture user; API shape và role route được đối chiếu bằng code, chưa chụp trực tiếp 5 dashboard sau đăng nhập |
+
+Ban đầu `npm run build --prefix frontend` chưa chạy vì thiếu `node_modules`; đã `npm ci` từ lockfile cho frontend/backend rồi build và root test PASS. Browser QA dùng backend Docker local, không tạo hoặc sửa account/attempt. Docker frontend healthcheck base Compose được pin `127.0.0.1` để tránh `localhost` chọn IPv6 trong container.

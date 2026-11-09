@@ -101,3 +101,7 @@ Nếu bất kỳ global/indicator coverage gate nào thiếu, engine không gán
 Không dùng role Teacher/global queue để mở toàn bộ bài làm khi tenant/class ownership chưa có. Super Admin phải bind từng Attempt/current score revision với `MANUAL_GRADER`; mọi grader query scope theo assignee. Preview chỉ có essay response + rubric cần thiết, không Student identity hoặc objective answer key.
 
 Chấm lần đầu và regrade không update score row cũ. Transaction tạo revision USER kế tiếp, update Attempt pointer/status, đóng assignment, lưu exact idempotency response và audit. Regrade chỉ thay điểm/feedback ESSAY; auto-scored questions được sao chép nguyên trạng. Student result vẫn qua purpose/state reveal policy và không mở rubric/grader identity. Chi tiết ở ADR-0017.
+
+## D-021 Năm dashboard chuyên môn, không có tự đăng ký giả
+
+Thiết kế tham chiếu Learnify và prompt đính kèm gợi ý các mục dashboard theo menu mẫu. Yêu cầu trực tiếp đã xác nhận là năm dashboard tương ứng `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `ASSESSMENT_SPECIALIST`, `MANUAL_GRADER`; `SUPER_ADMIN` không thành dashboard thứ sáu. Menu và dữ liệu dashboard phải theo role/API hiện có. Backend chưa có self-registration, nên `/register` là trang hướng dẫn truy cập qua quản trị viên. Không hiển thị chart, số liệu, chứng chỉ hay trạng thái thông báo không có nguồn dữ liệu thật.

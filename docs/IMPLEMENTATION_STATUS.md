@@ -50,6 +50,9 @@
 - Nginx production redirect HTTP 308, terminate TLS 1.2/1.3, bật HTTP/2 + HSTS/CSP; frontend/backend/backup/MySQL health và one-shot migration đã pass full-stack fixture smoke.
 - Backend có protected Prometheus listener riêng: HTTP counter/histogram theo route template, readiness/error và published asset archive/object/fallback/failure; graceful shutdown đóng cả metrics server.
 - Backup health ghi atomic node_exporter textfile metrics; Prometheus scrape bằng credentials file, Alertmanager dùng webhook URL file và 8 alert rules cho backend/5xx/object/backup/restore signals.
+- Public landing, trang đăng nhập, hướng dẫn truy cập tài khoản và DEMO được dựng theo hệ thống lavender/pastel với illustration gốc. Router path dẫn đến năm dashboard riêng cho Student, Editor, Reviewer, Specialist và Manual Grader; workspace cũ vẫn hoạt động qua path mới và hash cũ.
+- Dashboard Student đọc catalog công khai; Editor đọc owned assembly runs; Reviewer đọc hai review queue; Specialist mở luồng soạn framework; Grader đọc assignment riêng. Empty/loading/error state và menu theo role không bịa dữ liệu. `SUPER_ADMIN` dùng các workspace được phép, không có dashboard thứ sáu.
+- Frontend Docker local đã rebuild trên cổng 5173 và healthy; healthcheck pin IPv4 loopback. Vite dev proxy có thể trỏ backend local qua `EDUASSESS_DEV_BACKEND`.
 
 ## Partial / giới hạn
 
@@ -57,7 +60,8 @@
 - Assembly chưa có failed-run persistence, option shuffle, soft optimization/student history hoặc assignment policy; editor revision form hiện tối ưu cho Blueprint một section dù API hỗ trợ schema nhiều section.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
-- Chưa có browser visual QA trong sandbox.
+- Browser QA đã xác nhận landing desktop/mobile, login/access, DEMO và catalog công khai. Chưa có tài khoản fixture trong phiên này để chụp trực tiếp cả năm dashboard sau đăng nhập hoặc kiểm tra toàn bộ workspace cũ bằng trình duyệt.
+- Không có API tự đăng ký; `/register` giải thích quy trình cấp tài khoản qua quản trị viên, không gửi dữ liệu đăng ký giả.
 - Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
 - TLS/secret/monitoring bundle đã verified bằng fixture nhưng chưa được deploy với domain/certificate/secret manager thật; import feature flag mặc định tắt để rollout có chủ đích.
 - Object promotion + fallback/failure telemetry đã có nhưng bucket/identity/CDN/replication thực tế chưa được provision; archive fallback vẫn phải bật khi rollout.
