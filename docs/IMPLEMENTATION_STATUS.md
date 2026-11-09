@@ -60,7 +60,7 @@
 - Assembly chưa có failed-run persistence, option shuffle, soft optimization/student history hoặc assignment policy; editor revision form hiện tối ưu cho Blueprint một section dù API hỗ trợ schema nhiều section.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
-- Browser QA đã xác nhận landing desktop/mobile, login/access, DEMO và catalog công khai. Chưa có tài khoản fixture trong phiên này để chụp trực tiếp cả năm dashboard sau đăng nhập hoặc kiểm tra toàn bộ workspace cũ bằng trình duyệt.
+- Browser QA đã xác nhận landing desktop/mobile, login/access, DEMO và catalog công khai. Năm dashboard đã được xem bằng preview role tạm thời chỉ trong Vite dev, sau đó mã preview được gỡ; Student desktop/mobile và bốn role còn lại ở desktop. Chưa có tài khoản fixture trong phiên này để kiểm tra luồng API bảo vệ sau đăng nhập hoặc toàn bộ workspace cũ bằng trình duyệt.
 - Không có API tự đăng ký; `/register` giải thích quy trình cấp tài khoản qua quản trị viên, không gửi dữ liệu đăng ký giả.
 - Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
 - TLS/secret/monitoring bundle đã verified bằng fixture nhưng chưa được deploy với domain/certificate/secret manager thật; import feature flag mặc định tắt để rollout có chủ đích.

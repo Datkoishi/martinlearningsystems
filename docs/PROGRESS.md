@@ -319,15 +319,15 @@
 ## [2026-11-09 22:38 +07:00] TASK-018 — Premium UI và năm dashboard chuyên môn
 
 - Mục tiêu / feature IDs: UI-001, UI-002; dùng ảnh Learnify làm tham chiếu bố cục, giữ EduAssess là thương hiệu và nghiệp vụ riêng.
-- Trạng thái: IMPLEMENTED (build/root regression/browser public flow/Docker local PASS; authenticated dashboard visual QA pending).
+- Trạng thái: IMPLEMENTED (build/root regression/browser public flow + five dashboard visual previews/Docker local PASS; authenticated task flow pending).
 - Phạm vi thực hiện: landing, login, hướng dẫn truy cập, DEMO; shell responsive; năm dashboard Student/Editor/Reviewer/Specialist/Grader; menu theo role, live API projection, empty/loading/error; hỗ trợ hash route cũ.
 - Files created: `frontend/src/portal/*`, `frontend/public/assets/illustrations/*.webp`, `docs/ui-design-system.md`, `.agents/skills/*`, `skills-lock.json`.
 - Files modified: `frontend/src/App.jsx`, `frontend/src/main.jsx`, `frontend/index.html`, `frontend/vite.config.js`, `docker-compose.yml`, README và docs status/architecture/permissions/decisions/test/progress.
 - DB/API impact: không có migration hoặc API backend mới; không tạo/sửa dữ liệu. `/register` giải thích quy trình Admin cấp tài khoản vì backend chưa hỗ trợ tự đăng ký.
-- Skill install: `ui-ux-pro-max`, `frontend-design`, `web-design-guidelines`, `vercel-react-best-practices` thành công; repo `open-horizon-labs/impeccable` cho `polish` không truy cập được qua GitHub authentication, nên không cài được. Đã đọc skill được cài và dùng imagegen để tạo illustration gốc, chuyển WebP.
+- Skill install: `ui-ux-pro-max`, `frontend-design`, `web-design-guidelines`, `vercel-react-best-practices` thành công. Repo `open-horizon-labs/impeccable` cho skill `polish` lỗi GitHub authentication; nguồn chính thức mới `pbakaus/impeccable` chỉ còn aggregate skill `impeccable`, đã cài skill này với lệnh `polish` bên trong. Launcher context không chạy vì cache binary ở ngoài workspace không ghi được; đã đọc checklist trực tiếp. Dùng imagegen để tạo illustration gốc, chuyển WebP.
 - Test commands actually run: `npm ci --prefix frontend`, `npm ci --prefix backend`, `npm run build --prefix frontend`, `npm test`, Node role-route assertion, `docker compose config --quiet`, `docker compose up -d --build --no-deps frontend`, `docker compose ps`, `curl -I /` và `curl /healthz`, `git diff --check`; browser QA qua local Vite/Docker.
-- Test results: backend 85 PASS + 3 opt-in SKIP, ops PASS, Vite build 49 modules, browser landing desktop/mobile và login/DEMO/catalog PASS, frontend Docker healthy và HTTP 200/healthz `ok`.
+- Test results: backend 85 PASS + 3 opt-in SKIP, ops PASS, Vite build 49 modules, browser landing desktop/mobile và login/DEMO/catalog PASS, visual preview cả năm dashboard PASS, frontend Docker healthy và HTTP 200/healthz `ok`.
 - Privacy/security: dashboard chỉ gọi API đúng quyền và không chứa mock adoption metrics hay answer key; DEMO lưu lựa chọn trong trình duyệt của phiên hiện tại; không ghi credential vào code/artifact. Quản trị viên không được bỏ qua review/self-review gate.
-- Known limitations: chưa xác minh trực quan năm dashboard bằng tài khoản đã đăng nhập; `SUPER_ADMIN` dùng bốn workspace chuyên môn phù hợp quyền, không có dashboard thứ sáu; chưa có self-registration; `polish` skill chưa cài do nguồn GitHub không truy cập được.
+- Known limitations: chưa xác minh protected task flow bằng tài khoản đã đăng nhập; `SUPER_ADMIN` dùng bốn workspace chuyên môn phù hợp quyền, không có dashboard thứ sáu; chưa có self-registration. Skill độc lập `polish` không còn trong nguồn Impeccable mới; aggregate `impeccable` đã được cài.
 - Next actionable task: kiểm tra năm dashboard với tài khoản fixture kỹ thuật hoặc tài khoản do Admin cấp, rồi mở rộng UI từng workspace nghiệp vụ theo cùng design system. Không cần đổi backend để xem landing/DEMO.
 - Git branch: `main`; commit: xem lịch sử Git của task; push: không thực hiện trong task này.
