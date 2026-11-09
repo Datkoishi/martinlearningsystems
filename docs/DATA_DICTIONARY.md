@@ -16,7 +16,7 @@
 | source_provenance | question_version, source, license, relation_type | hỗ trợ nhiều nguồn |
 | asset_references | asset, owner_type/id, json_path | kiểm tra asset trước publish |
 | users | email, display_name, password_hash, status | email unique; password scrypt hash, không lưu plaintext |
-| user_roles | user_id, role, scope_type | role phía server; slice hiện tại chỉ global scope |
+| user_roles | user_id, role, scope_type | role phía server, gồm MANUAL_GRADER; slice hiện tại chỉ global scope |
 | auth_sessions | user_id, token/csrf hash, expires/revoked | opaque token chỉ lưu SHA-256; session revoke phía server |
 | audit_logs | actor, event/resource, outcome, details | audit auth/import/review/attempt; không chứa raw token/password hay answer payload |
 | import_jobs | package_id/hash, status, creator, report | idempotency theo package + hash; creator dùng chống self-review |
@@ -25,7 +25,9 @@
 | exam_attempts | student, exam_version, status, create idempotency key, snapshots/hash, answer_revision, current_score_revision | snapshot bất biến; optimistic concurrency; scoring JSON không trả client |
 | attempt_responses | attempt, question_version, answer_json, saved_revision | response map đã server ACK; FK tới attempt/question version |
 | attempt_operations | student, attempt, operation_type, idempotency_key, request_sha256, response_json | exact replay cho AUTOSAVE/SUBMIT; key không được dùng lại với request khác |
-| attempt_score_revisions | attempt, revision_number, scoring_state/version, result_json, actor | immutable score history; revision 1 do submit, regrade/manual scoring chưa có |
+| attempt_score_revisions | attempt, revision_number, scoring_state/version, result_json, actor | immutable score history; revision 1 do submit, revision USER tiếp theo do manual scoring/regrade |
+| attempt_grading_assignments | attempt, type, source revision, assignee/assigner, reason, status, completed revision | explicit per-attempt scope; INITIAL/REGRADE bind current revision và đóng khi hoàn thành |
+| manual_scoring_operations | assignment, grader, idempotency key, request hash, response JSON | exact replay cho human scoring; key không được dùng lại với payload khác |
 | assembly_runs | creator, idempotency/request hash, blueprint, seed/engine, selection/source JSON, student/scoring snapshots, hashes | immutable successful run; owner-only public projection; unique creator/key |
 | exam_blueprints / versions | stable key, version, blueprint JSON, approval status, creator | identity có nhiều immutable version tuần tự; chỉ latest rejected/published được nối revision; status chỉ workflow mutation |
 | assembly_reviews | run/version, reviewer, decision, reason, selection/snapshot hashes | một quyết định bất biến/run; creator không tự duyệt |

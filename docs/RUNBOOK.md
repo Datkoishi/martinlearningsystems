@@ -260,7 +260,10 @@ Giữ `OBJECT_STORAGE_ARCHIVE_FALLBACK=true` qua cửa sổ quan sát/recovery �
 - `ATTEMPT_REVISION_CONFLICT`: GET attempt mới nhất, giữ local edits chưa ACK, merge theo question ID rồi PATCH với revision/key mới; không sửa revision trực tiếp trong DB.
 - `ATTEMPT_NOT_EDITABLE`: attempt đã submit/void; client phải chuyển read-only và GET result, không reopen bằng SQL.
 - Submit timeout: retry đúng payload với cùng key. Một score revision và một `ATTEMPT_SUBMITTED` audit là invariant; khác biệt phải được cô lập trước khi retry thủ công.
-- `PENDING_MANUAL_SCORING` là trạng thái hợp lệ khi có essay đã trả lời. Không hiển thị earned total cuối, đáp án hoặc rubric; manual scoring/regrade chưa có trong slice hiện tại.
+- `PENDING_MANUAL_SCORING` là trạng thái hợp lệ khi có essay đã trả lời. Super Admin tạo explicit assignment ở `/#grading`; không mở queue bằng query unscoped hoặc cấp Teacher global. `INITIAL` phải bind current PENDING revision, `REGRADE` bind current FINAL revision.
+- `GRADER_NOT_ELIGIBLE`: bootstrap/cấp đúng role `MANUAL_GRADER`; không dùng `SUPER_ADMIN` đại trà. `GRADING_ASSIGNMENT_NOT_FOUND` với grader khác là 404 có chủ đích.
+- `SCORE_REVISION_CONFLICT`: assignment đã stale vì Attempt có revision mới; cô lập assignment và tạo quyết định phân công mới, không sửa pointer/revision bằng SQL. Grade timeout phải retry cùng payload + `Idempotency-Key`; invariant là một revision USER, một operation và một audit.
+- Student manual result chỉ đi qua reveal mapper. PRACTICE FINAL có thể thấy feedback; rubric/grader identity không được trả. MOCK/DIAGNOSTIC tiếp tục summary-only.
 - Reveal sai purpose/state là incident dữ liệu nhạy cảm: tắt client path liên quan, giữ audit/operation rows và kiểm tra public result mapper; không trả raw `result_json` trực tiếp.
 - `INCOMPATIBLE_BLUEPRINT`: sửa schema/quota; tổng từng quota dimension phải đúng section count. Không chỉnh DB để bypass validator.
 - `INSUFFICIENT_POOL`: kiểm tra metadata, published FIXED membership, license validity/`derivative_assembly`, source diversity và quota. Không giảm quota âm thầm; thay blueprint có chủ đích hoặc nhập/duyệt thêm nguồn.

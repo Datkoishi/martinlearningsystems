@@ -290,3 +290,23 @@ Lệnh chính: focused `node --test test/assembly.test.js test/app.test.js` ngo�
 | Frontend production build | PASS | Vite 6.4.5, 39 modules, assessment workspace included |
 
 Lần đầu root test trong sandbox có 6 HTTP tests fail vì `listen EPERM`; chạy lại ngoài sandbox đạt regression. Lần đầu MySQL assessment integration phát hiện canonical hash xem `Date` khác chuỗi ISO sau JSON round-trip; canonicalizer được sửa để chuẩn hóa timestamp, sau đó integration 1/1 PASS. MySQL 8.4 fixture chỉ chứa dữ liệu kỹ thuật, đã dừng và tự xoá. `.env` không bị hiển thị, chỉnh sửa hoặc stage.
+
+## 2026-11-09 — TASK-017
+
+| Gate | Kết quả | Evidence |
+|---|---|---|
+| UT-PLAY-13 manual scoring totals | PASS | giữ nguyên auto score; essay score/feedback tạo FINAL totals và manual scoring version |
+| UT-PLAY-14 validation | PASS | thiếu essay grade, duplicate/unknown question, điểm vượt max và feedback sai bị chặn |
+| UT-PLAY-15 assignment privacy/idempotency | PASS | assignee-only projection; không Student identity/objective answer; exact retry cùng revision |
+| UT-PLAY-16 immutable regrade | PASS | regrade thay riêng essay score, giữ source revision và auto question |
+| HTTP-PLAY-04 role/CSRF/API | PASS | chỉ Admin assign; Student 403; grader queue/preview/grade lấy actor từ session; CSRF/key validation |
+| DB-PLAY-05 MySQL 8.4 | PASS | migration 001–014; INITIAL revision 1→2; exact retry không duplicate; REGRADE 2→3; 2 assignment + 2 score audit |
+| Student reveal privacy | PASS | PRACTICE FINAL có feedback; không rubric/grader identity; snapshot hash được kiểm trước grader preview |
+| Migration ledger | PASS | fresh fixture 14 migrations, `003` SKIPPED và latest `014_manual_scoring.sql` |
+| Backend regression | PASS | 88 cases = 85 pass + 3 opt-in MySQL tests skipped trong default suite; manual MySQL integration chạy riêng 1/1 PASS |
+| Ops regression | PASS | backup script suite PASS |
+| Frontend production build | PASS | Vite 6.4.5, 40 modules, Manual Scoring Workspace included |
+| Diff | PASS | `git diff --check` |
+| Browser responsive/a11y QA | BLOCKED | chưa có browser QA tooling trong workflow hiện tại |
+
+Lượt focused đầu trong sandbox chỉ fail các HTTP tests do `listen EPERM`; chạy lại ngoài sandbox đạt app 15/15. MySQL container dùng fixture kỹ thuật và file secret tạm; migration/integration xong đã xóa container cùng file tạm. `.env` không bị hiển thị, chỉnh sửa hoặc stage.

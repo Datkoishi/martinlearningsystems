@@ -29,12 +29,13 @@ export default function AuthPanel({ onLogin, mode = 'content' }) {
 
   const studentMode = mode === 'student';
   const assessmentMode = mode === 'assessment';
+  const gradingMode = mode === 'grading';
 
   return (
     <section className="auth-panel">
       <div className="auth-copy">
         <p className="eyebrow">Khu vực được bảo vệ</p>
-        <h1>{studentMode ? 'Đăng nhập để bắt đầu lượt làm bài' : assessmentMode ? 'Đăng nhập vào workspace đánh giá' : 'Đăng nhập để quản lý nội dung'}</h1>
+        <h1>{studentMode ? 'Đăng nhập để bắt đầu lượt làm bài' : assessmentMode ? 'Đăng nhập vào workspace đánh giá' : gradingMode ? 'Đăng nhập vào workspace chấm tự luận' : 'Đăng nhập để quản lý nội dung'}</h1>
         {studentMode ? (
           <>
             <p>Catalog có thể xem công khai, nhưng chỉ tài khoản Student mới được tạo attempt gắn với danh tính của mình.</p>
@@ -48,6 +49,11 @@ export default function AuthPanel({ onLogin, mode = 'content' }) {
               <li><strong>Assessment Specialist</strong> — cấu hình framework versioned.</li>
               <li><strong>Academic Reviewer</strong> — duyệt độc lập interpretation rules.</li>
             </ul>
+          </>
+        ) : gradingMode ? (
+          <>
+            <p>Mỗi bài tự luận phải được Super Admin phân công tường minh; grader không có danh sách bài làm toàn cục.</p>
+            <ul><li><strong>Manual Grader</strong> — chỉ đọc và chấm attempt được giao.</li><li><strong>Super Admin</strong> — tạo assignment và có thể chấm khi được giao.</li></ul>
           </>
         ) : (
           <>

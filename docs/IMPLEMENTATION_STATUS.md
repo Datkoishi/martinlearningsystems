@@ -21,6 +21,8 @@
 - Submit khóa attempt trong transaction, tạo đúng một immutable score revision và đóng quyền sửa. Scorer versioned hỗ trợ choice, multiple partial-credit opt-in, đúng/sai theo mệnh đề, số có tolerance, short text normalize; essay đã trả lời chờ chấm thủ công.
 - Reveal fail-closed: chỉ `PRACTICE + FINAL` mở đáp án đúng; `MOCK_EXAM`, `DIAGNOSTIC` và pending manual chỉ trả tổng điểm/trạng thái; không mở explanation/rubric.
 - UI `/#catalog` khôi phục attempt từ server, autosave debounced với trạng thái ACK/retry/conflict và hiển thị kết quả theo reveal policy.
+- Super Admin phân công explicit Attempt/current score revision cho `MANUAL_GRADER`; grader queue luôn assignee-scoped và preview chỉ có essay response/rubric cần thiết, không Student identity hay objective answer key.
+- Manual scoring và regrade tạo immutable USER score revision mới, exact-idempotent theo request hash, giữ nguyên auto score, audit transaction và trả feedback Student qua reveal policy mà không mở rubric/grader identity. Migration 014 + MySQL 8.4 revision 1→2→3 đã pass.
 - QuestionVersion có metadata assembly relational/indexed; Exam Package validator giữ metadata all-or-none và publication lưu nguyên metadata đã duyệt.
 - Assembly engine `eduassess-assembly-v1` lọc published FIXED non-formal graph + derivative license, giải exact quota/source/points/time/group/family constraints theo seed và fail có cấu trúc khi pool thiếu.
 - Successful assembly run lưu immutable blueprint/seed/selection/source distribution cùng student/scoring snapshot tách biệt, hash toàn vẹn, idempotency và audit; Assembly Lab chỉ trả student-safe owner preview.
@@ -51,7 +53,7 @@
 
 ## Partial / giới hạn
 
-- Chưa có timer/deadline server-side, attempt limit/new-attempt policy, manual essay scoring UI hay score regrade workflow.
+- Chưa có timer/deadline server-side hoặc attempt limit/new-attempt policy; manual grading hiện cần Super Admin nhập exact Attempt/Grader UUID, chưa có tenant/class assignment roster.
 - Assembly chưa có failed-run persistence, option shuffle, soft optimization/student history hoặc assignment policy; editor revision form hiện tối ưu cho Blueprint một section dù API hỗ trợ schema nhiều section.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
@@ -64,4 +66,4 @@
 
 ## Chưa làm
 
-Target production provisioning, off-site backup + alert delivery drill, object bucket/identity/CDN, tenant-scoped RBAC, account lifecycle/recovery/MFA, assembly failure/history optimization, manual essay/regrade, framework học thuật production/pilot và Teacher/guardian/school reporting.
+Target production provisioning, off-site backup + alert delivery drill, object bucket/identity/CDN, tenant-scoped RBAC, account lifecycle/recovery/MFA, assembly failure/history optimization, framework học thuật production/pilot và Teacher/guardian/school reporting.

@@ -95,3 +95,9 @@ Editor queue scope theo creator; Reviewer queue loại chính creator để ph�
 Scoring revision `FINAL` chỉ là nguồn evidence. Mỗi framework giữ purpose, allowed scoring versions, minimum attempts/items, skill/topic mapping, difficulty/task-type coverage, bốn threshold và guidance trong config versioned/hash; engine không hardcode giá trị threshold. Specialist tạo, Academic Reviewer khác người tạo bind một decision bất biến với config hash. Chỉ framework approved mới chạy.
 
 Nếu bất kỳ global/indicator coverage gate nào thiếu, engine không gán level và trả đúng `Chưa đủ bằng chứng`. Evidence snapshot nội bộ + interpretation được hash bất biến; public Student projection loại raw evidence và answer payload, query owner-scoped. Teacher cross-student khóa tới khi có tenant/class ownership. Framework UI là DEMO, nên technical verification không được ghi thành academic approval cho nội dung thật. Chi tiết ở ADR-0016.
+
+## D-020 Manual scoring cần explicit assignment và immutable regrade
+
+Không dùng role Teacher/global queue để mở toàn bộ bài làm khi tenant/class ownership chưa có. Super Admin phải bind từng Attempt/current score revision với `MANUAL_GRADER`; mọi grader query scope theo assignee. Preview chỉ có essay response + rubric cần thiết, không Student identity hoặc objective answer key.
+
+Chấm lần đầu và regrade không update score row cũ. Transaction tạo revision USER kế tiếp, update Attempt pointer/status, đóng assignment, lưu exact idempotency response và audit. Regrade chỉ thay điểm/feedback ESSAY; auto-scored questions được sao chép nguyên trạng. Student result vẫn qua purpose/state reveal policy và không mở rubric/grader identity. Chi tiết ở ADR-0017.

@@ -178,6 +178,24 @@ Yêu cầu `STUDENT`; trả result gần nhất của chính Student cho framewo
 
 Yêu cầu `STUDENT`; chỉ trả result có cả result ID và authenticated Student ID khớp. Cross-owner trả 404.
 
+## Manual essay scoring và regrade
+
+### `POST /api/manual-scoring/assignments`
+
+Yêu cầu `SUPER_ADMIN` + CSRF. Body `{attemptId, assignmentType: "INITIAL"|"REGRADE", graderUserId, reason}`. Grader phải có role `MANUAL_GRADER` hoặc `SUPER_ADMIN`. `INITIAL` chỉ nhận current score `PENDING`; `REGRADE` chỉ nhận current score `FINAL`. Assignment bind source revision và chỉ tạo khi có essay đã trả lời; duplicate source/type trả 409.
+
+### `GET /api/manual-scoring/assignments?status=OPEN|COMPLETED`
+
+Yêu cầu `MANUAL_GRADER | SUPER_ADMIN`. Query luôn scope theo authenticated user; không có queue bài làm toàn cục. Summary không chứa Student identity, response, rubric hoặc objective answer key.
+
+### `GET /api/manual-scoring/assignments/:id`
+
+Chỉ assignee đọc được; assignment của grader khác trả 404. Response kiểm snapshot hash rồi trả student-safe exam snapshot cùng đúng essay response/rubric được giao. Không trả Student identity hoặc answer key câu objective; `Cache-Control: private, no-store`.
+
+### `POST /api/manual-scoring/assignments/:id/grades`
+
+Yêu cầu assignee, CSRF và `Idempotency-Key`. Body `{grades:[{questionVersionId, awardedPoints, feedback}]}` phải chấm đủ mọi essay trong assignment; điểm trong `[0,maxPoints]`. Transaction tạo immutable score revision `FINAL` mới, update pointer/status, đóng assignment, ghi operation/audit. Exact retry trả `200 duplicate: true`; lần đầu `201`; source revision stale trả 409. Regrade không update revision cũ. Student PRACTICE có thể thấy feedback qua result projection nhưng không bao giờ thấy rubric/grader identity; MOCK/DIAGNOSTIC vẫn chỉ thấy summary.
+
 ## Identity/session
 
 - `POST /api/auth/login`: nhận `{email, password}`, trả public user và đặt cookie session `HttpOnly` cùng cookie CSRF. Credential sai luôn trả thông báo chung; login bị giới hạn theo IP trong process.
@@ -214,4 +232,4 @@ Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Nhận cùng decision/rea
 
 Yêu cầu `ACADEMIC_REVIEWER`/`SUPER_ADMIN` và CSRF. Chỉ publish job `ACADEMICALLY_APPROVED`; source hash, validation report và approval phải khớp. Trả `201` cho publication mới, `200` và `duplicate: true` khi retry job đã publish. Transaction ghi toàn bộ versioned content hoặc rollback; purpose `FORMAL_ASSESSMENT` trả `409 FORMAL_ASSESSMENT_DISABLED`.
 
-Manual essay scoring/regrade và Teacher cross-student assessment/reporting chưa triển khai; không được coi route dự kiến là API đang hoạt động.
+Teacher cross-student assessment/reporting chưa triển khai; không được coi route dự kiến là API đang hoạt động.

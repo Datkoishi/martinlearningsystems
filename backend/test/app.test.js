@@ -612,3 +612,110 @@ test('assessment routes enforce specialist authoring, independent review and Stu
   });
   assert.equal(reviewerGenerate.status, 403);
 });
+
+test('manual scoring routes require explicit admin assignment and assigned grader role', async (context) => {
+  const adminId = '00000000-0000-4000-8000-000000000821';
+  const graderId = '00000000-0000-4000-8000-000000000822';
+  const studentId = '00000000-0000-4000-8000-000000000823';
+  const attemptId = '00000000-0000-4000-8000-000000000824';
+  const assignmentId = '00000000-0000-4000-8000-000000000825';
+  const questionId = '00000000-0000-4000-8000-000000000826';
+  const calls = [];
+  const authService = {
+    async authenticate(token) {
+      const identity = token === 'admin-session'
+        ? { id: adminId, role: 'SUPER_ADMIN' }
+        : token === 'grader-session'
+          ? { id: graderId, role: 'MANUAL_GRADER' }
+          : { id: studentId, role: 'STUDENT' };
+      return {
+        expiresAt: new Date('2026-11-10T00:00:00Z'),
+        csrfTokenHash: 'test-only',
+        user: { id: identity.id, roles: [identity.role] }
+      };
+    },
+    validateCsrf: (_auth, token) => token === 'csrf-token'
+  };
+  const manualScoringService = {
+    async assign(command) {
+      calls.push(['assign', command]);
+      return { id: assignmentId, attemptId, assignmentType: command.assignmentType, sourceScoreRevision: 1 };
+    },
+    async listAssigned(userId, filters) {
+      calls.push(['queue', { userId, filters }]);
+      return { items: [{ id: assignmentId }] };
+    },
+    async getAssigned(id, userId) {
+      calls.push(['preview', { id, userId }]);
+      return { id, questions: [{ question: { versionId: questionId } }] };
+    },
+    async grade(command) {
+      calls.push(['grade', command]);
+      return { assignmentId, scoreRevision: 2, duplicate: false };
+    }
+  };
+  const app = createApp({ authService, manualScoringService, importsEnabled: false });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const cookie = (name) => `eduassess_session=${name}; eduassess_csrf=csrf-token`;
+
+  const studentAssign = await fetch(`${baseUrl}/api/manual-scoring/assignments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie('student-session'), 'X-CSRF-Token': 'csrf-token' },
+    body: JSON.stringify({ attemptId, assignmentType: 'INITIAL', graderUserId: graderId, reason: 'Chấm bài tự luận theo rubric.' })
+  });
+  assert.equal(studentAssign.status, 403);
+  assert.equal(calls.length, 0);
+
+  const missingCsrf = await fetch(`${baseUrl}/api/manual-scoring/assignments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie('admin-session') },
+    body: JSON.stringify({ attemptId, assignmentType: 'INITIAL', graderUserId: graderId, reason: 'Chấm bài tự luận theo rubric.' })
+  });
+  assert.equal(missingCsrf.status, 403);
+
+  const assigned = await fetch(`${baseUrl}/api/manual-scoring/assignments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie('admin-session'), 'X-CSRF-Token': 'csrf-token' },
+    body: JSON.stringify({ attemptId, assignmentType: 'INITIAL', graderUserId: graderId, reason: 'Chấm bài tự luận theo rubric.' })
+  });
+  assert.equal(assigned.status, 201);
+  assert.equal(calls.at(-1)[1].assignedByUserId, adminId);
+
+  const studentQueue = await fetch(`${baseUrl}/api/manual-scoring/assignments`, {
+    headers: { Cookie: cookie('student-session') }
+  });
+  assert.equal(studentQueue.status, 403);
+
+  const queue = await fetch(`${baseUrl}/api/manual-scoring/assignments?status=OPEN`, {
+    headers: { Cookie: cookie('grader-session') }
+  });
+  assert.equal(queue.status, 200);
+  assert.deepEqual(calls.at(-1), ['queue', { userId: graderId, filters: { status: 'OPEN' } }]);
+
+  const preview = await fetch(`${baseUrl}/api/manual-scoring/assignments/${assignmentId}`, {
+    headers: { Cookie: cookie('grader-session') }
+  });
+  assert.equal(preview.status, 200);
+  assert.deepEqual(calls.at(-1), ['preview', { id: assignmentId, userId: graderId }]);
+
+  const gradeMissingKey = await fetch(`${baseUrl}/api/manual-scoring/assignments/${assignmentId}/grades`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie('grader-session'), 'X-CSRF-Token': 'csrf-token' },
+    body: JSON.stringify({ grades: [] })
+  });
+  assert.equal(gradeMissingKey.status, 400);
+
+  const graded = await fetch(`${baseUrl}/api/manual-scoring/assignments/${assignmentId}/grades`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('grader-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'manual-grade-key-001'
+    },
+    body: JSON.stringify({ grades: [{ questionVersionId: questionId, awardedPoints: 2, feedback: 'Đạt yêu cầu.' }] })
+  });
+  assert.equal(graded.status, 201);
+  assert.equal(calls.at(-1)[1].graderUserId, graderId);
+});

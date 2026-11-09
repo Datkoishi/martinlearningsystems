@@ -296,3 +296,21 @@
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `4c0a267` (`feat(assessment): add approved evidence interpretation`).
 - Push status: `PUSHED` — feature commit `4c0a267` và báo cáo progress đã được đẩy lên `origin/feat/eduassess-rich-content`.
+
+## [2026-11-09 14:37 +07:00] TASK-017 — Explicit manual essay scoring và immutable regrade
+
+- Mục tiêu / feature IDs: PLAY-001c; hoàn tất manual essay scoring/regrade còn thiếu của player core.
+- Trạng thái: VERIFIED (unit/HTTP/full regression/frontend build/MySQL 8.4 migration + transaction integration hoàn thành; browser visual/a11y QA chưa có tooling).
+- Phạm vi thực hiện: role Manual Grader; explicit Super Admin assignment; assignee-only queue/preview; snapshot integrity; essay-only grading; exact idempotency; immutable initial/regrade score revision; audit; Student feedback reveal; responsive grading workspace.
+- Files created: `backend/src/manual-scoring/*`, `backend/test/manual-scoring.test.js`, `backend/test/mysql-manual-scoring-repository.integration.test.js`, `database/init/014_manual_scoring.sql`, `frontend/src/ManualScoringWorkspace.jsx`, `docs/adr/0017-explicit-manual-scoring-assignments.md`.
+- Files modified: auth role/bootstrap, Express routes, attempt result projection, migration shape, Student player/App/Auth/CSS, README và docs architecture/domain/API/status/roadmap/test/decision.
+- DB migration / data impact: migration 014 mở enum role `MANUAL_GRADER`, thêm `attempt_grading_assignments` và `manual_scoring_operations`; additive, không sửa/xóa score revision cũ. Assignment bind current revision; grade/regrade tạo revision USER kế tiếp và chỉ update Attempt pointer/status.
+- API / UI behavior: `/#grading`; Admin tạo INITIAL/REGRADE assignment bằng exact Attempt/Grader UUID; grader chỉ list/get/complete assignment của chính mình. Chấm đủ essay tạo FINAL revision; exact retry trả revision cũ. PRACTICE Student thấy manual feedback; không thấy rubric/grader identity; MOCK/DIAGNOSTIC vẫn summary-only.
+- Test commands actually run: focused manual/catalog tests; HTTP `app.test.js` ngoài sandbox; frontend build; root `npm test` ngoài sandbox; isolated MySQL 8.4 migration 001–014 + opt-in repository integration; `git diff --check`.
+- Test results: focused 19/19 PASS; HTTP app 15/15 PASS; backend regression 88 cases = 85 PASS + 3 opt-in SKIP; ops PASS; frontend build PASS (40 modules); MySQL migration 14/14 + manual integration 1/1 PASS, score revision 1→2→3 và exact retry không duplicate.
+- Security/privacy considerations: không mở Teacher/global cross-student queue; assignment query scope theo session assignee; Student identity/objective answers không vào grader queue/preview; snapshot hash fail-closed; role/CSRF/request hash/revision conflict/audit phía server; rubric không vào Student payload. Fixture container/file secret đã xóa; `.env` không bị hiển thị, chỉnh sửa hoặc stage.
+- Known issues / trade-offs: Admin hiện nhập exact Attempt/Grader UUID; chưa có tenant/class roster hoặc bulk assignment; browser visual/a11y QA chưa chạy; global identity role vẫn cần tenant scope trước Teacher reporting.
+- Tiến độ feature matrix: 21/21 feature đã bắt đầu/triển khai; 19 technical VERIFIED (ASMNT-001 kèm academic pending), 2 IMPLEMENTED chờ browser/academic QA; không còn feature `NOT_STARTED`.
+- Next actionable task: `ASMNT-002` — framework học thuật pilot + tenant/class-scoped Teacher reporting; hoặc `PLAY-001d` — timer/deadline và attempt policy. Production `OPS-001f` vẫn chờ target inputs thật.
+- Git branch: `feat/eduassess-rich-content`.
+- Commit/push: chưa thực hiện tại thời điểm ghi báo cáo này.

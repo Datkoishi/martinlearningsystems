@@ -4,7 +4,7 @@ import { MysqlAuthRepository } from '../src/auth/mysql-auth-repository.js';
 import { createPasswordHash } from '../src/auth/password.js';
 
 const allowedRoles = new Set([
-  'STUDENT', 'CONTENT_EDITOR', 'ACADEMIC_REVIEWER', 'ASSESSMENT_SPECIALIST', 'SUPER_ADMIN'
+  'STUDENT', 'CONTENT_EDITOR', 'ACADEMIC_REVIEWER', 'ASSESSMENT_SPECIALIST', 'MANUAL_GRADER', 'SUPER_ADMIN'
 ]);
 const args = process.argv.slice(2);
 const valueFor = (name) => {

@@ -116,7 +116,8 @@ const outcomeLabel = {
   INCORRECT: 'Chưa đúng',
   PARTIAL: 'Đúng một phần',
   UNANSWERED: 'Chưa trả lời',
-  PENDING_MANUAL: 'Chờ chấm thủ công'
+  PENDING_MANUAL: 'Chờ chấm thủ công',
+  MANUALLY_SCORED: 'Đã chấm thủ công'
 };
 
 const formatCorrectAnswer = (question, answer) => {
@@ -155,6 +156,7 @@ const ResultPanel = ({ result, questions }) => (
               <span>Câu {question?.order || '—'}</span>
               <strong>{outcomeLabel[item.outcome] || item.outcome} · {item.awardedPoints}/{item.maxPoints}</strong>
               <small>Đáp án đúng: {formatCorrectAnswer(question, item.correctAnswer)}</small>
+              {item.manualFeedback && <small>Nhận xét: {item.manualFeedback}</small>}
             </li>
           );
         })}

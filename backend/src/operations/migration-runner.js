@@ -84,6 +84,12 @@ const MIGRATION_SHAPES = new Map([
       'assessment_definitions', 'assessment_framework_versions',
       'assessment_framework_reviews', 'assessment_results'
     ]
+  }],
+  [14, {
+    tables: ['attempt_grading_assignments', 'manual_scoring_operations'],
+    checks: [
+      ['user_roles.role has manual grader', (schema) => schema.columns.get(columnKey('user_roles', 'role'))?.columnType.includes('MANUAL_GRADER') === true]
+    ]
   }]
 ]);
 

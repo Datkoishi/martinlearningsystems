@@ -49,6 +49,8 @@ Attempt đóng băng `student_snapshot_json` và `scoring_snapshot_json` riêng,
 
 Autosave phải dùng `baseRevision`, exact-operation replay và server ACK; stale client GET/merge rồi gửi key mới. Submit chỉ chấm response đã commit, tạo immutable score revision trong cùng transaction và không tạo thêm score/audit khi retry. Scoring rule phải có version. Public result luôn đi qua reveal mapper: PRACTICE final mới có correct answer; mock/diagnostic/pending không có; explanation/rubric không mở. Essay đã trả lời chờ manual scoring, không dùng AI làm kết luận.
 
+Manual scoring dùng assignment tường minh theo Attempt/current score revision. Chỉ `SUPER_ADMIN` phân công cho `MANUAL_GRADER`; grader chỉ đọc assignment gắn chính user, không có cross-student queue toàn cục. Chấm lần đầu và regrade chỉ thay điểm câu ESSAY, phải chấm đủ các essay được giao, tạo `attempt_score_revisions` mới với actor USER và audit trong cùng transaction. Retry phải bind request hash; source revision stale phải fail. Student chỉ nhận feedback qua reveal policy, không nhận rubric hoặc identity grader.
+
 ## Assessment
 
 Không suy diễn năng lực trực tiếp từ điểm. `backend/src/assessment` chỉ đọc score revision `FINAL` như evidence. Framework 1.0.0 phải giữ threshold/minimum/coverage/guidance trong versioned config, do `ASSESSMENT_SPECIALIST` tạo và Academic Reviewer khác người tạo duyệt theo config hash. Chỉ phân bốn mức khi đủ attempts, evidence items, difficulty và task-type coverage; nếu thiếu phải trả đúng `Chưa đủ bằng chứng` và không gán mức. Public result owner-scoped chỉ có interpretation, không raw evidence/answer. Framework UI là DEMO; nội dung dùng thật cần academic approval. Teacher aggregation phải chờ tenant/class scope.

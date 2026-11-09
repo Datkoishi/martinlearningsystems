@@ -12,6 +12,7 @@ import { catalogService as defaultCatalogService } from './catalog/index.js';
 import { attemptService as defaultAttemptService } from './attempts/index.js';
 import { assemblyService as defaultAssemblyService } from './assembly/index.js';
 import { assessmentService as defaultAssessmentService } from './assessment/index.js';
+import { manualScoringService as defaultManualScoringService } from './manual-scoring/index.js';
 import { ROLE } from './auth/auth-service.js';
 import {
   createHttpMetricsMiddleware,
@@ -57,6 +58,7 @@ export const createApp = ({
   attemptService = defaultAttemptService,
   assemblyService = defaultAssemblyService,
   assessmentService = defaultAssessmentService,
+  manualScoringService = defaultManualScoringService,
   importsEnabled = config.importApiEnabled,
   readinessCheck = () => true,
   trustProxy = config.trustProxy,
@@ -74,6 +76,8 @@ export const createApp = ({
   const editorOrReviewer = requireRoles(ROLE.CONTENT_EDITOR, ROLE.ACADEMIC_REVIEWER, ROLE.SUPER_ADMIN);
   const studentOnly = requireRoles(ROLE.STUDENT);
   const assessmentSpecialistOnly = requireRoles(ROLE.ASSESSMENT_SPECIALIST, ROLE.SUPER_ADMIN);
+  const superAdminOnly = requireRoles(ROLE.SUPER_ADMIN);
+  const manualGraderOnly = requireRoles(ROLE.MANUAL_GRADER, ROLE.SUPER_ADMIN);
 
   app.use(createHttpMetricsMiddleware(metricsRegistry));
   app.use(helmet());
@@ -478,6 +482,70 @@ export const createApp = ({
       if (!attempt) return response.status(404).json({ code: 'EXAM_NOT_FOUND', message: 'Không tìm thấy đề đã publish.' });
       response.set('Cache-Control', 'no-store');
       return response.status(attempt.duplicate ? 200 : 201).json(attempt);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/manual-scoring/assignments', authenticate, superAdminOnly, requireCsrf, async (request, response, next) => {
+    const { attemptId, assignmentType, graderUserId, reason } = request.body || {};
+    if (!validUuid(attemptId)) return response.status(400).json({ code: 'INVALID_ATTEMPT_ID', message: 'Attempt id không hợp lệ.' });
+    if (!validUuid(graderUserId)) return response.status(400).json({ code: 'INVALID_GRADER_ID', message: 'Grader user id không hợp lệ.' });
+    try {
+      const assignment = await manualScoringService.assign({
+        attemptId,
+        assignmentType,
+        graderUserId,
+        reason,
+        assignedByUserId: request.auth.user.id
+      });
+      if (!assignment) return response.status(404).json({ code: 'ATTEMPT_NOT_FOUND', message: 'Không tìm thấy attempt.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(201).json(assignment);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/manual-scoring/assignments', authenticate, manualGraderOnly, async (request, response, next) => {
+    try {
+      const assignments = await manualScoringService.listAssigned(request.auth.user.id, {
+        status: request.query.status
+      });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(assignments);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/manual-scoring/assignments/:id', authenticate, manualGraderOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_GRADING_ASSIGNMENT_ID', message: 'Assignment id không hợp lệ.' });
+    try {
+      const assignment = await manualScoringService.getAssigned(request.params.id, request.auth.user.id);
+      if (!assignment) return response.status(404).json({ code: 'GRADING_ASSIGNMENT_NOT_FOUND', message: 'Không tìm thấy assignment được giao.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(assignment);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/manual-scoring/assignments/:id/grades', authenticate, manualGraderOnly, requireCsrf, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_GRADING_ASSIGNMENT_ID', message: 'Assignment id không hợp lệ.' });
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    const { grades } = request.body || {};
+    try {
+      const result = await manualScoringService.grade({
+        id: request.params.id,
+        graderUserId: request.auth.user.id,
+        idempotencyKey,
+        grades
+      });
+      if (!result) return response.status(404).json({ code: 'GRADING_ASSIGNMENT_NOT_FOUND', message: 'Không tìm thấy assignment được giao.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(result.duplicate ? 200 : 201).json(result);
     } catch (error) {
       return next(error);
     }

@@ -53,3 +53,6 @@
 - Thêm role `ASSESSMENT_SPECIALIST`, API Specialist/Reviewer/Student có CSRF/idempotency/self-review/IDOR guard và `/#assessment` workspace.
 - Giữ threshold/guidance trong approved config thay vì hardcode; public result loại raw evidence/submitted/correct answer. Framework mặc định là DEMO và nội dung thật vẫn chờ academic approval.
 - Bổ sung MySQL 8.4 assessment integration; sửa canonical hash timestamp sang ISO để evidence/result giữ toàn vẹn qua JSON database round-trip.
+- Thêm migration `014_manual_scoring.sql`, role `MANUAL_GRADER`, explicit per-attempt assignment và exact-idempotent manual scoring operation.
+- Thêm immutable essay score revision/regrade, assignee-scoped API/RBAC/audit, Student-safe feedback projection và `/#grading` workspace.
+- Bổ sung unit/HTTP/MySQL 8.4 gates cho initial scoring, revision conflict, retry, privacy và regrade revision 1→2→3.
