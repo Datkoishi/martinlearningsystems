@@ -1,11 +1,12 @@
 # Roadmap
 
 1. **Phase 0/1a — hoàn thành kỹ thuật:** audit, docs baseline, rich-content/data foundation, student-safe FIXED DEMO.
-2. **Phase 1b — hoàn thành hạ tầng kỹ thuật:** ZIP staging, validation, session/RBAC, technical/academic review, atomic version publish và local catalog delivery đã có; S3/CDN promotion là hardening tiếp theo.
+2. **Phase 1b — hoàn thành hạ tầng kỹ thuật:** ZIP staging, validation, session/RBAC, technical/academic review, atomic version publish, catalog delivery, S3-compatible promotion/rollback và object fallback telemetry đã có; bucket identity/CDN là deployment hardening tiếp theo.
 3. **Phase 2 — hoàn thành player core:** published FIXED catalog, immutable attempt snapshot, autosave idempotent, submit transaction, scoring version và conservative reveal policy đã có. Tenant-scoped access vẫn là production prerequisite.
-4. **Phase 3 — core hoàn thành:** indexed question metadata, approved/licensed pool, deterministic hard-constraint engine, BlueprintVersion approval, immutable publication, catalog và Student attempt từ ASSEMBLED snapshot đã có. Authoring revision/history optimization/assignment là mở rộng tiếp theo.
-5. **Production track — đang làm:** fail-fast config, live/ready probes, graceful drain, Nginx security/upload baseline đã có. Còn migration ledger/runner, backup-restore rehearsal, TLS/secret deployment, observability, tenant scope và S3/CDN.
-6. **Phase 4:** evidence framework, recommendations và cấu hình pilot lớp 5/9/12 có approval.
-7. **Phase 5+:** teacher/guardian/school scope, manual essay, operations hardening; sau đó Word/PDF nâng cao.
+4. **Phase 3 — authoring/governance hoàn thành:** indexed question metadata, approved/licensed pool, deterministic hard-constraint engine, immutable Blueprint revision/version approval, filtered Editor/Reviewer queues, publication, catalog và Student attempt từ ASSEMBLED snapshot đã có. Failed-run history/optimization/assignment là mở rộng tiếp theo.
+5. **Production track — bundle repo đã verified:** Node 24 runtime, fail-fast, TLS edge/Docker secrets, versioned migration gate, scheduled DB+import recovery set, S3-compatible media cutover/rollback, protected Prometheus metrics và Alertmanager rules đã pass full-stack fixture smoke. Còn deploy trên host/domain thật, encrypted off-site destination, xác nhận webhook delivery, bucket workload identity/CDN và tenant scope.
+6. **Phase 4 — technical slice verified:** versioned evidence framework, independent approval, FINAL-evidence reader, conservative four-level interpretation, rule-based recommendation và owner-only Student UI/API đã có. Còn tạo/duyệt framework học thuật thật cho pilot lớp 5/9/12; trạng thái `ACADEMIC_APPROVAL_PENDING`.
+7. **Phase 5 — manual scoring core hoàn thành:** explicit Super Admin assignment, assignee-scoped Manual Grader queue, immutable initial/regrade score revisions, Student feedback projection và MySQL transaction/audit đã có. Còn tenant/class roster để thay UUID assignment thủ công.
+8. **Phase 6+:** tenant/class-scoped Teacher/guardian/school reporting, operations hardening; sau đó Word/PDF nâng cao.
 
-Task production kế tiếp: `OPS-001b` — migration ledger/runner có advisory lock + checksum và diễn tập backup/restore trên MySQL copy. Task sản phẩm kế tiếp vẫn là `ASM-001c`.
+Task production kế tiếp: `OPS-001f` — target provisioning/go-live evidence: certificate/domain thật, encrypted off-site backup, alert delivery drill, bucket identity/CDN và tenant boundary. Task sản phẩm kế tiếp: `ASMNT-002` — academic pilot framework + tenant/class-scoped Teacher reporting; hoặc `PLAY-001d` — timer/deadline + attempt policy.

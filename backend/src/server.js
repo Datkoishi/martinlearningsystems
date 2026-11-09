@@ -3,10 +3,15 @@ import { Server } from 'socket.io';
 import { createApp } from './app.js';
 import { config } from './config.js';
 import { db } from './db.js';
+import { closeCatalogStorage } from './catalog/index.js';
+import { createMetricsServer, metricsRegistry } from './operations/metrics.js';
 
 let shuttingDown = false;
 const app = createApp({ readinessCheck: () => !shuttingDown });
 const server = http.createServer(app);
+const metricsServer = config.metrics.enabled
+  ? createMetricsServer({ registry: metricsRegistry, bearerToken: config.metrics.bearerToken })
+  : null;
 
 const io = new Server(server, {
   cors: {
@@ -29,12 +34,19 @@ io.on('connection', (socket) => {
 server.listen(config.port, () => {
   console.log(`Backend listening on port ${config.port}`);
 });
+metricsServer?.listen(config.metrics.port, config.metrics.bindAddress, () => {
+  console.log(`Backend metrics listening on ${config.metrics.bindAddress}:${config.metrics.port}`);
+});
 
 let shutdownPromise;
 const closeRealtime = () => new Promise((resolve) => io.close(resolve));
 const closeHttp = () => new Promise((resolve, reject) => {
   if (!server.listening) return resolve();
   return server.close((error) => error ? reject(error) : resolve());
+});
+const closeMetrics = () => new Promise((resolve, reject) => {
+  if (!metricsServer?.listening) return resolve();
+  return metricsServer.close((error) => error ? reject(error) : resolve());
 });
 
 const shutdown = (signal) => {
@@ -51,6 +63,8 @@ const shutdown = (signal) => {
   shutdownPromise = (async () => {
     await closeRealtime();
     await closeHttp();
+    await closeMetrics();
+    closeCatalogStorage();
     await db.end();
     clearTimeout(deadline);
     process.exitCode = 0;

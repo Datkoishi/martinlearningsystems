@@ -1,16 +1,17 @@
-FROM node:20-alpine AS dependencies
+FROM node:24-alpine AS dependencies
 WORKDIR /app
-COPY package*.json ./
+COPY backend/package*.json ./
 RUN npm ci --omit=dev
 
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
-COPY package*.json ./
-COPY src ./src
-COPY scripts ./scripts
+COPY backend/package*.json ./
+COPY backend/src ./src
+COPY backend/scripts ./scripts
+COPY database/init ./database/init
 RUN mkdir -p /app/.data/imports && chown -R node:node /app/.data
 USER node
-EXPOSE 3000
+EXPOSE 3000 9464
 CMD ["node", "src/server.js"]

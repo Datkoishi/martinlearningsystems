@@ -282,6 +282,18 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
       calls.push(['create', command]);
       return { id: assemblyId, status: 'SUCCEEDED', duplicate: false };
     },
+    async createRevision(command) {
+      calls.push(['revision', command]);
+      return { id: assemblyId, blueprintVersion: 2, status: 'SUCCEEDED', duplicate: false };
+    },
+    async listOwned(ownerId, filters) {
+      calls.push(['owned-queue', { ownerId, filters }]);
+      return { items: [{ id: assemblyId }], total: 1, page: 1, limit: 20, nextPage: null };
+    },
+    async listReviewQueue(reviewerUserId, filters) {
+      calls.push(['review-queue', { reviewerUserId, filters }]);
+      return { items: [{ id: assemblyId }], total: 1, page: 1, limit: 20, nextPage: null };
+    },
     async getOwned(id, ownerId) {
       calls.push(['get', { id, ownerId }]);
       return { id, status: 'SUCCEEDED' };
@@ -353,6 +365,35 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
   assert.equal(calls[0][1].creatorUserId, editorId);
   assert.equal(calls[0][1].idempotencyKey, 'assembly-key-001');
 
+  const ownedQueue = await fetch(`${baseUrl}/api/assemblies?status=NEEDS_REVIEW&purpose=PRACTICE&q=demo`, {
+    headers: { Cookie: editorCookie }
+  });
+  assert.equal(ownedQueue.status, 200);
+  assert.deepEqual((await ownedQueue.json()).items, [{ id: assemblyId }]);
+  assert.deepEqual(calls.at(-1), ['owned-queue', {
+    ownerId: editorId,
+    filters: { status: 'NEEDS_REVIEW', purpose: 'PRACTICE', query: 'demo', page: undefined, limit: undefined }
+  }]);
+
+  const revisionMissingCsrf = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/revisions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: editorCookie, 'Idempotency-Key': 'assembly-revision-key-001' },
+    body
+  });
+  assert.equal(revisionMissingCsrf.status, 403);
+  const revision = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/revisions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: editorCookie,
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'assembly-revision-key-001'
+    },
+    body
+  });
+  assert.equal(revision.status, 201);
+  assert.deepEqual(calls.at(-1)[0], 'revision');
+  assert.equal(calls.at(-1)[1].sourceRunId, assemblyId);
+  assert.equal(calls.at(-1)[1].creatorUserId, editorId);
+
   const restored = await fetch(`${baseUrl}/api/assemblies/${assemblyId}`, {
     headers: { Cookie: editorCookie }
   });
@@ -365,6 +406,21 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
   assert.equal(editorPreview.status, 403);
 
   const reviewerCookie = 'eduassess_session=reviewer-session; eduassess_csrf=csrf-token';
+  const reviewerQueue = await fetch(`${baseUrl}/api/assembly-review-queue?status=NEEDS_REVIEW&page=1&limit=25`, {
+    headers: { Cookie: reviewerCookie }
+  });
+  assert.equal(reviewerQueue.status, 200);
+  assert.deepEqual((await reviewerQueue.json()).items, [{ id: assemblyId }]);
+  assert.deepEqual(calls.at(-1), ['review-queue', {
+    reviewerUserId: reviewerId,
+    filters: { status: 'NEEDS_REVIEW', purpose: undefined, query: undefined, page: '1', limit: '25' }
+  }]);
+
+  const editorQueueDenied = await fetch(`${baseUrl}/api/assembly-review-queue`, {
+    headers: { Cookie: editorCookie }
+  });
+  assert.equal(editorQueueDenied.status, 403);
+
   const reviewerPreview = await fetch(`${baseUrl}/api/assemblies/${assemblyId}/reviewer-preview`, {
     headers: { Cookie: reviewerCookie }
   });
@@ -396,4 +452,270 @@ test('assembly routes require Editor, CSRF, idempotency and owner-scoped reads',
   });
   assert.equal(published.status, 201);
   assert.deepEqual(calls.at(-1), ['publish', { id: assemblyId, publisherUserId: reviewerId }]);
+});
+
+test('assessment routes enforce specialist authoring, independent review and Student ownership', async (context) => {
+  const specialistId = '00000000-0000-4000-8000-000000000611';
+  const reviewerId = '00000000-0000-4000-8000-000000000612';
+  const studentId = '00000000-0000-4000-8000-000000000613';
+  const frameworkId = '00000000-0000-4000-8000-000000000614';
+  const resultId = '00000000-0000-4000-8000-000000000615';
+  const calls = [];
+  const authService = {
+    async authenticate(token) {
+      const identity = token === 'specialist-session'
+        ? { id: specialistId, role: 'ASSESSMENT_SPECIALIST' }
+        : token === 'reviewer-session'
+          ? { id: reviewerId, role: 'ACADEMIC_REVIEWER' }
+          : token === 'student-session'
+            ? { id: studentId, role: 'STUDENT' }
+            : { id: '00000000-0000-4000-8000-000000000616', role: 'CONTENT_EDITOR' };
+      return {
+        expiresAt: new Date('2026-11-09T00:00:00Z'),
+        csrfTokenHash: 'test-only',
+        user: { id: identity.id, roles: [identity.role] }
+      };
+    },
+    validateCsrf: (_auth, token) => token === 'csrf-token'
+  };
+  const assessmentService = {
+    async createFramework(command) {
+      calls.push(['create-framework', command]);
+      return { id: frameworkId, approvalStatus: 'NEEDS_REVIEW', duplicate: false };
+    },
+    async listReviewQueue(userId) {
+      calls.push(['framework-queue', userId]);
+      return { items: [{ id: frameworkId }] };
+    },
+    async listAvailable() {
+      calls.push(['available']);
+      return { items: [{ id: frameworkId }] };
+    },
+    async getForReview(id) {
+      calls.push(['framework-preview', id]);
+      return { id, approvalStatus: 'NEEDS_REVIEW' };
+    },
+    async reviewFramework(command) {
+      calls.push(['framework-review', command]);
+      return { id: command.id, approvalStatus: 'APPROVED' };
+    },
+    async generate(command) {
+      calls.push(['generate-assessment', command]);
+      return { id: resultId, state: 'INSUFFICIENT_EVIDENCE', duplicate: false };
+    },
+    async getLatestOwned(id, userId) {
+      calls.push(['latest-assessment', { id, userId }]);
+      return { id: resultId, frameworkVersionId: id };
+    },
+    async getOwned(id, userId) {
+      calls.push(['get-assessment', { id, userId }]);
+      return { id, state: 'INSUFFICIENT_EVIDENCE' };
+    }
+  };
+  const app = createApp({ authService, assessmentService, importsEnabled: false });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const cookie = (session) => `eduassess_session=${session}; eduassess_csrf=csrf-token`;
+  const frameworkBody = JSON.stringify({ stableKey: 'demo.math.5', framework: { schemaVersion: '1.0.0' } });
+
+  const missingCsrf = await fetch(`${baseUrl}/api/assessment-frameworks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('specialist-session'),
+      'Idempotency-Key': 'framework-create-key-001'
+    },
+    body: frameworkBody
+  });
+  assert.equal(missingCsrf.status, 403);
+
+  const studentCreate = await fetch(`${baseUrl}/api/assessment-frameworks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('student-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'framework-create-key-001'
+    },
+    body: frameworkBody
+  });
+  assert.equal(studentCreate.status, 403);
+
+  const created = await fetch(`${baseUrl}/api/assessment-frameworks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('specialist-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'framework-create-key-001'
+    },
+    body: frameworkBody
+  });
+  assert.equal(created.status, 201);
+  assert.equal(calls.at(-1)[1].creatorUserId, specialistId);
+
+  const queue = await fetch(`${baseUrl}/api/assessment-frameworks/review-queue`, {
+    headers: { Cookie: cookie('reviewer-session') }
+  });
+  assert.equal(queue.status, 200);
+  assert.deepEqual((await queue.json()).items, [{ id: frameworkId }]);
+  assert.deepEqual(calls.at(-1), ['framework-queue', reviewerId]);
+
+  const preview = await fetch(`${baseUrl}/api/assessment-frameworks/${frameworkId}/reviewer-preview`, {
+    headers: { Cookie: cookie('reviewer-session') }
+  });
+  assert.equal(preview.status, 200);
+
+  const reviewed = await fetch(`${baseUrl}/api/assessment-frameworks/${frameworkId}/reviews`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('reviewer-session'),
+      'X-CSRF-Token': 'csrf-token'
+    },
+    body: JSON.stringify({ decision: 'APPROVE', reason: 'Đã kiểm tra toàn bộ coverage và interpretation rules.' })
+  });
+  assert.equal(reviewed.status, 201);
+  assert.equal(calls.at(-1)[1].reviewerUserId, reviewerId);
+
+  const available = await fetch(`${baseUrl}/api/assessment-frameworks/available`, {
+    headers: { Cookie: cookie('student-session') }
+  });
+  assert.equal(available.status, 200);
+
+  const generated = await fetch(`${baseUrl}/api/assessments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('student-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'assessment-generate-key-001'
+    },
+    body: JSON.stringify({ frameworkVersionId: frameworkId })
+  });
+  assert.equal(generated.status, 201);
+  assert.equal(calls.at(-1)[1].studentUserId, studentId);
+
+  const latest = await fetch(`${baseUrl}/api/assessments/latest?frameworkVersionId=${frameworkId}`, {
+    headers: { Cookie: cookie('student-session') }
+  });
+  assert.equal(latest.status, 200);
+  assert.deepEqual(calls.at(-1), ['latest-assessment', { id: frameworkId, userId: studentId }]);
+
+  const result = await fetch(`${baseUrl}/api/assessments/${resultId}`, {
+    headers: { Cookie: cookie('student-session') }
+  });
+  assert.equal(result.status, 200);
+  assert.deepEqual(calls.at(-1), ['get-assessment', { id: resultId, userId: studentId }]);
+
+  const reviewerGenerate = await fetch(`${baseUrl}/api/assessments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('reviewer-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'assessment-generate-key-002'
+    },
+    body: JSON.stringify({ frameworkVersionId: frameworkId })
+  });
+  assert.equal(reviewerGenerate.status, 403);
+});
+
+test('manual scoring routes require explicit admin assignment and assigned grader role', async (context) => {
+  const adminId = '00000000-0000-4000-8000-000000000821';
+  const graderId = '00000000-0000-4000-8000-000000000822';
+  const studentId = '00000000-0000-4000-8000-000000000823';
+  const attemptId = '00000000-0000-4000-8000-000000000824';
+  const assignmentId = '00000000-0000-4000-8000-000000000825';
+  const questionId = '00000000-0000-4000-8000-000000000826';
+  const calls = [];
+  const authService = {
+    async authenticate(token) {
+      const identity = token === 'admin-session'
+        ? { id: adminId, role: 'SUPER_ADMIN' }
+        : token === 'grader-session'
+          ? { id: graderId, role: 'MANUAL_GRADER' }
+          : { id: studentId, role: 'STUDENT' };
+      return {
+        expiresAt: new Date('2026-11-10T00:00:00Z'),
+        csrfTokenHash: 'test-only',
+        user: { id: identity.id, roles: [identity.role] }
+      };
+    },
+    validateCsrf: (_auth, token) => token === 'csrf-token'
+  };
+  const manualScoringService = {
+    async assign(command) {
+      calls.push(['assign', command]);
+      return { id: assignmentId, attemptId, assignmentType: command.assignmentType, sourceScoreRevision: 1 };
+    },
+    async listAssigned(userId, filters) {
+      calls.push(['queue', { userId, filters }]);
+      return { items: [{ id: assignmentId }] };
+    },
+    async getAssigned(id, userId) {
+      calls.push(['preview', { id, userId }]);
+      return { id, questions: [{ question: { versionId: questionId } }] };
+    },
+    async grade(command) {
+      calls.push(['grade', command]);
+      return { assignmentId, scoreRevision: 2, duplicate: false };
+    }
+  };
+  const app = createApp({ authService, manualScoringService, importsEnabled: false });
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const cookie = (name) => `eduassess_session=${name}; eduassess_csrf=csrf-token`;
+
+  const studentAssign = await fetch(`${baseUrl}/api/manual-scoring/assignments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie('student-session'), 'X-CSRF-Token': 'csrf-token' },
+    body: JSON.stringify({ attemptId, assignmentType: 'INITIAL', graderUserId: graderId, reason: 'Chấm bài tự luận theo rubric.' })
+  });
+  assert.equal(studentAssign.status, 403);
+  assert.equal(calls.length, 0);
+
+  const missingCsrf = await fetch(`${baseUrl}/api/manual-scoring/assignments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie('admin-session') },
+    body: JSON.stringify({ attemptId, assignmentType: 'INITIAL', graderUserId: graderId, reason: 'Chấm bài tự luận theo rubric.' })
+  });
+  assert.equal(missingCsrf.status, 403);
+
+  const assigned = await fetch(`${baseUrl}/api/manual-scoring/assignments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie('admin-session'), 'X-CSRF-Token': 'csrf-token' },
+    body: JSON.stringify({ attemptId, assignmentType: 'INITIAL', graderUserId: graderId, reason: 'Chấm bài tự luận theo rubric.' })
+  });
+  assert.equal(assigned.status, 201);
+  assert.equal(calls.at(-1)[1].assignedByUserId, adminId);
+
+  const studentQueue = await fetch(`${baseUrl}/api/manual-scoring/assignments`, {
+    headers: { Cookie: cookie('student-session') }
+  });
+  assert.equal(studentQueue.status, 403);
+
+  const queue = await fetch(`${baseUrl}/api/manual-scoring/assignments?status=OPEN`, {
+    headers: { Cookie: cookie('grader-session') }
+  });
+  assert.equal(queue.status, 200);
+  assert.deepEqual(calls.at(-1), ['queue', { userId: graderId, filters: { status: 'OPEN' } }]);
+
+  const preview = await fetch(`${baseUrl}/api/manual-scoring/assignments/${assignmentId}`, {
+    headers: { Cookie: cookie('grader-session') }
+  });
+  assert.equal(preview.status, 200);
+  assert.deepEqual(calls.at(-1), ['preview', { id: assignmentId, userId: graderId }]);
+
+  const gradeMissingKey = await fetch(`${baseUrl}/api/manual-scoring/assignments/${assignmentId}/grades`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie('grader-session'), 'X-CSRF-Token': 'csrf-token' },
+    body: JSON.stringify({ grades: [] })
+  });
+  assert.equal(gradeMissingKey.status, 400);
+
+  const graded = await fetch(`${baseUrl}/api/manual-scoring/assignments/${assignmentId}/grades`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', Cookie: cookie('grader-session'),
+      'X-CSRF-Token': 'csrf-token', 'Idempotency-Key': 'manual-grade-key-001'
+    },
+    body: JSON.stringify({ grades: [{ questionVersionId: questionId, awardedPoints: 2, feedback: 'Đạt yêu cầu.' }] })
+  });
+  assert.equal(graded.status, 201);
+  assert.equal(calls.at(-1)[1].graderUserId, graderId);
 });

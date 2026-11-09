@@ -6,7 +6,8 @@
     "install:all": "npm ci --prefix backend && npm ci --prefix frontend",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
-    "test": "npm test --prefix backend && npm run build --prefix frontend",
+    "test": "npm test --prefix backend && npm run test:ops && npm run build --prefix frontend",
+    "test:ops": "bash ops/backup/test.sh",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f"

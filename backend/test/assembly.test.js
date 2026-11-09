@@ -124,11 +124,59 @@ class MemoryAssemblyRepository {
   async findForReview(id) {
     return this.runs.find((run) => run.id === id) || null;
   }
+  queueItems(runs, { status, purpose, query, page, limit }) {
+    const filtered = runs.filter((run) => (
+      (!status || run.approvalStatus === status)
+      && (!purpose || run.blueprint.purpose === purpose)
+      && (!query || run.blueprint.title.toLowerCase().includes(query.toLowerCase()))
+    ));
+    const offset = (page - 1) * limit;
+    return {
+      items: filtered.slice(offset, offset + limit).map((run) => ({
+        id: run.id,
+        blueprintId: run.blueprintId,
+        blueprintVersionId: run.blueprintVersionId,
+        blueprintVersion: run.blueprintVersion,
+        approvalStatus: run.approvalStatus,
+        title: run.blueprint.title,
+        grade: run.blueprint.grade,
+        subject: run.blueprint.subject,
+        purpose: run.blueprint.purpose,
+        seed: run.seed,
+        creator: { id: run.creatorUserId, displayName: run.creatorUserId },
+        review: run.review ? { decision: run.review.decision, createdAt: run.review.createdAt } : null,
+        publication: run.publication ? { examVersionId: run.publication.examVersionId, publishedAt: run.publication.publishedAt } : null,
+        createdAt: run.createdAt
+      })),
+      total: filtered.length,
+      page,
+      limit,
+      nextPage: page * limit < filtered.length ? page + 1 : null
+    };
+  }
+  async listOwnedQueue(filters) {
+    return this.queueItems(this.runs.filter((run) => run.creatorUserId === filters.creatorUserId), filters);
+  }
+  async listReviewQueue(filters) {
+    return this.queueItems(this.runs.filter((run) => run.creatorUserId !== filters.reviewerUserId), filters);
+  }
   async listEligiblePool() { return structuredClone(this.pool); }
   async createRun(run) {
     const existing = await this.findByIdempotency(run.creatorUserId, run.idempotencyKey);
     if (existing) return { run: existing, duplicate: true };
     const created = structuredClone(run);
+    if (created.revisionOfBlueprintVersionId) {
+      const versions = this.runs.filter((item) => item.blueprintId === created.blueprintId)
+        .sort((left, right) => right.blueprintVersion - left.blueprintVersion);
+      const latest = versions[0];
+      if (!latest || latest.blueprintVersionId !== created.revisionOfBlueprintVersionId) {
+        throw Object.assign(new Error('stale'), { code: 'BLUEPRINT_REVISION_STALE', statusCode: 409 });
+      }
+      if (!['REJECTED', 'PUBLISHED'].includes(latest.approvalStatus)) {
+        throw Object.assign(new Error('blocked'), { code: 'BLUEPRINT_REVISION_BLOCKED', statusCode: 409 });
+      }
+      created.blueprintVersion = latest.blueprintVersion + 1;
+    }
     this.runs.push(created);
     return { run: created, duplicate: false };
   }
@@ -313,6 +361,87 @@ test('assembly service persists an immutable student-safe snapshot with exact id
   await assert.rejects(
     service.getOwned(first.id, 'editor-1'),
     (error) => error.code === 'ASSEMBLY_SNAPSHOT_INTEGRITY_FAILED'
+  );
+});
+
+test('blueprint revisions preserve identity, require a terminal latest version and keep queue payloads safe', async () => {
+  const repository = new MemoryAssemblyRepository();
+  const service = new AssemblyService({ repository, now: () => new Date('2026-11-08T08:00:00Z') });
+  const first = await service.create({
+    creatorUserId: 'editor-1',
+    idempotencyKey: 'assembly-revision-v1-key',
+    blueprint: blueprint(),
+    seed: 'revision-seed-version-001'
+  });
+  const revisedBlueprint = blueprint();
+  revisedBlueprint.title = '[DEMO] Blueprint Toán 5 — revision 2';
+
+  await assert.rejects(
+    service.createRevision({
+      sourceRunId: first.id,
+      creatorUserId: 'editor-1',
+      idempotencyKey: 'assembly-revision-v2-key',
+      blueprint: revisedBlueprint,
+      seed: 'revision-seed-version-002'
+    }),
+    (error) => error.code === 'BLUEPRINT_REVISION_BLOCKED'
+  );
+  await service.review({
+    id: first.id,
+    reviewerUserId: 'reviewer-1',
+    decision: 'REJECT',
+    reason: 'Blueprint cần sửa tiêu đề và seed trước khi gửi duyệt lại.'
+  });
+  const second = await service.createRevision({
+    sourceRunId: first.id,
+    creatorUserId: 'editor-1',
+    idempotencyKey: 'assembly-revision-v2-key',
+    blueprint: revisedBlueprint,
+    seed: 'revision-seed-version-002'
+  });
+  const retry = await service.createRevision({
+    sourceRunId: first.id,
+    creatorUserId: 'editor-1',
+    idempotencyKey: 'assembly-revision-v2-key',
+    blueprint: revisedBlueprint,
+    seed: 'revision-seed-version-002'
+  });
+
+  assert.equal(second.blueprintId, first.blueprintId);
+  assert.equal(second.blueprintVersion, 2);
+  assert.notEqual(second.blueprintVersionId, first.blueprintVersionId);
+  assert.equal(retry.id, second.id);
+  assert.equal(retry.duplicate, true);
+  assert.equal(repository.runs[0].blueprint.title, '[DEMO] Blueprint Toán 5');
+
+  const owned = await service.listOwned('editor-1', { status: 'REJECTED', query: 'Toán 5', page: '1', limit: '10' });
+  assert.equal(owned.total, 1);
+  assert.equal(owned.items[0].id, first.id);
+  assert.equal(JSON.stringify(owned).includes('answerKey'), false);
+  const reviewQueue = await service.listReviewQueue('reviewer-1', { status: 'NEEDS_REVIEW' });
+  assert.equal(reviewQueue.total, 1);
+  assert.equal(reviewQueue.items[0].id, second.id);
+  assert.equal((await service.listReviewQueue('editor-1', { status: 'NEEDS_REVIEW' })).total, 0);
+  await assert.rejects(
+    service.listOwned('editor-1', { status: 'DRAFT' }),
+    (error) => error.code === 'INVALID_QUEUE_FILTER' && error.statusCode === 400
+  );
+
+  await service.review({
+    id: second.id,
+    reviewerUserId: 'reviewer-1',
+    decision: 'REJECT',
+    reason: 'Revision thứ hai vẫn cần điều chỉnh trước lần gửi tiếp theo.'
+  });
+  await assert.rejects(
+    service.createRevision({
+      sourceRunId: first.id,
+      creatorUserId: 'editor-1',
+      idempotencyKey: 'assembly-revision-stale-key',
+      blueprint: revisedBlueprint,
+      seed: 'revision-seed-version-003'
+    }),
+    (error) => error.code === 'BLUEPRINT_REVISION_STALE'
   );
 });
 

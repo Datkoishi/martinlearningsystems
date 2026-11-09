@@ -2,7 +2,7 @@
 
 ## Trạng thái hiện tại
 
-`eduassess-assembly-v1` nhận Blueprint 1.0.0 + seed, lọc approved/licensed question pool, giải hard constraints bằng backtracking có giới hạn, rồi lưu immutable `assembly_runs` snapshot. Mỗi run gắn BlueprintVersion `NEEDS_REVIEW`; independent Reviewer phải duyệt đúng hash trước khi publish thành ExamVersion ASSEMBLED. Student catalog/attempt dùng published snapshot và không chạy lại engine.
+`eduassess-assembly-v1` nhận Blueprint 1.0.0 + seed, lọc approved/licensed question pool, giải hard constraints bằng backtracking có giới hạn, rồi lưu immutable `assembly_runs` snapshot. Mỗi run gắn BlueprintVersion `NEEDS_REVIEW`; independent Reviewer phải duyệt đúng hash trước khi publish thành ExamVersion ASSEMBLED. Editor có thể tạo version kế tiếp trên cùng Blueprint identity sau khi version mới nhất `REJECTED` hoặc `PUBLISHED`; Student catalog/attempt dùng published snapshot và không chạy lại engine.
 
 ## Eligibility của question pool
 
@@ -67,9 +67,16 @@ Engine chưa xáo options và chưa dùng soft optimization/student history. Cá
 3. Creator không được tự review. Một BlueprintVersion chỉ có một `APPROVE|REJECT`; record bind `selection_sha256` và source `snapshot_sha256`.
 4. Chỉ `APPROVED` được publish. Transaction tạo `ExamVersion(mode=ASSEMBLED, PUBLISHED)`, publication record, student/scoring snapshots mới với ExamVersion ID, hash và audit; retry không tạo version/audit mới.
 5. Catalog xác minh published snapshot hash. Student attempt lại đóng băng bản sao của đúng publication snapshot; refresh/retry không query pool và không reassemble.
-6. `FORMAL_ASSESSMENT` tiếp tục fail-closed. Rejected blueprint không được sửa tại chỗ; tạo technical run/version mới.
+6. `FORMAL_ASSESSMENT` tiếp tục fail-closed. Rejected/published BlueprintVersion không được sửa tại chỗ; revision luôn chạy engine lại và tạo technical run/version mới.
 
-Schema hiện hỗ trợ identity/version nhưng UI tạo version 1 cho từng technical run; authoring revision trên cùng blueprint identity là phần mở rộng sau, không thay đổi version đã duyệt/publish.
+## Revision và governance queue
+
+- Revision nhận full Blueprint 1.0.0 + seed mới từ một owned source run, giữ `exam_blueprints.id` và cấp `version_number + 1`; source BlueprintVersion/run/snapshot không bị sửa.
+- Chỉ version mới nhất được làm nguồn. `NEEDS_REVIEW` và `APPROVED` khóa revision để không tạo hai nhánh governance song song; `REJECTED` và `PUBLISHED` mới mở version kế tiếp.
+- Transaction khóa Blueprint identity rồi đọc latest version bằng `FOR UPDATE`, vì vậy hai request revision đồng thời không thể cùng nhận một version number. Exact idempotency replay vẫn trả run đã tạo.
+- Editor queue chỉ trả run thuộc creator; Reviewer queue loại run do chính Reviewer tạo. Cả hai lọc theo status, purpose, title substring và phân trang tối đa 100 item.
+- Queue chỉ có metadata quản trị, creator/review/publication summary và hashes. Student/scoring snapshots, answer key và explanation chỉ tải qua owner/reviewer endpoint tương ứng.
+- Assembly Lab hỗ trợ tạo/mở revision một-section theo editor form hiện tại; API vẫn nhận Blueprint nhiều section theo schema. Reviewer chọn run từ queue thay vì cần trao đổi UUID thủ công.
 
 ## Error contract chính
 
@@ -80,6 +87,10 @@ Schema hiện hỗ trợ identity/version nhưng UI tạo version 1 cho từng t
 - `ASSEMBLY_SEARCH_LIMIT` — không tìm được trong giới hạn deterministic.
 - `MISSING_ASSETS` — candidate graph tham chiếu asset thiếu/chưa publish.
 - `IDEMPOTENCY_KEY_REUSED` — cùng key cho request khác.
+- `INVALID_QUEUE_FILTER` — status/purpose/query/page/limit của queue không hợp lệ.
+- `BLUEPRINT_REVISION_STALE` — source không còn là version mới nhất của Blueprint.
+- `BLUEPRINT_REVISION_BLOCKED` — latest version chưa ở `REJECTED` hoặc `PUBLISHED`.
+- `BLUEPRINT_NOT_FOUND` — identity không thuộc Editor trong transaction revision.
 - `ASSEMBLY_SNAPSHOT_INTEGRITY_FAILED` — stored snapshot/hash không khớp.
 - `SELF_REVIEW_FORBIDDEN` — creator cố duyệt run của chính mình.
 - `ASSEMBLY_NOT_REVIEWABLE` / `ASSEMBLY_NOT_APPROVED` — decision đã khóa hoặc publish chưa đủ gate.

@@ -109,7 +109,9 @@ export class CatalogService {
 
   async readAsset(asset) {
     if (!asset) return null;
-    const data = await this.storage.readArchiveEntry(asset.storageKey);
+    const data = this.storage.readPublishedAsset
+      ? await this.storage.readPublishedAsset(asset)
+      : await this.storage.readArchiveEntry(asset.storageKey);
     if (!data || data.length !== asset.sizeBytes || sha256(data) !== asset.sha256) {
       throw catalogError('PUBLISHED_ASSET_INTEGRITY_FAILED', 'Asset đã publish không còn khớp size/hash.', 500);
     }

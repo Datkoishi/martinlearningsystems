@@ -59,3 +59,45 @@ ASSEMBLED nhiều nguồn nên `exams.source_id` nullable; provenance vẫn ở 
 Local Compose mặc định development để HTTP/cookie local còn dùng được; production không được kế thừa mặc định đó. Backend parse typed env trước khi listen và từ chối production nếu origin không HTTPS, cookie không Secure hoặc DB secret trống/mặc định. Liveness không phụ thuộc DB; readiness phụ thuộc DB và trạng thái draining. SIGTERM/SIGINT hạ readiness trước, đóng realtime/HTTP/pool trong deadline hữu hạn.
 
 Nginx là static/reverse-proxy boundary: CSP/security headers, health riêng và upload 26 MiB phải khớp API 25 MiB. Font bên thứ ba bị loại để giảm outbound tracking surface. Đây không thay migration ledger, TLS edge, tenant scope, storage hay monitoring. Chi tiết ở ADR-0010.
+
+## D-014 Migration ledger là release gate, adoption luôn fail-closed
+
+Compose không mount SQL vào MySQL entrypoint; one-shot migrator phải hoàn tất trước backend. File migration có sequence liên tục và SHA-256 bất biến, runner giữ advisory lock theo database, mặc định skip seed DEMO và ghi operation vào `schema_migrations`. Database có schema nhưng không ledger chỉ được adopt sau backup/xác minh rõ bằng flag; sentinel thiếu, schema một phần hoặc later evidence đều bị chặn.
+
+MySQL DDL có implicit commit nên ledger không giả định toàn bộ file rollback nguyên tử. Khi execution lỗi, operator phải dừng rollout và restore/repair có review thay vì sửa ledger. Backup/restore rehearsal trên database cô lập là release evidence; lịch/off-site retention/alerts vẫn là hạ tầng riêng. Chi tiết ở ADR-0011.
+
+## D-015 Backup DB và source archive là một recovery set
+
+Backup job dump MySQL single-transaction trước rồi archive `import_data` read-only, vì source/report được ghi trước ImportJob và không đổi sau publish. Mỗi set chỉ usable khi đủ manifest, ledger/schema invariants, SHA-256 và `READY`; lock chặn concurrent run, retention chỉ xóa complete set hết hạn. Health fail nếu failure mới hơn success hoặc backup quá tuổi để orchestrator alert.
+
+Restore checker chỉ chạy trên database cô lập có prefix `eduassess_restore_` và exact drop confirmation, so ledger/invariants rồi cleanup. Compose profile là opt-in; named volume chỉ baseline local. Encryption, off-site replication, alert delivery và lịch restore theo RPO/RTO là deployment responsibility. Object storage promotion được tách thành OPS-001d để không gộp hai failure domain. Chi tiết ở ADR-0012.
+
+## D-016 Object promotion giữ archive reference và cutover sau verification
+
+`media_assets.storage_key` không bị rewrite: nó tiếp tục trỏ source ZIP bất biến để provenance/rollback/recovery còn độc lập với object store. Object key là content-address SHA-256; service verify archive, conditional PUT và GET/hash/size trước khi transactionally đổi read preference. Runtime OBJECT luôn kiểm bytes và có archive fallback theo flag. Event/audit ghi mỗi transition; rollback verify archive, không xóa object và chặn batch tự promote lại.
+
+Upload nằm ngoài DB transaction nên lỗi DB sau PUT có thể để object content-addressed chưa referenced; đây là orphan an toàn, retry sẽ verify/reuse chứ không duplicate/overwrite. Không cleanup archive/object tự động trong slice này. Node production đồng thời nâng lên 24 LTS vì Node 20 đã EOL và AWS SDK báo vòng đời hỗ trợ. Bucket identity, CDN, replication, metrics và alert là deployment boundary tiếp theo. Chi tiết ở ADR-0013.
+
+## D-017 Production edge/secrets và monitoring là overlay fail-closed
+
+Base Compose tiếp tục phục vụ local development; production phải merge overlay có version requirement rõ, reset MySQL/backend host ports và plaintext DB secret, chỉ publish Nginx 80/443. Nginx terminate TLS 1.2/1.3 + HSTS; secret được mount bằng file. Network internal giữ DB/API/monitoring kín, edge network riêng mới cho phép Docker publish TLS frontend; backend/Alertmanager có egress riêng cho object store/webhook.
+
+Metrics chạy listener riêng, Bearer token đọc từ file và không được proxy/public. HTTP labels chỉ là method/route template/status; object read và backup health có outcome hữu hạn. Backup ghi textfile atomically cho node_exporter; Prometheus dùng credential file và Alertmanager dùng webhook URL file. Readiness của stack/Alertmanager không thay bằng chứng notification delivery hoặc off-site durability trên target thật. Chi tiết ở ADR-0014.
+
+## D-018 Blueprint revision là chuỗi tuyến tính, queue chỉ là safe projection
+
+Blueprint content không sửa tại chỗ. Revision nhận full Blueprint + seed mới, chạy lại deterministic engine và nối version trên cùng identity chỉ khi latest version đã `REJECTED` hoặc `PUBLISHED`. `NEEDS_REVIEW`/`APPROVED` khóa revision để không sinh nhánh governance song song; source không còn latest bị từ chối. Transaction khóa identity/latest version, còn unique version number là guard cuối cùng. Exact idempotency retry vẫn trả run cũ.
+
+Editor queue scope theo creator; Reviewer queue loại chính creator để phản ánh self-review gate. Queue chỉ trả metadata/review/publication summary và hashes, không trả student/scoring snapshot hay answer/explanation. Reviewer payload nhạy cảm chỉ tải sau khi chọn một run cụ thể. Schema 010 đã đủ nên không thêm migration chỉ để kích hoạt workflow này. Chi tiết ở ADR-0015.
+
+## D-019 Assessment là interpretation có evidence gate, không phải đổi điểm sang nhãn
+
+Scoring revision `FINAL` chỉ là nguồn evidence. Mỗi framework giữ purpose, allowed scoring versions, minimum attempts/items, skill/topic mapping, difficulty/task-type coverage, bốn threshold và guidance trong config versioned/hash; engine không hardcode giá trị threshold. Specialist tạo, Academic Reviewer khác người tạo bind một decision bất biến với config hash. Chỉ framework approved mới chạy.
+
+Nếu bất kỳ global/indicator coverage gate nào thiếu, engine không gán level và trả đúng `Chưa đủ bằng chứng`. Evidence snapshot nội bộ + interpretation được hash bất biến; public Student projection loại raw evidence và answer payload, query owner-scoped. Teacher cross-student khóa tới khi có tenant/class ownership. Framework UI là DEMO, nên technical verification không được ghi thành academic approval cho nội dung thật. Chi tiết ở ADR-0016.
+
+## D-020 Manual scoring cần explicit assignment và immutable regrade
+
+Không dùng role Teacher/global queue để mở toàn bộ bài làm khi tenant/class ownership chưa có. Super Admin phải bind từng Attempt/current score revision với `MANUAL_GRADER`; mọi grader query scope theo assignee. Preview chỉ có essay response + rubric cần thiết, không Student identity hoặc objective answer key.
+
+Chấm lần đầu và regrade không update score row cũ. Transaction tạo revision USER kế tiếp, update Attempt pointer/status, đóng assignment, lưu exact idempotency response và audit. Regrade chỉ thay điểm/feedback ESSAY; auto-scored questions được sao chép nguyên trạng. Student result vẫn qua purpose/state reveal policy và không mở rubric/grader identity. Chi tiết ở ADR-0017.

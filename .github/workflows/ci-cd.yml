@@ -24,7 +24,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: ${{ matrix.project }}/package-lock.json
 
@@ -37,6 +37,10 @@ jobs:
         working-directory: backend
         run: npm test
 
+      - name: Test operations scripts
+        if: matrix.project == 'backend'
+        run: bash ops/backup/test.sh
+
       - name: Build frontend
         if: matrix.project == 'frontend'
         working-directory: frontend
@@ -48,7 +52,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [backend, frontend]
+        include:
+          - service: backend
+            context: .
+            dockerfile: backend/Dockerfile
+          - service: frontend
+            context: ./frontend
+            dockerfile: frontend/Dockerfile
+          - service: backup
+            context: ./ops/backup
+            dockerfile: ops/backup/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,7 +85,8 @@ jobs:
       - name: Build and optionally publish
         uses: docker/build-push-action@v6
         with:
-          context: ./${{ matrix.service }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: ${{ github.event_name == 'push' }}
           tags: |
             ${{ steps.image.outputs.name }}:latest

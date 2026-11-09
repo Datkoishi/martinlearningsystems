@@ -11,7 +11,13 @@ import { authService as defaultAuthService } from './auth/index.js';
 import { catalogService as defaultCatalogService } from './catalog/index.js';
 import { attemptService as defaultAttemptService } from './attempts/index.js';
 import { assemblyService as defaultAssemblyService } from './assembly/index.js';
+import { assessmentService as defaultAssessmentService } from './assessment/index.js';
+import { manualScoringService as defaultManualScoringService } from './manual-scoring/index.js';
 import { ROLE } from './auth/auth-service.js';
+import {
+  createHttpMetricsMiddleware,
+  metricsRegistry as defaultMetricsRegistry
+} from './operations/metrics.js';
 import {
   clearAuthCookies,
   createAuthenticate,
@@ -51,9 +57,12 @@ export const createApp = ({
   catalogService = defaultCatalogService,
   attemptService = defaultAttemptService,
   assemblyService = defaultAssemblyService,
+  assessmentService = defaultAssessmentService,
+  manualScoringService = defaultManualScoringService,
   importsEnabled = config.importApiEnabled,
   readinessCheck = () => true,
-  trustProxy = config.trustProxy
+  trustProxy = config.trustProxy,
+  metricsRegistry = defaultMetricsRegistry
 } = {}) => {
   const app = express();
   app.set('trust proxy', trustProxy);
@@ -66,7 +75,11 @@ export const createApp = ({
   const reviewerOnly = requireRoles(ROLE.ACADEMIC_REVIEWER, ROLE.SUPER_ADMIN);
   const editorOrReviewer = requireRoles(ROLE.CONTENT_EDITOR, ROLE.ACADEMIC_REVIEWER, ROLE.SUPER_ADMIN);
   const studentOnly = requireRoles(ROLE.STUDENT);
+  const assessmentSpecialistOnly = requireRoles(ROLE.ASSESSMENT_SPECIALIST, ROLE.SUPER_ADMIN);
+  const superAdminOnly = requireRoles(ROLE.SUPER_ADMIN);
+  const manualGraderOnly = requireRoles(ROLE.MANUAL_GRADER, ROLE.SUPER_ADMIN);
 
+  app.use(createHttpMetricsMiddleware(metricsRegistry));
   app.use(helmet());
   app.use(cors({ origin: config.clientOrigin, credentials: true }));
 
@@ -144,8 +157,11 @@ export const createApp = ({
   app.get('/api/ready', async (_request, response) => {
     response.set('Cache-Control', 'no-store');
     try {
-      response.json(await getReadinessStatus(databaseCheck, readinessCheck));
+      const status = await getReadinessStatus(databaseCheck, readinessCheck);
+      metricsRegistry.setReady(true);
+      response.json(status);
     } catch (error) {
+      metricsRegistry.setReady(false);
       response.status(503).json({
         status: 'not_ready',
         database: error?.code === 'SERVICE_DRAINING' ? 'unknown' : 'disconnected',
@@ -214,6 +230,38 @@ export const createApp = ({
     }
   });
 
+  app.get('/api/assemblies', authenticate, editorOnly, async (request, response, next) => {
+    try {
+      const result = await assemblyService.listOwned(request.auth.user.id, {
+        status: request.query.status,
+        purpose: request.query.purpose,
+        query: request.query.q,
+        page: request.query.page,
+        limit: request.query.limit
+      });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assembly-review-queue', authenticate, reviewerOnly, async (request, response, next) => {
+    try {
+      const result = await assemblyService.listReviewQueue(request.auth.user.id, {
+        status: request.query.status,
+        purpose: request.query.purpose,
+        query: request.query.q,
+        page: request.query.page,
+        limit: request.query.limit
+      });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   app.get('/api/assemblies/:id', authenticate, editorOnly, async (request, response, next) => {
     if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
     try {
@@ -221,6 +269,27 @@ export const createApp = ({
       if (!run) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run.' });
       response.set('Cache-Control', 'no-store');
       return response.json(run);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assemblies/:id/revisions', authenticate, editorOnly, requireCsrf, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSEMBLY_ID', message: 'Assembly id không hợp lệ.' });
+    const { blueprint, seed } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    try {
+      const run = await assemblyService.createRevision({
+        sourceRunId: request.params.id,
+        creatorUserId: request.auth.user.id,
+        idempotencyKey,
+        blueprint,
+        seed
+      });
+      if (!run) return response.status(404).json({ code: 'ASSEMBLY_NOT_FOUND', message: 'Không tìm thấy assembly run thuộc Editor.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(run.duplicate ? 200 : 201).json(run);
     } catch (error) {
       return next(error);
     }
@@ -251,6 +320,115 @@ export const createApp = ({
         'Content-Disposition': 'inline'
       });
       return response.send(asset.data);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assessment-frameworks', authenticate, assessmentSpecialistOnly, requireCsrf, async (request, response, next) => {
+    const { stableKey, framework } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    try {
+      const created = await assessmentService.createFramework({
+        creatorUserId: request.auth.user.id,
+        idempotencyKey,
+        stableKey,
+        framework
+      });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(created.duplicate ? 200 : 201).json(created);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessment-frameworks/review-queue', authenticate, reviewerOnly, async (request, response, next) => {
+    try {
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(await assessmentService.listReviewQueue(request.auth.user.id));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessment-frameworks/available', authenticate, studentOnly, async (_request, response, next) => {
+    try {
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(await assessmentService.listAvailable());
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessment-frameworks/:id/reviewer-preview', authenticate, reviewerOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_FRAMEWORK_ID', message: 'FrameworkVersion id không hợp lệ.' });
+    try {
+      const framework = await assessmentService.getForReview(request.params.id);
+      if (!framework) return response.status(404).json({ code: 'ASSESSMENT_FRAMEWORK_NOT_FOUND', message: 'Không tìm thấy assessment framework.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(framework);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assessment-frameworks/:id/reviews', authenticate, reviewerOnly, requireCsrf, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_FRAMEWORK_ID', message: 'FrameworkVersion id không hợp lệ.' });
+    const { decision, reason } = request.body || {};
+    try {
+      const framework = await assessmentService.reviewFramework({
+        id: request.params.id,
+        reviewerUserId: request.auth.user.id,
+        decision,
+        reason
+      });
+      if (!framework) return response.status(404).json({ code: 'ASSESSMENT_FRAMEWORK_NOT_FOUND', message: 'Không tìm thấy assessment framework.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(201).json(framework);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/assessments', authenticate, studentOnly, requireCsrf, async (request, response, next) => {
+    const { frameworkVersionId } = request.body || {};
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validUuid(frameworkVersionId)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_FRAMEWORK_ID', message: 'FrameworkVersion id không hợp lệ.' });
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    try {
+      const result = await assessmentService.generate({
+        studentUserId: request.auth.user.id,
+        frameworkVersionId,
+        idempotencyKey
+      });
+      if (!result) return response.status(404).json({ code: 'ASSESSMENT_FRAMEWORK_NOT_AVAILABLE', message: 'Framework chưa được duyệt hoặc không tồn tại.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(result.duplicate ? 200 : 201).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessments/latest', authenticate, studentOnly, async (request, response, next) => {
+    if (!validUuid(request.query.frameworkVersionId)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_FRAMEWORK_ID', message: 'FrameworkVersion id không hợp lệ.' });
+    try {
+      const result = await assessmentService.getLatestOwned(request.query.frameworkVersionId, request.auth.user.id);
+      if (!result) return response.status(404).json({ code: 'ASSESSMENT_RESULT_NOT_FOUND', message: 'Chưa có assessment result cho framework này.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/assessments/:id', authenticate, studentOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_ASSESSMENT_RESULT_ID', message: 'AssessmentResult id không hợp lệ.' });
+    try {
+      const result = await assessmentService.getOwned(request.params.id, request.auth.user.id);
+      if (!result) return response.status(404).json({ code: 'ASSESSMENT_RESULT_NOT_FOUND', message: 'Không tìm thấy assessment result.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(result);
     } catch (error) {
       return next(error);
     }
@@ -304,6 +482,70 @@ export const createApp = ({
       if (!attempt) return response.status(404).json({ code: 'EXAM_NOT_FOUND', message: 'Không tìm thấy đề đã publish.' });
       response.set('Cache-Control', 'no-store');
       return response.status(attempt.duplicate ? 200 : 201).json(attempt);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/manual-scoring/assignments', authenticate, superAdminOnly, requireCsrf, async (request, response, next) => {
+    const { attemptId, assignmentType, graderUserId, reason } = request.body || {};
+    if (!validUuid(attemptId)) return response.status(400).json({ code: 'INVALID_ATTEMPT_ID', message: 'Attempt id không hợp lệ.' });
+    if (!validUuid(graderUserId)) return response.status(400).json({ code: 'INVALID_GRADER_ID', message: 'Grader user id không hợp lệ.' });
+    try {
+      const assignment = await manualScoringService.assign({
+        attemptId,
+        assignmentType,
+        graderUserId,
+        reason,
+        assignedByUserId: request.auth.user.id
+      });
+      if (!assignment) return response.status(404).json({ code: 'ATTEMPT_NOT_FOUND', message: 'Không tìm thấy attempt.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(201).json(assignment);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/manual-scoring/assignments', authenticate, manualGraderOnly, async (request, response, next) => {
+    try {
+      const assignments = await manualScoringService.listAssigned(request.auth.user.id, {
+        status: request.query.status
+      });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(assignments);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get('/api/manual-scoring/assignments/:id', authenticate, manualGraderOnly, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_GRADING_ASSIGNMENT_ID', message: 'Assignment id không hợp lệ.' });
+    try {
+      const assignment = await manualScoringService.getAssigned(request.params.id, request.auth.user.id);
+      if (!assignment) return response.status(404).json({ code: 'GRADING_ASSIGNMENT_NOT_FOUND', message: 'Không tìm thấy assignment được giao.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.json(assignment);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post('/api/manual-scoring/assignments/:id/grades', authenticate, manualGraderOnly, requireCsrf, async (request, response, next) => {
+    if (!validUuid(request.params.id)) return response.status(400).json({ code: 'INVALID_GRADING_ASSIGNMENT_ID', message: 'Assignment id không hợp lệ.' });
+    const idempotencyKey = request.get('idempotency-key');
+    if (!validIdempotencyKey(idempotencyKey)) return response.status(400).json({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Idempotency-Key phải dài 8–100 ký tự an toàn.' });
+    const { grades } = request.body || {};
+    try {
+      const result = await manualScoringService.grade({
+        id: request.params.id,
+        graderUserId: request.auth.user.id,
+        idempotencyKey,
+        grades
+      });
+      if (!result) return response.status(404).json({ code: 'GRADING_ASSIGNMENT_NOT_FOUND', message: 'Không tìm thấy assignment được giao.' });
+      response.set('Cache-Control', 'private, no-store');
+      return response.status(result.duplicate ? 200 : 201).json(result);
     } catch (error) {
       return next(error);
     }
@@ -494,6 +736,7 @@ export const createApp = ({
   });
 
   app.use((error, _request, response, _next) => {
+    metricsRegistry.recordError(error?.code || 'INTERNAL_ERROR');
     if (error instanceof PackageReadError) return response.status(error.statusCode).json({ code: error.code, message: error.message });
     if (error?.type === 'entity.too.large') return response.status(413).json({ code: 'PACKAGE_TOO_LARGE', message: 'ZIP vượt quá giới hạn tải lên 25 MiB.' });
     if (error?.statusCode && error?.code) return response.status(error.statusCode).json({

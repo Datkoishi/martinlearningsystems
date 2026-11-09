@@ -107,7 +107,8 @@ const publicResult = (attempt, score, duplicate = false) => {
         awardedPoints: question.awardedPoints,
         maxPoints: question.maxPoints,
         submittedAnswer: question.submittedAnswer,
-        correctAnswer: publicCorrectAnswer(question)
+        correctAnswer: publicCorrectAnswer(question),
+        ...(question.manualFeedback ? { manualFeedback: question.manualFeedback } : {})
       }))
     } : {}),
     duplicate

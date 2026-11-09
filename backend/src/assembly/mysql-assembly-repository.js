@@ -26,6 +26,7 @@ const mapPublication = (row) => row.publication_id && ({
 const mapRun = (row) => row && ({
   id: row.id,
   creatorUserId: row.created_by_user_id,
+  blueprintId: row.blueprint_id,
   blueprintVersionId: row.blueprint_version_id,
   blueprintVersion: Number(row.blueprint_version_number),
   blueprintVersionSnapshot: parseJson(row.blueprint_version_json),
@@ -50,6 +51,7 @@ const mapRun = (row) => row && ({
 const selectRun = async (executor, whereSql, values, forUpdate = false) => {
   const [rows] = await executor.execute(
     `SELECT ar.id, ar.created_by_user_id, ar.blueprint_version_id,
+            ebv.blueprint_id,
             ebv.version_number AS blueprint_version_number,
             ebv.approval_status AS blueprint_approval_status,
             ebv.blueprint_json AS blueprint_version_json,
@@ -98,6 +100,89 @@ const collectAssetIds = (content, target) => {
   visit(content?.nodes);
 };
 
+const queueClauses = ({ status, purpose, query }) => {
+  const clauses = [];
+  const values = [];
+  if (status) {
+    clauses.push('ebv.approval_status = ?');
+    values.push(status);
+  }
+  if (purpose) {
+    clauses.push("JSON_UNQUOTE(JSON_EXTRACT(ebv.blueprint_json, '$.purpose')) = ?");
+    values.push(purpose);
+  }
+  if (query) {
+    clauses.push("LOCATE(LOWER(?), LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(ebv.blueprint_json, '$.title')), ''))) > 0");
+    values.push(query);
+  }
+  return { clauses, values };
+};
+
+const listQueue = async (pool, {
+  baseClause,
+  baseValues,
+  status,
+  purpose,
+  query,
+  page,
+  limit
+}) => {
+  const filters = queueClauses({ status, purpose, query });
+  const where = [baseClause, ...filters.clauses].join(' AND ');
+  const values = [...baseValues, ...filters.values];
+  const fromSql = `FROM assembly_runs ar
+    INNER JOIN exam_blueprint_versions ebv ON ebv.id = ar.blueprint_version_id
+    INNER JOIN exam_blueprints eb ON eb.id = ebv.blueprint_id
+    INNER JOIN users creator ON creator.id = ar.created_by_user_id
+    LEFT JOIN assembly_reviews rv ON rv.assembly_run_id = ar.id
+    LEFT JOIN assembly_publications ap ON ap.assembly_run_id = ar.id
+    WHERE ${where}`;
+  const [countRows] = await pool.execute(`SELECT COUNT(*) AS total ${fromSql}`, values);
+  const offset = (page - 1) * limit;
+  const [rows] = await pool.execute(
+    `SELECT ar.id, ar.created_by_user_id, creator.display_name AS creator_display_name,
+            eb.id AS blueprint_id, ebv.id AS blueprint_version_id,
+            ebv.version_number, ebv.approval_status,
+            JSON_UNQUOTE(JSON_EXTRACT(ebv.blueprint_json, '$.title')) AS title,
+            CAST(JSON_UNQUOTE(JSON_EXTRACT(ebv.blueprint_json, '$.grade')) AS UNSIGNED) AS grade,
+            JSON_UNQUOTE(JSON_EXTRACT(ebv.blueprint_json, '$.subject')) AS subject,
+            JSON_UNQUOTE(JSON_EXTRACT(ebv.blueprint_json, '$.purpose')) AS purpose,
+            ar.seed, ar.engine_version, ar.selection_sha256, ar.snapshot_sha256, ar.created_at,
+            rv.decision AS review_decision, rv.created_at AS reviewed_at,
+            ap.exam_version_id, ap.published_at
+     ${fromSql}
+     ORDER BY ar.created_at DESC, ar.id DESC
+     LIMIT ? OFFSET ?`,
+    [...values, limit, offset]
+  );
+  const total = Number(countRows[0].total);
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      blueprintId: row.blueprint_id,
+      blueprintVersionId: row.blueprint_version_id,
+      blueprintVersion: Number(row.version_number),
+      approvalStatus: row.approval_status,
+      title: row.title,
+      grade: Number(row.grade),
+      subject: row.subject,
+      purpose: row.purpose,
+      seed: row.seed,
+      engineVersion: row.engine_version,
+      selectionSha256: row.selection_sha256,
+      snapshotSha256: row.snapshot_sha256,
+      creator: { id: row.created_by_user_id, displayName: row.creator_display_name },
+      review: row.review_decision ? { decision: row.review_decision, createdAt: row.reviewed_at } : null,
+      publication: row.exam_version_id ? { examVersionId: row.exam_version_id, publishedAt: row.published_at } : null,
+      createdAt: row.created_at
+    })),
+    total,
+    page,
+    limit,
+    nextPage: page * limit < total ? page + 1 : null
+  };
+};
+
 export class MysqlAssemblyRepository {
   constructor(pool) {
     this.pool = pool;
@@ -113,6 +198,22 @@ export class MysqlAssemblyRepository {
 
   async findForReview(id) {
     return readRunSnapshot(this.pool, 'ar.id = ?', [id]);
+  }
+
+  async listOwnedQueue(filters) {
+    return listQueue(this.pool, {
+      ...filters,
+      baseClause: 'ar.created_by_user_id = ?',
+      baseValues: [filters.creatorUserId]
+    });
+  }
+
+  async listReviewQueue(filters) {
+    return listQueue(this.pool, {
+      ...filters,
+      baseClause: 'ar.created_by_user_id <> ?',
+      baseValues: [filters.reviewerUserId]
+    });
   }
 
   async listEligiblePool(filters) {
@@ -339,18 +440,52 @@ export class MysqlAssemblyRepository {
         await connection.commit();
         return { run: existing, duplicate: true };
       }
-      await connection.execute(
-        `INSERT INTO exam_blueprints
-          (id, stable_key, created_by_user_id, created_at)
-         VALUES (?, ?, ?, ?)`,
-        [run.blueprintId, run.blueprintStableKey, run.creatorUserId, run.createdAt]
-      );
+      let blueprintVersion = 1;
+      if (run.revisionOfBlueprintVersionId) {
+        const [blueprintRows] = await connection.execute(
+          `SELECT id, created_by_user_id
+           FROM exam_blueprints
+           WHERE id = ?
+           FOR UPDATE`,
+          [run.blueprintId]
+        );
+        if (!blueprintRows[0] || blueprintRows[0].created_by_user_id !== run.creatorUserId) {
+          throw domainError('BLUEPRINT_NOT_FOUND', 'Không tìm thấy Blueprint thuộc Editor hiện tại.', 404);
+        }
+        const [versionRows] = await connection.execute(
+          `SELECT id, version_number, approval_status
+           FROM exam_blueprint_versions
+           WHERE blueprint_id = ?
+           ORDER BY version_number DESC
+           LIMIT 1
+           FOR UPDATE`,
+          [run.blueprintId]
+        );
+        const latest = versionRows[0];
+        if (!latest || latest.id !== run.revisionOfBlueprintVersionId) {
+          throw domainError('BLUEPRINT_REVISION_STALE', 'Blueprint đã có version mới; tải lại governance queue trước khi tạo revision.');
+        }
+        if (!['REJECTED', 'PUBLISHED'].includes(latest.approval_status)) {
+          throw domainError(
+            'BLUEPRINT_REVISION_BLOCKED',
+            'Chỉ tạo revision khi version mới nhất đã REJECTED hoặc PUBLISHED.'
+          );
+        }
+        blueprintVersion = Number(latest.version_number) + 1;
+      } else {
+        await connection.execute(
+          `INSERT INTO exam_blueprints
+            (id, stable_key, created_by_user_id, created_at)
+           VALUES (?, ?, ?, ?)`,
+          [run.blueprintId, run.blueprintStableKey, run.creatorUserId, run.createdAt]
+        );
+      }
       await connection.execute(
         `INSERT INTO exam_blueprint_versions
           (id, blueprint_id, version_number, schema_version, blueprint_json,
            approval_status, created_by_user_id, created_at)
          VALUES (?, ?, ?, ?, CAST(? AS JSON), 'NEEDS_REVIEW', ?, ?)`,
-        [run.blueprintVersionId, run.blueprintId, run.blueprintVersion,
+        [run.blueprintVersionId, run.blueprintId, blueprintVersion,
           run.blueprint.schemaVersion, JSON.stringify(run.blueprint), run.creatorUserId, run.createdAt]
       );
       await connection.execute(
@@ -370,8 +505,13 @@ export class MysqlAssemblyRepository {
       await connection.execute(
         `INSERT INTO audit_logs
           (id, actor_user_id, event_type, resource_type, resource_id, outcome, details_json)
-         VALUES (?, ?, 'ASSEMBLY_CREATED', 'ASSEMBLY_RUN', ?, 'SUCCESS', CAST(? AS JSON))`,
-        [run.auditId, run.creatorUserId, run.id, JSON.stringify({
+         VALUES (?, ?, ?, 'ASSEMBLY_RUN', ?, 'SUCCESS', CAST(? AS JSON))`,
+        [run.auditId, run.creatorUserId,
+          run.revisionOfBlueprintVersionId ? 'ASSEMBLY_REVISION_CREATED' : 'ASSEMBLY_CREATED',
+          run.id, JSON.stringify({
+          blueprintId: run.blueprintId,
+          blueprintVersion,
+          revisionOfBlueprintVersionId: run.revisionOfBlueprintVersionId,
           engineVersion: run.engineVersion,
           selectionSha256: run.selectionSha256,
           sourceDistribution: run.sourceDistribution

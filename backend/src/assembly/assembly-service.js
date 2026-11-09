@@ -12,6 +12,38 @@ const canonicalJson = (value) => {
 
 const sha256Json = (value) => crypto.createHash('sha256').update(JSON.stringify(canonicalJson(value))).digest('hex');
 const assemblyError = (code, message, statusCode = 409) => Object.assign(new Error(message), { code, statusCode });
+const QUEUE_STATUSES = new Set(['NEEDS_REVIEW', 'APPROVED', 'REJECTED', 'PUBLISHED']);
+const QUEUE_PURPOSES = new Set(['PRACTICE', 'MOCK_EXAM', 'DIAGNOSTIC']);
+
+const positiveInteger = (name, value, fallback, maximum) => {
+  if (value === undefined || value === '') return fallback;
+  if (!/^\d+$/.test(String(value))) throw assemblyError('INVALID_QUEUE_FILTER', `${name} phải là số nguyên dương.`, 400);
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) {
+    throw assemblyError('INVALID_QUEUE_FILTER', `${name} phải nằm trong khoảng 1–${maximum}.`, 400);
+  }
+  return parsed;
+};
+
+const queueFilters = (input = {}, defaultStatus = null) => {
+  const status = input.status || defaultStatus;
+  const purpose = input.purpose || null;
+  const query = typeof input.query === 'string' ? input.query.trim() : '';
+  if (status && !QUEUE_STATUSES.has(status)) {
+    throw assemblyError('INVALID_QUEUE_FILTER', 'Status queue không hợp lệ.', 400);
+  }
+  if (purpose && !QUEUE_PURPOSES.has(purpose)) {
+    throw assemblyError('INVALID_QUEUE_FILTER', 'Purpose queue không hợp lệ.', 400);
+  }
+  if (query.length > 100) throw assemblyError('INVALID_QUEUE_FILTER', 'Từ khóa queue tối đa 100 ký tự.', 400);
+  return {
+    status,
+    purpose,
+    query,
+    page: positiveInteger('page', input.page, 1, 10000),
+    limit: positiveInteger('limit', input.limit, 20, 100)
+  };
+};
 
 const selectionManifest = (selection) => ({
   sections: selection.sections.map(({ section, units }) => ({
@@ -130,6 +162,7 @@ const assertIntegrity = (run) => {
 
 const publicRun = (run, duplicate = false) => ({
   id: run.id,
+  blueprintId: run.blueprintId,
   blueprintVersionId: run.blueprintVersionId,
   blueprintVersion: run.blueprintVersion,
   approvalStatus: run.approvalStatus,
@@ -209,10 +242,19 @@ export class AssemblyService {
     this.now = now;
   }
 
-  async create({ creatorUserId, idempotencyKey, blueprint, seed }) {
+  async create({
+    creatorUserId,
+    idempotencyKey,
+    blueprint,
+    seed,
+    blueprintId = null,
+    revisionOfBlueprintVersionId = null
+  }) {
     const normalizedBlueprint = validateBlueprint(blueprint);
     const normalizedSeed = validateSeed(seed);
-    const request = { blueprint: normalizedBlueprint, seed: normalizedSeed };
+    const request = blueprintId
+      ? { blueprintId, revisionOfBlueprintVersionId, blueprint: normalizedBlueprint, seed: normalizedSeed }
+      : { blueprint: normalizedBlueprint, seed: normalizedSeed };
     const requestSha256 = sha256Json(request);
     const existing = await this.repository.findByIdempotency(creatorUserId, idempotencyKey);
     if (existing) {
@@ -229,17 +271,18 @@ export class AssemblyService {
     });
     const selection = assembleBlueprint(normalizedBlueprint, pool, normalizedSeed);
     const id = randomUUID();
-    const blueprintId = randomUUID();
+    const resolvedBlueprintId = blueprintId || randomUUID();
     const blueprintVersionId = randomUUID();
     const manifest = selectionManifest(selection);
     const snapshots = buildSnapshots(id, selection, pool.assets);
     const run = {
       id,
-      blueprintId,
+      blueprintId: resolvedBlueprintId,
       blueprintVersionId,
-      blueprintVersion: 1,
+      blueprintVersion: blueprintId ? null : 1,
       blueprintVersionSnapshot: normalizedBlueprint,
       blueprintStableKey: `assembly-run:${id}`,
+      revisionOfBlueprintVersionId,
       approvalStatus: 'NEEDS_REVIEW',
       creatorUserId,
       idempotencyKey,
@@ -266,6 +309,28 @@ export class AssemblyService {
     assertOperationMatches(stored.run, requestSha256);
     assertIntegrity(stored.run);
     return publicRun(stored.run, stored.duplicate);
+  }
+
+  async createRevision({ sourceRunId, creatorUserId, idempotencyKey, blueprint, seed }) {
+    const source = await this.repository.findOwned(sourceRunId, creatorUserId);
+    if (!source) return null;
+    assertIntegrity(source);
+    return this.create({
+      creatorUserId,
+      idempotencyKey,
+      blueprint,
+      seed,
+      blueprintId: source.blueprintId,
+      revisionOfBlueprintVersionId: source.blueprintVersionId
+    });
+  }
+
+  async listOwned(creatorUserId, filters = {}) {
+    return this.repository.listOwnedQueue({ creatorUserId, ...queueFilters(filters) });
+  }
+
+  async listReviewQueue(reviewerUserId, filters = {}) {
+    return this.repository.listReviewQueue({ reviewerUserId, ...queueFilters(filters, 'NEEDS_REVIEW') });
   }
 
   async getOwned(id, creatorUserId) {

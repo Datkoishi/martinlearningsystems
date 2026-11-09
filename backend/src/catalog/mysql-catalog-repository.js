@@ -297,7 +297,8 @@ export class MysqlCatalogRepository {
 
   async findPublishedAsset(assetId) {
     const [rows] = await this.pool.execute(
-      `SELECT ma.id, ma.storage_key, ma.mime_type, ma.sha256, ma.size_bytes, ma.alt_text
+      `SELECT ma.id, ma.storage_key, ma.storage_backend, ma.object_storage_key,
+              ma.mime_type, ma.sha256, ma.size_bytes, ma.alt_text
        FROM media_assets ma
        WHERE ma.id = ?
          AND ma.approval_status = 'PUBLISHED'
@@ -387,6 +388,8 @@ export class MysqlCatalogRepository {
     return {
       id: rows[0].id,
       storageKey: rows[0].storage_key,
+      storageBackend: rows[0].storage_backend,
+      objectStorageKey: rows[0].object_storage_key,
       mimeType: rows[0].mime_type,
       sha256: rows[0].sha256,
       sizeBytes: Number(rows[0].size_bytes),
@@ -396,7 +399,8 @@ export class MysqlCatalogRepository {
 
   async findAnyPublishedAsset(assetId) {
     const [rows] = await this.pool.execute(
-      `SELECT id, storage_key, mime_type, sha256, size_bytes, alt_text
+      `SELECT id, storage_key, storage_backend, object_storage_key,
+              mime_type, sha256, size_bytes, alt_text
        FROM media_assets
        WHERE id = ? AND approval_status = 'PUBLISHED'
        LIMIT 1`,
@@ -406,6 +410,8 @@ export class MysqlCatalogRepository {
     return {
       id: rows[0].id,
       storageKey: rows[0].storage_key,
+      storageBackend: rows[0].storage_backend,
+      objectStorageKey: rows[0].object_storage_key,
       mimeType: rows[0].mime_type,
       sha256: rows[0].sha256,
       sizeBytes: Number(rows[0].size_bytes),
@@ -415,7 +421,8 @@ export class MysqlCatalogRepository {
 
   async findPublishedAssembledAsset(assetId) {
     const [rows] = await this.pool.execute(
-      `SELECT ma.id, ma.storage_key, ma.mime_type, ma.sha256, ma.size_bytes, ma.alt_text,
+      `SELECT ma.id, ma.storage_key, ma.storage_backend, ma.object_storage_key,
+              ma.mime_type, ma.sha256, ma.size_bytes, ma.alt_text,
               ev.id AS exam_version_id, ev.version_number, ev.title, ev.purpose,
               ap.student_snapshot_json, ap.scoring_snapshot_json, ap.snapshot_sha256
        FROM media_assets ma
@@ -435,6 +442,8 @@ export class MysqlCatalogRepository {
       asset: {
         id: rows[0].id,
         storageKey: rows[0].storage_key,
+        storageBackend: rows[0].storage_backend,
+        objectStorageKey: rows[0].object_storage_key,
         mimeType: rows[0].mime_type,
         sha256: rows[0].sha256,
         sizeBytes: Number(rows[0].size_bytes),

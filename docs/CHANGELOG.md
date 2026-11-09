@@ -29,3 +29,30 @@
 - Mở catalog/attempt dùng chung cho FIXED/ASSEMBLED; published assembly hash được xác minh và reload/retry không reassemble.
 - Thêm production runtime safety baseline: typed fail-fast config, live/ready probes, graceful drain deadline và Docker readiness health.
 - Harden Nginx bằng CSP/security headers, health endpoint, upload 26 MiB, static cache và loại font CDN bên thứ ba.
+- Thêm migration `011_migration_ledger.sql` và runner versioned có sequence/checksum drift guard, advisory lock, schema adoption fail-closed và seed DEMO opt-in.
+- Đóng gói migration trong backend image/CI, thêm one-shot Compose migration gate trước backend và bỏ phụ thuộc MySQL entrypoint init.
+- Diễn tập MySQL 8.4 fresh/retry/adopt/demo/lock/inconsistent-schema cùng backup checksum + restore/ledger verification trên database cô lập.
+- Thêm opt-in scheduled backup profile cho MySQL + `import_data`, complete-set checksum/READY, concurrent lock, retention và health signal.
+- Thêm guarded restore checker cho database `eduassess_restore_*`, so migration ledger/schema invariants và cleanup target kể cả khi lỗi.
+- Bổ sung CI tests cho syntax, checksum tamper, stale health, config/path guard và lock ownership; tách S3 media promotion thành OPS-001d.
+- Sửa MySQL Compose healthcheck dùng application database query để loại race với temporary init server; migration CLI bọc cả lỗi kết nối thành JSON fail-closed.
+- Đóng gói backup tools thành image riêng và thêm vào CI/GHCR publish matrix, không phụ thuộc bind-mount source repo khi deploy.
+- Thêm migration `012_object_storage_promotion.sql`, dual-read object/archive và immutable media storage event ledger.
+- Thêm S3-compatible content-addressed promotion CLI có dry-run/batch/retry, conditional PUT, GET/hash verification và rollback chỉ sau archive verification.
+- Nối object-first catalog delivery với archive fallback có cấu hình; giữ archive/object khi rollback để recovery/retry an toàn.
+- Nâng backend/frontend image, CI và engine baseline từ Node 20 EOL lên Node 24 LTS.
+- Thêm production Compose overlay: TLS 1.2/1.3 + HTTP/2/HSTS, chỉ publish edge 80/443, Docker secret files, read-only service hardening và network tách internal/egress/edge.
+- Thêm protected backend metrics listener với bounded HTTP route labels, readiness/error và object archive/object/fallback/failure telemetry; graceful shutdown đóng listener.
+- Thêm atomic backup textfile metrics, node_exporter, Prometheus credential-file scrape, 8 alert rules và Alertmanager webhook secret config.
+- Thêm production env template/runbook cho validate/deploy/rotation/rollback; full-stack fixture smoke xác minh migration, TLS/API health, backup, Prometheus và Alertmanager.
+- Thêm immutable Blueprint revision trên cùng identity: chỉ latest rejected/published được nối version mới, stale/parallel branch bị chặn và exact idempotency được giữ.
+- Thêm owner governance queue và Reviewer queue có allowlisted filter/pagination; queue summary không chứa answer, explanation hay student/scoring snapshot.
+- Nâng Assembly Lab/Reviewer workspace với revision form và selectable queue; bổ sung MySQL 8.4 integration test cho transaction version/query thật.
+- Thêm migration `013_evidence_assessment.sql` cho framework identity/version, independent review và immutable owner-scoped assessment results.
+- Thêm `eduassess-assessment-v1`: đọc score revision `FINAL`, kiểm minimum evidence/difficulty/task-type coverage trước bốn mức và trả `Chưa đủ bằng chứng` khi thiếu.
+- Thêm role `ASSESSMENT_SPECIALIST`, API Specialist/Reviewer/Student có CSRF/idempotency/self-review/IDOR guard và `/#assessment` workspace.
+- Giữ threshold/guidance trong approved config thay vì hardcode; public result loại raw evidence/submitted/correct answer. Framework mặc định là DEMO và nội dung thật vẫn chờ academic approval.
+- Bổ sung MySQL 8.4 assessment integration; sửa canonical hash timestamp sang ISO để evidence/result giữ toàn vẹn qua JSON database round-trip.
+- Thêm migration `014_manual_scoring.sql`, role `MANUAL_GRADER`, explicit per-attempt assignment và exact-idempotent manual scoring operation.
+- Thêm immutable essay score revision/regrade, assignee-scoped API/RBAC/audit, Student-safe feedback projection và `/#grading` workspace.
+- Bổ sung unit/HTTP/MySQL 8.4 gates cho initial scoring, revision conflict, retry, privacy và regrade revision 1→2→3.

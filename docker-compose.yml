@@ -13,9 +13,8 @@ services:
       - "${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql --protocol=TCP --host=127.0.0.1 --user=\"$${MYSQL_USER}\" --database=\"$${MYSQL_DATABASE}\" --batch --skip-column-names --execute='SELECT 1' >/dev/null"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -23,9 +22,38 @@ services:
     networks:
       - app_network
 
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: "no"
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
+      ENABLE_IMPORT_API: "false"
+      AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-8}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      SHUTDOWN_GRACE_MS: ${SHUTDOWN_GRACE_MS:-10000}
+      MIGRATIONS_PATH: /app/database/init
+      MIGRATION_LOCK_TIMEOUT_SECONDS: ${MIGRATION_LOCK_TIMEOUT_SECONDS:-30}
+      MIGRATION_ACTOR: ${MIGRATION_ACTOR:-compose-migrator}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - app_network
+
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     stop_grace_period: 15s
     environment:
@@ -43,11 +71,30 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       TRUST_PROXY: ${TRUST_PROXY:-0}
       SHUTDOWN_GRACE_MS: ${SHUTDOWN_GRACE_MS:-10000}
+      MIGRATIONS_PATH: /app/database/init
+      MIGRATION_LOCK_TIMEOUT_SECONDS: ${MIGRATION_LOCK_TIMEOUT_SECONDS:-30}
+      MIGRATION_ACTOR: ${MIGRATION_ACTOR:-compose-operator}
+      OBJECT_STORAGE_ENABLED: ${OBJECT_STORAGE_ENABLED:-false}
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-ap-southeast-1}
+      OBJECT_STORAGE_KEY_PREFIX: ${OBJECT_STORAGE_KEY_PREFIX:-eduassess/media}
+      OBJECT_STORAGE_FORCE_PATH_STYLE: ${OBJECT_STORAGE_FORCE_PATH_STYLE:-false}
+      OBJECT_STORAGE_ARCHIVE_FALLBACK: ${OBJECT_STORAGE_ARCHIVE_FALLBACK:-true}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      MEDIA_PROMOTION_ACTOR: ${MEDIA_PROMOTION_ACTOR:-compose-media-promoter}
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
+      METRICS_PORT: ${METRICS_PORT:-9464}
+      METRICS_BIND_ADDRESS: ${METRICS_BIND_ADDRESS:-127.0.0.1}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-}
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     depends_on:
       mysql:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - import_data:/app/.data/imports
     healthcheck:
@@ -77,9 +124,53 @@ services:
     networks:
       - app_network
 
+  backup:
+    build:
+      context: ./ops/backup
+      dockerfile: Dockerfile
+    profiles: ["backup"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    entrypoint: ["/ops/backup/backup-loop.sh"]
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      IMPORT_STORAGE_PATH: /source/imports
+      BACKUP_ROOT: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_MAX_AGE_SECONDS: ${BACKUP_MAX_AGE_SECONDS:-90000}
+      BACKUP_STALE_LOCK_SECONDS: ${BACKUP_STALE_LOCK_SECONDS:-21600}
+      BACKUP_RUN_ON_START: ${BACKUP_RUN_ON_START:-true}
+    volumes:
+      - import_data:/source/imports:ro
+      - backup_data:/backups
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/ops/backup/healthcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: ${BACKUP_HEALTH_START_PERIOD:-10m}
+    networks:
+      - app_network
+
 volumes:
   mysql_data:
   import_data:
+  backup_data:
 
 networks:
   app_network:

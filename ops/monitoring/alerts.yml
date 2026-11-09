@@ -1,0 +1,77 @@
+groups:
+  - name: eduassess-production
+    rules:
+      - alert: EduAssessBackendMetricsDown
+        expr: up{job="eduassess-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: EduAssess backend metrics are unavailable
+          description: Prometheus has not scraped the protected backend metrics endpoint for two minutes.
+
+      - alert: EduAssessHighHttp5xxRate
+        expr: >-
+          sum(rate(eduassess_http_requests_total{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(eduassess_http_requests_total[5m])), 0.000001) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: EduAssess HTTP 5xx rate exceeds 5%
+          description: The five-minute backend error ratio has remained above 5% for ten minutes.
+
+      - alert: EduAssessObjectStorageFallback
+        expr: increase(eduassess_published_asset_reads_total{outcome="fallback"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Published media is falling back to archive storage
+          description: At least one object-storage read required archive fallback in the last ten minutes.
+
+      - alert: EduAssessObjectStorageReadFailure
+        expr: increase(eduassess_published_asset_reads_total{outcome="failure"}[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: Published media reads are failing
+          description: At least one published media read failed in the last five minutes.
+
+      - alert: EduAssessBackupMetricsDown
+        expr: up{job="eduassess-backup"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: EduAssess backup metrics are unavailable
+          description: The backup textfile exporter has been unavailable for five minutes.
+
+      - alert: EduAssessBackupUnhealthy
+        expr: eduassess_backup_healthy != 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: EduAssess backup health check is failing
+          description: Backup freshness, verification, or failure ordering is unhealthy.
+
+      - alert: EduAssessBackupStale
+        expr: eduassess_backup_age_seconds < 0 or eduassess_backup_age_seconds > 90000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: EduAssess backup is stale
+          description: No successful backup exists within the 25-hour recovery window.
+
+      - alert: EduAssessRestoreRehearsalStale
+        expr: >-
+          eduassess_backup_last_restore_success_timestamp_seconds == 0
+          or time() - eduassess_backup_last_restore_success_timestamp_seconds > 691200
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: EduAssess restore rehearsal is overdue
+          description: No successful restore rehearsal has been recorded in the last eight days.

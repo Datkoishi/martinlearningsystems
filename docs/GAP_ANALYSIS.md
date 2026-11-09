@@ -4,13 +4,13 @@
 
 | Module | Existing trước task | Missing | Adapt | Keep | Deprecate / risk |
 |---|---|---|---|---|---|
-| Frontend | Vite/React status page | product UI/player/renderer | thêm DEMO, Import Lab, published player và Assembly Lab | React/Vite, proxy | browser visual QA pending; font CDN is optional fallback risk |
-| Backend | Express health only | domain/API/security/runtime lifecycle | modular import/session/catalog/attempt/scoring/assembly + fail-fast config/live-ready/drain | Express/Helmet/CORS/opaque sessions | global role only; tenant/manual scoring pending |
-| Database | MySQL + service_status | toàn bộ assessment domain | additive normalized version tables + JSON rich content | MySQL 8.4/init convention | init SQL không tự chạy trên volume cũ; chưa có ledger/runner |
-| Content | none | package/import/review/publish/assets | versioned schema + atomic publication | archive-backed media | DEMO must never be mistaken for official |
-| Tests | 3 health/unit tests | content/leakage/player/DB/E2E | 52 tests + MySQL/HTTP matrices cho FIXED/ASSEMBLED publish/attempt | Node test runner | browser visual/a11y QA chưa có tooling |
+| Frontend | Vite/React status page | product UI/player/renderer | thêm DEMO, Import Lab, published player, Assembly Lab, Assessment và Manual Scoring Workspace | React/Vite, proxy | browser visual/a11y QA pending |
+| Backend | Express health only | domain/API/security/runtime lifecycle | modular import/session/catalog/attempt/scoring/manual-scoring/assembly/assessment + fail-fast config/live-ready/drain | Express/Helmet/CORS/opaque sessions | global role only; tenant/class Teacher scope pending |
+| Database | MySQL + service_status | toàn bộ assessment domain | additive normalized version tables + JSON rich content + assessment evidence snapshots + checksum migration ledger/runner | MySQL 8.4/numbered SQL convention | DDL implicit commit; encrypted off-site backup/alert deployment pending |
+| Content | none | package/import/review/publish/assets | versioned schema + atomic publication + dual-read object promotion | immutable archive provenance + content-addressed object | DEMO must never be mistaken for official; CDN pending |
+| Tests | 3 health/unit tests | content/leakage/player/DB/E2E | 88 cases (85 default pass + 3 opt-in MySQL integration), manual scoring revision 1→2→3 và MySQL/HTTP/S3/production Compose matrices | Node test runner | browser visual/a11y QA chưa có tooling |
 | Docs | README only | domain/roadmap/status/runbook | add required baseline | existing run commands | docs must track code each slice |
 | Git/CI | main, origin, CI | feature workflow evidence | feature branch | existing CI | branch push will not deploy main |
-| Operations | basic Compose health | production safety/upgrade/restore/monitoring | typed config, live/ready, graceful drain, Nginx CSP/upload/health | Docker images + GHCR CI | TLS/secret deployment, migration runner, restore rehearsal, metrics chưa có |
+| Operations | basic Compose health | production safety/upgrade/restore/monitoring | Node 24, typed config, probes/drain, TLS/secret overlay, migration gate, scheduled recovery set, S3 promotion/rollback, protected metrics + alert rules | Docker images + GHCR CI | actual domain/cert/webhook delivery, encrypted off-site target, bucket identity/CDN và tenant scope pending |
 
-Breaking risk thấp: route/bảng mới additive, ngoại trừ `exams.source_id` được nới nullable để biểu diễn ASSEMBLED nhiều nguồn. Rủi ro chính tiếp theo là migration trên volume MySQL hiện hữu/restore chưa diễn tập, blueprint revision/queue, manual scoring/regrade, asset delivery/S3 và tenant scope.
+Breaking risk thấp: migration 014 additive ngoài việc mở rộng enum role; assignment/manual operation tables không đổi score revision cũ. Migration, manual/regrade MySQL transaction, assessment hash round-trip, backup/restore, object cutover, production overlay và Blueprint revision/queue đã fail-closed + smoke pass. Rủi ro tiếp theo là framework học thuật production/pilot chưa được duyệt, Teacher aggregation chưa có tenant/class ownership, cùng target/off-site/bucket/webhook provisioning và browser QA.

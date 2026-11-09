@@ -15,7 +15,7 @@
 
 FIXED giữ đúng cấu trúc version đã phát hành. ASSEMBLED lọc pool approved/licensed, giải constraints bằng seed, rồi tạo snapshot bất biến. Không gọi lại assembly khi reload. Cả hai đi qua cùng player và scoring service.
 
-Assembly dùng metadata relational curriculum/topic/skill/difficulty/estimated/family. Chỉ QuestionVersion published trong graph FIXED non-formal, có provenance/license derivative hợp lệ mới vào pool. Quota là hard constraints; atomic group không được tách, split group phải mang stimulus; duplicate question/family bị chặn. Candidate order dùng seeded hash, run lưu engine/selection/snapshot hash. Mỗi run gắn immutable BlueprintVersion; creator không được tự duyệt, review bind hashes và chỉ APPROVED mới publish thành ExamVersion ASSEMBLED. Catalog/attempt chỉ đọc published snapshot, không chạy lại engine.
+Assembly dùng metadata relational curriculum/topic/skill/difficulty/estimated/family. Chỉ QuestionVersion published trong graph FIXED non-formal, có provenance/license derivative hợp lệ mới vào pool. Quota là hard constraints; atomic group không được tách, split group phải mang stimulus; duplicate question/family bị chặn. Candidate order dùng seeded hash, run lưu engine/selection/snapshot hash. Mỗi run gắn immutable BlueprintVersion; revision chỉ nối latest rejected/published trên cùng identity. Creator không được tự duyệt, review bind hashes và chỉ APPROVED mới publish thành ExamVersion ASSEMBLED. Editor/Reviewer queue không mang answer payload; catalog/attempt chỉ đọc published snapshot, không chạy lại engine.
 
 ## Exam Package và rich content
 
@@ -31,7 +31,15 @@ Session là opaque token lưu trong cookie `HttpOnly`; DB chỉ lưu hash. Reque
 
 ## Production runtime
 
-`backend/src/config.js` là gate typed/fail-fast: production bắt buộc HTTPS origin, secure cookie và DB password không mặc định; proxy hop phải khai đúng topology. `/api/live` chỉ phản ánh process, `/api/ready` phản ánh DB + trạng thái drain. Khi shutdown, readiness phải hạ trước khi đóng realtime/HTTP/pool và luôn có deadline. Frontend Nginx giữ CSP/security headers, `/healthz` và request limit tương thích API; không thêm CDN/third-party runtime nếu chưa đánh giá privacy. Các migration init chưa phải production runner: không chạy SQL thủ công trên DB thật nếu chưa backup/restore rehearsal và ledger/checksum.
+`backend/src/config.js` là gate typed/fail-fast: production bắt buộc HTTPS origin, secure cookie và DB password không mặc định; secret trực tiếp và `_FILE` loại trừ lẫn nhau. Proxy hop phải khai đúng topology. `/api/live` chỉ phản ánh process, `/api/ready` phản ánh DB + trạng thái drain. Khi shutdown, readiness phải hạ trước khi đóng realtime/HTTP/metrics/pool và luôn có deadline. Production phải dùng `docker-compose.production.yml`: chỉ Nginx publish 80/443, TLS 1.2/1.3 + HSTS, secret file mount, service nội bộ không publish port; không thêm CDN/third-party runtime nếu chưa đánh giá privacy.
+
+Metrics backend là listener riêng có Bearer token, không phải public API. HTTP label chỉ dùng route template, không dùng UUID/user/content ID. Object read phải ghi `archive|object|fallback|failure`; backup health phải phát textfile metric atomically. Prometheus/Alertmanager config phải pass `promtool`/`amtool`; UI không publish. Alertmanager ready chưa đủ để kết luận notification hoạt động: go-live cần alert delivery drill trên receiver thật. Secret rotation phải recreate đúng cặp producer/consumer, không log giá trị.
+
+Migration production đi qua `backend/scripts/migrate.js`: file `NNN_name.sql` liên tục, checksum bất biến, advisory lock và `schema_migrations` ledger. Mặc định skip seed DEMO. Schema hiện hữu chỉ được `--adopt-existing` sau backup/restore rehearsal và kiểm tra sentinel; không sửa file migration đã ghi ledger, không dùng `docker compose down -v` để xử lý lỗi. MySQL DDL có implicit commit, nên failure một phần phải dừng, restore bản sao hoặc repair có review trước khi retry.
+
+Backup production đi qua `ops/backup`: DB dump và `import_data` archive là một set, checksum trước `READY`, concurrent run bị lock và retention chỉ xóa complete set hết hạn. Container health là signal cho backup success/age, không thay alert delivery. Restore check chỉ được chạy trên host/database cô lập có prefix guard + exact drop confirmation. Named volume local không phải off-site backup; deployment phải mã hóa, replicate, giới hạn quyền và diễn tập restore theo RPO/RTO.
+
+Media promotion đi qua `backend/scripts/media-storage.js`, không update `media_assets` bằng SQL tay. Archive reference luôn được giữ; upload dùng key SHA-256, conditional PUT và GET/hash/size trước DB cutover. Runtime đọc object trước, chỉ fallback archive khi flag cho phép và vẫn kiểm tra integrity ở catalog. Rollback phải verify archive trước khi đổi state, không xóa object; asset đã rollback chỉ được promote lại bằng flag rõ ràng. Production custom endpoint bắt buộc HTTPS, credential phải inject qua secret manager và least privilege bucket/prefix.
 
 ## Catalog và attempt
 
@@ -40,6 +48,12 @@ Catalog chỉ đọc ExamVersion `PUBLISHED + non-formal`: FIXED dựng từ rel
 Attempt đóng băng `student_snapshot_json` và `scoring_snapshot_json` riêng, hash canonical cả hai. API chỉ map student snapshot; query đọc luôn scope theo authenticated Student. Create yêu cầu CSRF + Idempotency-Key unique theo Student, retry trả record cũ trước khi đọc lại catalog.
 
 Autosave phải dùng `baseRevision`, exact-operation replay và server ACK; stale client GET/merge rồi gửi key mới. Submit chỉ chấm response đã commit, tạo immutable score revision trong cùng transaction và không tạo thêm score/audit khi retry. Scoring rule phải có version. Public result luôn đi qua reveal mapper: PRACTICE final mới có correct answer; mock/diagnostic/pending không có; explanation/rubric không mở. Essay đã trả lời chờ manual scoring, không dùng AI làm kết luận.
+
+Manual scoring dùng assignment tường minh theo Attempt/current score revision. Chỉ `SUPER_ADMIN` phân công cho `MANUAL_GRADER`; grader chỉ đọc assignment gắn chính user, không có cross-student queue toàn cục. Chấm lần đầu và regrade chỉ thay điểm câu ESSAY, phải chấm đủ các essay được giao, tạo `attempt_score_revisions` mới với actor USER và audit trong cùng transaction. Retry phải bind request hash; source revision stale phải fail. Student chỉ nhận feedback qua reveal policy, không nhận rubric hoặc identity grader.
+
+## Assessment
+
+Không suy diễn năng lực trực tiếp từ điểm. `backend/src/assessment` chỉ đọc score revision `FINAL` như evidence. Framework 1.0.0 phải giữ threshold/minimum/coverage/guidance trong versioned config, do `ASSESSMENT_SPECIALIST` tạo và Academic Reviewer khác người tạo duyệt theo config hash. Chỉ phân bốn mức khi đủ attempts, evidence items, difficulty và task-type coverage; nếu thiếu phải trả đúng `Chưa đủ bằng chứng` và không gán mức. Public result owner-scoped chỉ có interpretation, không raw evidence/answer. Framework UI là DEMO; nội dung dùng thật cần academic approval. Teacher aggregation phải chờ tenant/class scope.
 
 ## Cách mở rộng
 
