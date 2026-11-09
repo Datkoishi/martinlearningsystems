@@ -324,3 +324,15 @@ Lượt focused đầu trong sandbox chỉ fail các HTTP tests do `listen EPERM
 | Authenticated task flow | PENDING | phiên này không dùng credential/fixture user; protected API trong preview trả 401 như thiết kế, chưa xác nhận thao tác sau đăng nhập |
 
 Ban đầu `npm run build --prefix frontend` chưa chạy vì thiếu `node_modules`; đã `npm ci` từ lockfile cho frontend/backend rồi build và root test PASS. Browser QA dùng backend Docker local, không tạo hoặc sửa account/attempt. Docker frontend healthcheck base Compose được pin `127.0.0.1` để tránh `localhost` chọn IPv6 trong container.
+
+## 2026-11-10 — TASK-019 Kho đề công khai
+
+| Gate | Kết quả | Evidence |
+|---|---|---|
+| Root regression `npm test` | PASS | backend 88 cases: 85 pass, 3 opt-in MySQL integration skip; ops backup PASS; frontend Vite 49 modules build PASS |
+| Browser desktop | PASS | hero, empty state và CTA bài DEMO hiển thị đúng; catalog API empty projection; không có console warning/error |
+| Browser mobile 390×844 | PASS | không có tràn ngang (`scrollWidth = innerWidth = 390`); copy và illustration không che nhau; CTA vẫn hiển thị trong luồng cuộn |
+| Data behavior | PASS | không tạo fixture; loading/error/retry/empty state dùng response thật; search/card chỉ xuất hiện khi API có đề |
+| Diff | PASS | `git diff --check` |
+
+QA dùng Vite local trỏ backend Docker hiện có. Không đăng nhập, không tạo attempt và không thay đổi database.

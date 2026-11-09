@@ -331,3 +331,17 @@
 - Known limitations: chưa xác minh protected task flow bằng tài khoản đã đăng nhập; `SUPER_ADMIN` dùng bốn workspace chuyên môn phù hợp quyền, không có dashboard thứ sáu; chưa có self-registration. Skill độc lập `polish` không còn trong nguồn Impeccable mới; aggregate `impeccable` đã được cài.
 - Next actionable task: kiểm tra năm dashboard với tài khoản fixture kỹ thuật hoặc tài khoản do Admin cấp, rồi mở rộng UI từng workspace nghiệp vụ theo cùng design system. Không cần đổi backend để xem landing/DEMO.
 - Git branch: `main`; commit: xem lịch sử Git của task; push: không thực hiện trong task này.
+
+## [2026-11-10 00:13 +07:00] TASK-019 — Đồng bộ kho đề công khai với premium UI
+
+- Mục tiêu / feature IDs: UI-001, UI-002; hoàn thiện workspace công khai còn lệch hệ thống thiết kế.
+- Trạng thái: IMPLEMENTED (root regression/build/browser desktop-mobile PASS; authenticated attempt flow vẫn cần tài khoản kỹ thuật được cấp).
+- Phạm vi thực hiện: hero và copy hướng tới học sinh; empty/error/loading/retry; CTA DEMO; search theo dữ liệu thật; card chọn đề; attempt launch copy; responsive desktop/mobile.
+- Files modified: `frontend/src/PublishedCatalog.jsx`, `frontend/src/App.jsx`, `frontend/src/portal/portal.css`, feature/status/test/progress/design docs.
+- DB/API impact: không đổi schema/API, không tạo fixture hoặc attempt. Catalog tiếp tục đọc `/api/catalog/exams` và `/api/catalog/exams/:id`.
+- Test commands actually run: `npm run build --prefix frontend`; `npm test`; browser QA trên Vite local với backend Docker; console log check; `git diff --check`.
+- Test results: backend 85 PASS + 3 opt-in SKIP, ops PASS, Vite build 49 modules; catalog desktop/mobile PASS; mobile không tràn ngang; console không warning/error.
+- Privacy/security: không mở answer/explanation; public UI chỉ dùng projection catalog hiện có; Student attempt/CSRF/idempotency giữ nguyên.
+- Known limitations: database local hiện chưa có đề publish nên chưa kiểm tra card với bản ghi thật qua browser; render/search/card đã build và dùng đúng fields từ API contract.
+- Next actionable task: tiếp tục đồng bộ các workspace bảo vệ sau khi có tài khoản kỹ thuật cho từng role, hoặc dùng integration fixture cô lập nếu được yêu cầu.
+- Git branch: `main`; commit: xem lịch sử Git của task; push: không thực hiện trong task này.

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AuthPanel from './AuthPanel.jsx';
 import StudentExamView from './StudentExamView.jsx';
 import { csrfHeaders, hasRole } from './auth.js';
+import Icon from './portal/Icon.jsx';
 
 const readError = async (response, fallback) => {
   const body = await response.json().catch(() => ({}));
@@ -19,12 +20,14 @@ const removeSession = (key) => {
   try { window.sessionStorage.removeItem(key); } catch { /* Ignore unavailable browser storage. */ }
 };
 
-export default function PublishedCatalog({ authUser, onLogin }) {
+export default function PublishedCatalog({ authUser, onLogin, onNavigate }) {
   const [exams, setExams] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [preview, setPreview] = useState(null);
   const [attempt, setAttempt] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [query, setQuery] = useState('');
   const [starting, setStarting] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState('');
@@ -33,6 +36,7 @@ export default function PublishedCatalog({ authUser, onLogin }) {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
+    setError('');
     fetch('/api/catalog/exams', { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw await readError(response, 'Không tải được catalog.');
@@ -47,7 +51,7 @@ export default function PublishedCatalog({ authUser, onLogin }) {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, []);
+  }, [refreshKey]);
 
   useEffect(() => {
     if (!selectedId) return undefined;
@@ -134,42 +138,52 @@ export default function PublishedCatalog({ authUser, onLogin }) {
     setAttempt((current) => current?.id === nextAttempt.id ? { ...current, ...nextAttempt } : nextAttempt);
   };
 
+  const filteredExams = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase('vi');
+    if (!normalized) return exams;
+    return exams.filter((exam) => `${exam.title} ${exam.subject} ${exam.mode} ${exam.grade}`.toLocaleLowerCase('vi').includes(normalized));
+  }, [exams, query]);
+
   return (
     <main className="catalog-page">
       <section className="catalog-hero">
-        <div>
-          <p className="eyebrow">Published exam catalog</p>
-          <h1>Đề FIXED và ASSEMBLED đã qua approval gate.</h1>
+        <div className="catalog-hero-copy">
+          <span>Kho đề đã xuất bản</span>
+          <h1>Chọn một đề và bắt đầu khi bạn sẵn sàng.</h1>
+          <p>Chỉ những phiên bản đã hoàn tất quy trình duyệt mới xuất hiện tại đây. Mỗi lượt làm bài của học sinh được lưu thành một bản riêng.</p>
         </div>
-        <p>Catalog công khai chỉ trả projection an toàn. ASSEMBLED dùng snapshot đã publish và không chạy lại engine khi Student bắt đầu hoặc tải lại trang.</p>
+        <img src="/assets/illustrations/dashboard-learner.webp" width="1536" height="1024" alt="" />
       </section>
 
-      {loading ? <div className="catalog-state" role="status">Đang tải catalog…</div> : (
-        exams.length === 0 ? (
-          <div className="catalog-state"><strong>Chưa có đề nào đã publish.</strong><span>Hãy hoàn tất approval và publish cho FIXED hoặc ASSEMBLED.</span></div>
-        ) : (
-          <div className="catalog-grid" aria-label="Danh sách đề đã publish">
-            {exams.map((exam) => (
-              <button className={`catalog-card ${selectedId === exam.id ? 'selected' : ''}`} type="button" key={exam.id} onClick={() => setSelectedId(exam.id)}>
-                <span>{exam.mode} · {exam.subject} · Lớp {exam.grade}</span>
-                <strong>{exam.title}</strong>
-                <small>{exam.durationMinutes} phút · phiên bản {exam.version}</small>
-              </button>
-            ))}
-          </div>
-        )
-      )}
+      {loading ? <div className="catalog-state" role="status"><span className="portal-spinner" />Đang tải kho đề…</div> : error && exams.length === 0 ? (
+        <div className="catalog-state catalog-state-error" role="alert"><span className="catalog-state-icon"><Icon name="info" size={26} /></span><div><strong>Chưa tải được kho đề.</strong><span>{error}</span></div><button type="button" className="portal-button portal-button-outline" onClick={() => setRefreshKey((value) => value + 1)}>Thử lại</button></div>
+      ) : exams.length === 0 ? (
+        <div className="catalog-state catalog-empty"><img src="/assets/illustrations/mascot-rocket.webp" width="1312" height="1199" alt="" /><div><strong>Kho đề đang được chuẩn bị.</strong><span>Trong lúc chờ đề được xuất bản, bạn có thể thử bài DEMO để làm quen với cách trả lời câu hỏi.</span></div>{onNavigate && <button type="button" className="portal-button portal-button-primary" onClick={() => onNavigate('/demo')}>Mở bài DEMO<Icon name="arrow" size={17} /></button>}</div>
+      ) : <>
+        <div className="catalog-toolbar"><div><h2>Đề đang có</h2><p>{exams.length} đề đã xuất bản</p></div><label className="catalog-search"><Icon name="search" size={19} /><span className="sr-only">Tìm đề</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm theo tên đề, môn hoặc lớp…" autoComplete="off" /></label></div>
+        {filteredExams.length ? <div className="catalog-grid" aria-label="Danh sách đề đã xuất bản">
+          {filteredExams.map((exam) => (
+            <button className={`catalog-card ${selectedId === exam.id ? 'selected' : ''}`} type="button" key={exam.id} aria-pressed={selectedId === exam.id} onClick={() => setSelectedId(exam.id)}>
+              <span className="catalog-card-icon"><Icon name={exam.mode === 'ASSEMBLED' ? 'layers' : 'book'} size={22} /></span>
+              <span className="catalog-card-meta">{exam.subject} · Lớp {exam.grade}</span>
+              <strong>{exam.title}</strong>
+              <small>{exam.durationMinutes} phút · {exam.mode} · phiên bản {exam.version}</small>
+              <span className="catalog-card-action">{selectedId === exam.id ? 'Đang xem' : 'Xem đề'}<Icon name="arrow" size={16} /></span>
+            </button>
+          ))}
+        </div> : <div className="catalog-state catalog-no-results"><Icon name="search" size={26} /><strong>Không có đề khớp từ khóa.</strong><span>Thử tên môn, lớp hoặc một phần tên đề.</span></div>}
+      </>}
 
-      {error && <p className="request-error" role="alert">{error}</p>}
+      {error && exams.length > 0 && <p className="request-error" role="alert">{error}</p>}
 
       {restoring && <div className="catalog-state compact" role="status">Đang khôi phục câu trả lời đã được server xác nhận…</div>}
 
       {preview && !attempt && (
         <section className="attempt-launch">
           <div>
-            <p className="eyebrow">Bắt đầu an toàn</p>
-            <h2>Tạo snapshot riêng cho lượt làm bài</h2>
-            <p>Retry cùng khóa idempotency sẽ nhận lại đúng attempt cũ; không tạo bản ghi hoặc snapshot mới.</p>
+            <span className="attempt-launch-icon"><Icon name="shield" size={22} /></span>
+            <h2>Sẵn sàng bắt đầu?</h2>
+            <p>Khi bắt đầu, hệ thống tạo một bản đề riêng cho lượt làm bài này và giữ lại những câu đã được server xác nhận.</p>
           </div>
           {isStudent ? (
             <button className="primary-button" type="button" onClick={startAttempt} disabled={starting}>

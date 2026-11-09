@@ -53,6 +53,7 @@
 - Public landing, trang đăng nhập, hướng dẫn truy cập tài khoản và DEMO được dựng theo hệ thống lavender/pastel với illustration gốc. Router path dẫn đến năm dashboard riêng cho Student, Editor, Reviewer, Specialist và Manual Grader; workspace cũ vẫn hoạt động qua path mới và hash cũ.
 - Dashboard Student đọc catalog công khai; Editor đọc owned assembly runs; Reviewer đọc hai review queue; Specialist mở luồng soạn framework; Grader đọc assignment riêng. Empty/loading/error state và menu theo role không bịa dữ liệu. `SUPER_ADMIN` dùng các workspace được phép, không có dashboard thứ sáu.
 - Frontend Docker local đã rebuild trên cổng 5173 và healthy; healthcheck pin IPv4 loopback. Vite dev proxy có thể trỏ backend local qua `EDUASSESS_DEV_BACKEND`.
+- Kho đề công khai dùng cùng hệ thống lavender/pastel: hero minh họa, copy hướng tới học sinh, search theo tên/môn/lớp/mode, selected state rõ ràng và empty/error/retry state. Khi chưa có đề, CTA mở bài DEMO thay vì yêu cầu người học xử lý approval/publish.
 
 ## Partial / giới hạn
 

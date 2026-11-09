@@ -33,6 +33,7 @@ The UI/UX Pro Max search returned an orange/blue Swiss-style proposal. The user-
 - `/login`: existing cookie/CSRF session API.
 - `/register`: account access guidance because registration is intentionally unavailable; the secure CLI/admin provisioning flow stays authoritative.
 - `/demo`: existing student-safe FIXED DEMO exam.
+- `/workspace/catalog`: public catalog with student-facing hero, real-data search, selected exam state and an honest DEMO CTA when no exam is published.
 - `/dashboard/{student|editor|reviewer|specialist|grader}`: five distinct role home screens.
 - `/workspace/{catalog|imports|assembly|assessment|grading}`: existing operational modules and APIs.
 
