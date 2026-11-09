@@ -314,4 +314,4 @@
 - Next actionable task: `ASMNT-002` — framework học thuật pilot + tenant/class-scoped Teacher reporting; hoặc `PLAY-001d` — timer/deadline và attempt policy. Production `OPS-001f` vẫn chờ target inputs thật.
 - Git branch: `feat/eduassess-rich-content`.
 - Commit SHA: `83e4034` (`feat(scoring): add assigned manual regrade workflow`).
-- Push status: chờ push sau khi cập nhật commit evidence.
+- Push status: `PUSHED` — feature commit `83e4034` và báo cáo progress đã được đẩy lên `origin/feat/eduassess-rich-content`.
