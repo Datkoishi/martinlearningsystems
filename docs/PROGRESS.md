@@ -313,4 +313,5 @@
 - Tiến độ feature matrix: 21/21 feature đã bắt đầu/triển khai; 19 technical VERIFIED (ASMNT-001 kèm academic pending), 2 IMPLEMENTED chờ browser/academic QA; không còn feature `NOT_STARTED`.
 - Next actionable task: `ASMNT-002` — framework học thuật pilot + tenant/class-scoped Teacher reporting; hoặc `PLAY-001d` — timer/deadline và attempt policy. Production `OPS-001f` vẫn chờ target inputs thật.
 - Git branch: `feat/eduassess-rich-content`.
-- Commit/push: chưa thực hiện tại thời điểm ghi báo cáo này.
+- Commit SHA: `83e4034` (`feat(scoring): add assigned manual regrade workflow`).
+- Push status: chờ push sau khi cập nhật commit evidence.
