@@ -55,6 +55,7 @@
 - Frontend Docker local đã rebuild trên cổng 5173 và healthy; healthcheck pin IPv4 loopback. Vite dev proxy có thể trỏ backend local qua `EDUASSESS_DEV_BACKEND`.
 - Kho đề công khai dùng cùng hệ thống lavender/pastel: hero minh họa, copy hướng tới học sinh, search theo tên/môn/lớp/mode, selected state rõ ràng và empty/error/retry state. Khi chưa có đề, CTA mở bài DEMO thay vì yêu cầu người học xử lý approval/publish.
 - Import, Assembly, Assessment và Manual Grading workspace dùng chung hierarchy premium: hero theo ngữ cảnh, panel phẳng, control tối thiểu 44px, focus rõ và breakpoint một cột. Component workspace không còn tạo `<main>` lồng trong landmark chính của portal; catalog công khai cũng giữ đúng một `<main>`.
+- Player Student và `/demo` dùng chung `StudentExamView`, nên hình/math/table/stimulus, tiến độ và responsive behavior không còn hai implementation lệch nhau. Player có điều hướng câu hỏi 44px, trạng thái đã trả lời, autosave live status và bước xác nhận nộp inline nêu rõ số câu bỏ trống thay cho browser dialog.
 
 ## Partial / giới hạn
 
@@ -64,6 +65,7 @@
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
 - Browser QA đã xác nhận landing desktop/mobile, login/access, DEMO và catalog công khai. Năm dashboard đã được xem bằng preview role tạm thời chỉ trong Vite dev, sau đó mã preview được gỡ; Student desktop/mobile và bốn role còn lại ở desktop. Chưa có tài khoản fixture trong phiên này để kiểm tra luồng API bảo vệ sau đăng nhập hoặc toàn bộ workspace cũ bằng trình duyệt.
 - Lượt kiểm tra 2026-11-10 xác nhận public catalog ở 1280px/390px không tràn ngang và không có nested main; bốn workspace bảo vệ build PASS nhưng visual/task-flow sau đăng nhập vẫn chờ tài khoản kỹ thuật. Docker daemon trên máy không chạy ở thời điểm kiểm tra nên chưa rebuild image cho thay đổi này.
+- Student player mới đã qua production build và root regression nhưng chưa browser-QA với attempt có session thật; Docker daemon vẫn tắt nên phiên này không dựng backend/MySQL hoặc tạo fixture account/attempt.
 - Không có API tự đăng ký; `/register` giải thích quy trình cấp tài khoản qua quản trị viên, không gửi dữ liệu đăng ký giả.
 - Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
 - TLS/secret/monitoring bundle đã verified bằng fixture nhưng chưa được deploy với domain/certificate/secret manager thật; import feature flag mặc định tắt để rollout có chủ đích.

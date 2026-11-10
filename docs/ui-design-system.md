@@ -41,6 +41,8 @@ Student dashboard reads the public catalog. Editor reads owned assembly runs. Re
 
 Operational workspaces reuse one shell and one semantic `main` landmark. Their job-specific components render content containers rather than nested page landmarks. Import keeps the dark review hero; Assembly uses sage, Assessment uses sky and Manual Grading uses blush. Forms use flat 16px-radius panels, visible labels, 44px minimum controls, explicit focus and single-column mobile fallbacks. The palette changes hierarchy only; authorization and task state still come from live APIs.
 
+Student exam surfaces share `StudentExamView` for both `/demo` and published attempts. The player uses a dark document header, flat white question sheets, violet selected states and a 44px numbered question navigator. Save status is announced through a polite live region. Submission uses an inline two-step confirmation that reports unanswered questions and keeps both cancel and final actions visible; native blocking dialogs are not part of the interaction. On mobile, metadata and progress stack, section instructions become left-aligned, and confirmation actions expand to full width.
+
 ## Responsive behavior
 
 Desktop: 247px sidebar, flexible workspace and optional 260px context rail. Tablet: sidebar thu gọn thành cột icon và context rail theo sau main content. Mobile: sidebar thành drawer, card một cột, controls tối thiểu 44px và danh sách có giới hạn. Navigation hỗ trợ URL trực tiếp và bàn phím. Mọi widget dữ liệu có loading, empty và error state.

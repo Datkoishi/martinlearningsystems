@@ -359,3 +359,17 @@
 - Known limitations: chưa xem bốn workspace bảo vệ bằng session role thật; catalog QA qua Vite không có backend nên xác nhận error/retry state thay vì dữ liệu live.
 - Next actionable task: cấp tài khoản kỹ thuật cho năm role để chạy authenticated browser matrix; sau đó polish từng task flow dựa trên dữ liệu thật. Nếu ưu tiên sản phẩm backend: `PLAY-001d` timer/deadline + attempt policy hoặc `ASMNT-002` tenant/class scope.
 - Git branch: `main`; commit/push: chưa thực hiện trong task này.
+
+## [2026-11-10 14:05 +07:00] TASK-021 — Đồng bộ Student exam player
+
+- Mục tiêu / feature IDs: UI-001, PLAY-001b; đưa player làm bài và DEMO vào cùng hệ thống premium mà không đổi contract lưu/chấm.
+- Trạng thái: IMPLEMENTED (frontend build/root regression/source interaction review PASS; browser attempt flow còn pending do Docker daemon tắt và không có session Student).
+- Phạm vi thực hiện: dùng chung `StudentExamView` cho `/demo`; dark document header, flat question cards, question navigator/answered state, save live status, kết quả rõ trạng thái và xác nhận nộp inline có cảnh báo số câu bỏ trống; responsive mobile.
+- Files modified: `frontend/src/StudentExamView.jsx`, `frontend/src/portal/{DemoPage.jsx,portal.css}`, feature/status/test/progress/architecture/design docs.
+- DB/API impact: không đổi schema/API, không tạo account/fixture/attempt; DEMO chỉ giữ answer trong React state, attempt tiếp tục autosave/submit bằng revision + CSRF + idempotency hiện có.
+- Test commands actually run: `npm run build --prefix frontend`; `npm test` ngoài sandbox; `git diff --check`; source/contract review.
+- Test results: frontend 49 modules PASS; backend 85 pass + 3 opt-in MySQL skip; ops PASS; shared renderer và interaction contract PASS.
+- Privacy/security: không thêm answer key/explanation vào projection; không dùng credential hoặc dữ liệu trẻ em; submit vẫn chặn khi autosave chưa ACK và không bỏ qua server authorization.
+- Known limitations: chưa browser-QA player với attempt có session thật; Docker daemon trên máy vẫn không chạy nên không rebuild image/dựng DB trong task này.
+- Next actionable task: chạy authenticated browser matrix cho Student attempt và bốn workspace chuyên môn khi có account kỹ thuật; sau đó hoàn thiện timer/deadline + attempt policy (`PLAY-001d`) hoặc tenant/class scope (`ASMNT-002`).
+- Git branch: `main`; commit: `feat(ui): refine student exam player` (xem Git history); push: chưa thực hiện, cần xác nhận rõ remote.

@@ -351,3 +351,16 @@ QA dùng Vite local trỏ backend Docker hiện có. Không đăng nhập, khôn
 | Diff | PASS | `git diff --check` |
 
 Lượt root test đầu trong sandbox có 7 HTTP/metrics case fail do `listen EPERM`; chạy lại ngoài sandbox đạt 85/85 default cases. Vite QA không có backend local nên catalog đi qua error/retry state thật; không tạo hoặc sửa dữ liệu. Thay đổi UI giữ nguyên API, RBAC, CSRF và idempotency contract.
+
+## 2026-11-10 — TASK-021 Student exam player
+
+| Gate | Kết quả | Evidence |
+|---|---|---|
+| Frontend production build | PASS | Vite 6.4.5, 49 modules; shared `StudentExamView` compiles for DEMO and catalog attempt |
+| Root regression `npm test` | PASS | backend 88 cases: 85 pass, 3 opt-in MySQL skip; ops backup PASS; frontend build PASS |
+| Shared renderer contract | PASS | `/demo` bỏ renderer riêng và dùng student-safe `StudentExamView`; preview không gọi autosave/submit API |
+| Interaction/accessibility source review | PASS | 44px question links, answered labels, polite save live region, inline submit confirmation and visible cancel path |
+| Diff | PASS | `git diff --check` |
+| Browser attempt QA | PENDING | Docker daemon không chạy và không có session/fixture Student; không tự khởi động daemon hoặc tạo dữ liệu |
+
+Không đổi API/schema, không tạo account/attempt và không mở answer key. Xác nhận nộp inline vẫn gọi nguyên submit path có CSRF, idempotency và autosave revision gate hiện hữu.

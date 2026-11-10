@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RichContent from './RichContent.jsx';
 import { csrfHeaders } from './auth.js';
+import Icon from './portal/Icon.jsx';
 
 const responseError = async (response, fallback) => {
   const body = await response.json().catch(() => ({}));
@@ -135,12 +136,14 @@ const formatCorrectAnswer = (question, answer) => {
 };
 
 const ResultPanel = ({ result, questions }) => (
-  <section className={`result-panel ${result.scoringState === 'PENDING' ? 'pending' : 'final'}`}>
+  <section className={`result-panel ${result.scoringState === 'PENDING' ? 'pending' : 'final'}`} aria-label="Kết quả bài làm">
     <div>
-      <p className="eyebrow">{result.scoringState === 'FINAL' ? 'Kết quả đã chốt' : 'Đang chờ chấm tự luận'}</p>
-      <h2>{result.scoringState === 'FINAL'
-        ? `${result.summary.earnedPoints}/${result.summary.possiblePoints} điểm`
-        : `${result.summary.autoAwardedPoints} điểm tự động · ${result.summary.pendingManualCount} câu chờ chấm`}</h2>
+      <div className="result-heading-line">
+        <h2>{result.scoringState === 'FINAL'
+          ? `${result.summary.earnedPoints}/${result.summary.possiblePoints} điểm`
+          : `${result.summary.autoAwardedPoints} điểm tự động · ${result.summary.pendingManualCount} câu chờ chấm`}</h2>
+        <span>{result.scoringState === 'FINAL' ? 'Kết quả đã chốt' : 'Đang chờ chấm tự luận'}</span>
+      </div>
       <p>Scoring version: <code>{result.scoringVersion}</code>. Điểm số không phải kết luận năng lực.</p>
     </div>
     <div className="reveal-policy">
@@ -178,6 +181,7 @@ export default function StudentExamView({
   const [saveStatus, setSaveStatus] = useState(attemptId ? 'saved' : 'preview');
   const [saveError, setSaveError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const [result, setResult] = useState(null);
   const answersRef = useRef(answers);
   const revisionRef = useRef(revision);
@@ -206,6 +210,7 @@ export default function StudentExamView({
     pendingRequestRef.current = null;
     setSaveStatus(attemptId ? 'saved' : 'preview');
     setSaveError('');
+    setConfirmingSubmit(false);
     setResult(null);
     submitKeyRef.current = null;
   }, [attemptId]);
@@ -332,6 +337,7 @@ export default function StudentExamView({
   const changeAnswer = (questionVersionId, value) => {
     const next = { ...answersRef.current, [questionVersionId]: value };
     applyDraft(next);
+    setConfirmingSubmit(false);
     if (!attemptId || closed) return;
     dirtyRef.current.add(questionVersionId);
     setSaveStatus('dirty');
@@ -341,7 +347,6 @@ export default function StudentExamView({
 
   const submitAttempt = async () => {
     if (!attemptId || closed || submitting || savingRef.current) return;
-    if (!window.confirm('Nộp bài ngay? Sau khi nộp, em không thể sửa câu trả lời.')) return;
     setSubmitting(true);
     setSaveError('');
     window.clearTimeout(timerRef.current);
@@ -366,6 +371,7 @@ export default function StudentExamView({
       const body = await response.json();
       setResult(body.result);
       setSaveStatus('submitted');
+      setConfirmingSubmit(false);
       onAttemptChange?.(body.attempt);
     } catch (error) {
       setSaveError(error.message);
@@ -376,6 +382,7 @@ export default function StudentExamView({
   };
 
   const answeredCount = questions.filter((question) => hasAnswer(answers[question.versionId])).length;
+  const unansweredCount = questions.length - answeredCount;
   const statusText = {
     preview: 'Bản xem trước — chưa lưu',
     dirty: 'Có thay đổi chưa được server xác nhận',
@@ -389,8 +396,10 @@ export default function StudentExamView({
     <section className="published-player" aria-label={`Đề ${exam.title}`}>
       <div className="player-heading">
         <div>
-          <p className="eyebrow">{attemptId ? (closed ? 'Attempt đã đóng' : 'Attempt đang làm') : 'Bản xem trước an toàn'}</p>
-          <h2>{exam.title}</h2>
+          <div className="player-title-row">
+            <h2>{exam.title}</h2>
+            <span>{attemptId ? (closed ? 'Bài đã nộp' : 'Đang làm bài') : 'Bản xem trước'}</span>
+          </div>
           <p>{exam.description}</p>
         </div>
         <dl className="player-meta">
@@ -402,8 +411,18 @@ export default function StudentExamView({
       <div className="player-progress">
         <span>Đã trả lời {answeredCount}/{questions.length} câu</span>
         <progress value={answeredCount} max={questions.length}>Đã làm {answeredCount} câu</progress>
-        <span className={`save-indicator ${saveStatus}`} role="status">{statusText}</span>
+        <span className={`save-indicator ${saveStatus}`} role="status" aria-live="polite">{statusText}</span>
       </div>
+
+      <nav className="player-question-nav" aria-label="Điều hướng câu hỏi">
+        <div><strong>Đi tới câu</strong><span>{unansweredCount ? `${unansweredCount} câu chưa trả lời` : 'Đã trả lời tất cả câu'}</span></div>
+        <div className="player-question-links">
+          {questions.map((question) => {
+            const answered = hasAnswer(answers[question.versionId]);
+            return <a className={answered ? 'answered' : ''} href={`#published-${question.id}`} key={question.versionId} aria-label={`Câu ${question.order} — ${answered ? 'đã trả lời' : 'chưa trả lời'}`}>{question.order}</a>;
+          })}
+        </div>
+      </nav>
 
       {result && <ResultPanel result={result} questions={questions} />}
       {saveError && <div className="player-save-error" role="alert">
@@ -449,14 +468,17 @@ export default function StudentExamView({
       </div>
 
       <div className="player-actions">
-        <div>
+        <div className="player-action-copy">
           <strong>{attemptId ? `Attempt ${attemptId}` : previewLabel}</strong>
           <span>{attemptId ? 'Chỉ câu trả lời được server ACK mới được dùng khi nộp.' : previewMessage}</span>
         </div>
         {attemptId && !closed && (
-          <button className="primary-button" type="button" onClick={submitAttempt} disabled={submitting || saveStatus === 'saving'}>
-            {submitting ? 'Đang nộp bài…' : 'Nộp bài'}
-          </button>
+          <div className={`player-submit-control ${confirmingSubmit ? 'is-confirming' : ''}`}>
+            {confirmingSubmit ? <div className="player-submit-confirm" role="group" aria-label="Xác nhận nộp bài">
+              <div><Icon name="shield" size={21} /><span><strong>Xác nhận nộp bài</strong><small>{unansweredCount ? `Còn ${unansweredCount} câu chưa trả lời.` : 'Tất cả câu đã có câu trả lời.'} Sau khi nộp, em không thể sửa bài.</small></span></div>
+              <div className="player-submit-buttons"><button className="secondary-button" type="button" onClick={() => setConfirmingSubmit(false)} disabled={submitting}>Quay lại kiểm tra</button><button className="primary-button" type="button" onClick={submitAttempt} disabled={submitting || saveStatus === 'saving'}>{submitting ? 'Đang nộp bài…' : 'Xác nhận nộp'}</button></div>
+            </div> : <button className="primary-button" type="button" onClick={() => setConfirmingSubmit(true)} disabled={submitting || saveStatus === 'saving'}>Kiểm tra và nộp bài</button>}
+          </div>
         )}
       </div>
     </section>
