@@ -345,3 +345,17 @@
 - Known limitations: database local hiện chưa có đề publish nên chưa kiểm tra card với bản ghi thật qua browser; render/search/card đã build và dùng đúng fields từ API contract.
 - Next actionable task: tiếp tục đồng bộ các workspace bảo vệ sau khi có tài khoản kỹ thuật cho từng role, hoặc dùng integration fixture cô lập nếu được yêu cầu.
 - Git branch: `main`; commit: xem lịch sử Git của task; push: không thực hiện trong task này.
+
+## [2026-11-10 13:07 +07:00] TASK-020 — Đồng bộ shell workspace nghiệp vụ
+
+- Mục tiêu / feature IDs: UI-002; đưa Import, Assembly, Assessment và Manual Grading vào cùng hệ thống premium, đồng thời sửa landmark semantics.
+- Trạng thái: IMPLEMENTED (build/root regression/public desktop-mobile PASS; authenticated protected-workspace visual/task flow pending).
+- Phạm vi thực hiện: đổi workspace/catalog component root khỏi nested `<main>`; hero riêng theo ngữ cảnh; panel/form/control/focus responsive dùng chung; bỏ nhãn hero và số trang trí không mang nghĩa.
+- Files modified: `frontend/src/{PublishedCatalog,ImportPanel,AssemblyLab,AssessmentWorkspace,ManualScoringWorkspace}.jsx`, `frontend/src/portal/portal.css`, architecture/design/status/feature/test/progress docs.
+- DB/API impact: không đổi schema/API, không tạo account/fixture/attempt; giữ nguyên RBAC, CSRF, idempotency và projection hiện có.
+- Test commands actually run: `npm run build --prefix frontend`; `npm test` trong sandbox (HTTP bind bị `EPERM`); `npm test` ngoài sandbox; browser QA 1280px và 390×844; `docker compose ps`; `git diff --check`.
+- Test results: frontend 49 modules PASS; root regression 85 pass + 3 opt-in MySQL skip, ops PASS; browser public catalog một main/nested main 0 và không tràn ngang. Docker daemon không chạy nên Compose không kết nối và image chưa rebuild.
+- Privacy/security: không dùng credential, không tạo dữ liệu trẻ em hoặc fixture account; workspace chỉ thay structure/style và tiếp tục dựa vào backend authorization.
+- Known limitations: chưa xem bốn workspace bảo vệ bằng session role thật; catalog QA qua Vite không có backend nên xác nhận error/retry state thay vì dữ liệu live.
+- Next actionable task: cấp tài khoản kỹ thuật cho năm role để chạy authenticated browser matrix; sau đó polish từng task flow dựa trên dữ liệu thật. Nếu ưu tiên sản phẩm backend: `PLAY-001d` timer/deadline + attempt policy hoặc `ASMNT-002` tenant/class scope.
+- Git branch: `main`; commit/push: chưa thực hiện trong task này.

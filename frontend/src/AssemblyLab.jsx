@@ -229,15 +229,14 @@ export default function AssemblyLab({ authUser, onLogin }) {
     }
   };
 
-  if (authUser === undefined) return <main className="assembly-page"><div className="catalog-state">Đang xác minh phiên…</div></main>;
-  if (!authUser) return <main className="assembly-page"><AuthPanel mode="content" onLogin={onLogin} /></main>;
-  if (!canAssemble && !canReview) return <main className="assembly-page"><div className="catalog-state"><strong>Không có quyền assembly.</strong><span>Cần role CONTENT_EDITOR, ACADEMIC_REVIEWER hoặc SUPER_ADMIN.</span></div></main>;
+  if (authUser === undefined) return <div className="assembly-page"><div className="catalog-state">Đang xác minh phiên…</div></div>;
+  if (!authUser) return <div className="assembly-page"><AuthPanel mode="content" onLogin={onLogin} /></div>;
+  if (!canAssemble && !canReview) return <div className="assembly-page"><div className="catalog-state"><strong>Không có quyền assembly.</strong><span>Cần role CONTENT_EDITOR, ACADEMIC_REVIEWER hoặc SUPER_ADMIN.</span></div></div>;
 
   return (
-    <main className="assembly-page">
+    <div className="assembly-page">
       <section className="assembly-hero">
         <div>
-          <p className="eyebrow">Deterministic Assembly Governance</p>
           <h1>{canAssemble ? 'Tạo snapshot có thể tái hiện, không phá quota khi pool thiếu.' : 'Duyệt đúng frozen snapshot trước khi mở cho Student.'}</h1>
         </div>
         <p>{canAssemble
@@ -350,6 +349,6 @@ export default function AssemblyLab({ authUser, onLogin }) {
         />
       )}
       {canReview && <AssemblyReviewPanel authUser={authUser} />}
-    </main>
+    </div>
   );
 }

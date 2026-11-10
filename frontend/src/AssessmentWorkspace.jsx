@@ -247,13 +247,13 @@ export default function AssessmentWorkspace({ authUser, onLogin }) {
     }
   };
 
-  if (authUser === undefined) return <main className="assessment-page"><div className="catalog-state">Đang xác minh phiên…</div></main>;
-  if (!authUser) return <main className="assessment-page"><AuthPanel mode="assessment" onLogin={onLogin} /></main>;
+  if (authUser === undefined) return <div className="assessment-page"><div className="catalog-state">Đang xác minh phiên…</div></div>;
+  if (!authUser) return <div className="assessment-page"><AuthPanel mode="assessment" onLogin={onLogin} /></div>;
 
   return (
-    <main className="assessment-page">
+    <div className="assessment-page">
       <section className="assessment-hero">
-        <div><p className="eyebrow">Evidence-based assessment</p><h1>Chỉ phân mức khi framework đã duyệt và bằng chứng đủ coverage.</h1></div>
+        <div><h1>Chỉ phân mức khi framework đã duyệt và bằng chứng đủ coverage.</h1></div>
         <p>Scoring chỉ cung cấp bằng chứng. Engine không biến tỷ lệ điểm thành “phần trăm năng lực”; thiếu attempt, difficulty hoặc task type sẽ trả “Chưa đủ bằng chứng”.</p>
       </section>
 
@@ -315,6 +315,6 @@ export default function AssessmentWorkspace({ authUser, onLogin }) {
       )}
 
       {!isStudent && !canAuthor && !canReview && <div className="catalog-state"><strong>Chưa có quyền assessment phù hợp.</strong><span>Teacher cross-student vẫn khóa cho tới khi có tenant/class scope.</span></div>}
-    </main>
+    </div>
   );
 }

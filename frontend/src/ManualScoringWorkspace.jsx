@@ -112,15 +112,15 @@ export default function ManualScoringWorkspace({ authUser, onLogin }) {
     }
   };
 
-  if (!authUser) return <main className="grading-page"><AuthPanel mode="grading" onLogin={onLogin} /></main>;
+  if (!authUser) return <div className="grading-page"><AuthPanel mode="grading" onLogin={onLogin} /></div>;
   if (!canGrade && !canAssign) {
-    return <main className="grading-page"><section className="error-panel"><p className="eyebrow">Không có quyền</p><h1>Cần role Manual Grader</h1><p>Backend kiểm tra assignment và role cho từng request.</p></section></main>;
+    return <div className="grading-page"><section className="error-panel"><p className="eyebrow">Không có quyền</p><h1>Cần role Manual Grader</h1><p>Backend kiểm tra assignment và role cho từng request.</p></section></div>;
   }
 
   return (
-    <main className="grading-page">
+    <div className="grading-page">
       <section className="grading-hero">
-        <div><p className="eyebrow">PLAY-001c · Human scoring</p><h1>Chấm tự luận có assignment và revision bất biến.</h1></div>
+        <div><h1>Chấm tự luận có assignment và revision bất biến.</h1></div>
         <p>Grader chỉ thấy attempt được giao. Mỗi lần chấm hoặc chấm lại tạo score revision mới; rubric không được đưa vào payload Student.</p>
       </section>
 
@@ -176,6 +176,6 @@ export default function ManualScoringWorkspace({ authUser, onLogin }) {
           {selected.status === 'OPEN' && <button className="primary-button" disabled={busy}>Chốt score revision mới</button>}
         </form>
       )}
-    </main>
+    </div>
   );
 }

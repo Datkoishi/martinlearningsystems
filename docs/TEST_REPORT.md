@@ -336,3 +336,18 @@ Ban đầu `npm run build --prefix frontend` chưa chạy vì thiếu `node_modu
 | Diff | PASS | `git diff --check` |
 
 QA dùng Vite local trỏ backend Docker hiện có. Không đăng nhập, không tạo attempt và không thay đổi database.
+
+## 2026-11-10 — TASK-020 Premium protected-workspace shell
+
+| Gate | Kết quả | Evidence |
+|---|---|---|
+| Frontend production build | PASS | Vite 6.4.5, 49 modules; Import/Assembly/Assessment/Grading chunks compile |
+| Root regression `npm test` | PASS | backend 88 cases: 85 pass, 3 opt-in MySQL skip; ops backup PASS; frontend build PASS |
+| Landmark semantics | PASS | năm lazy workspace root đổi từ `main` sang content container; browser public catalog có 1 `main`, nested main = 0 |
+| Browser desktop 1280px | PASS | public catalog hero/error-retry state render đúng; không console-blocking UI issue |
+| Browser mobile 390×844 | PASS | `scrollWidth = innerWidth = 390`; hero, illustration và retry action giữ đúng luồng một cột |
+| Protected visual/task flow | PENDING | không tạo tài khoản/fixture; cần session kỹ thuật cho từng role để xem dữ liệu và thao tác thật |
+| Docker runtime | NOT RUNNING | `docker compose ps` không kết nối được vì Docker daemon/socket chưa chạy; không tự khởi động daemon |
+| Diff | PASS | `git diff --check` |
+
+Lượt root test đầu trong sandbox có 7 HTTP/metrics case fail do `listen EPERM`; chạy lại ngoài sandbox đạt 85/85 default cases. Vite QA không có backend local nên catalog đi qua error/retry state thật; không tạo hoặc sửa dữ liệu. Thay đổi UI giữ nguyên API, RBAC, CSRF và idempotency contract.

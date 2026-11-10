@@ -83,18 +83,17 @@ export default function ImportPanel({ authUser, onLogin }) {
   };
 
   if (authUser === undefined) {
-    return <main className="center-page"><div className="loading-state" role="status"><span className="loader" aria-hidden="true" /><p>Đang kiểm tra phiên đăng nhập…</p></div></main>;
+    return <div className="center-page"><div className="loading-state" role="status"><span className="loader" aria-hidden="true" /><p>Đang kiểm tra phiên đăng nhập…</p></div></div>;
   }
-  if (!authUser) return <main className="import-page"><AuthPanel onLogin={onLogin} /></main>;
+  if (!authUser) return <div className="import-page"><AuthPanel onLogin={onLogin} /></div>;
   if (!canImport && !canReview) {
-    return <main className="import-page"><section className="forbidden-panel"><p className="eyebrow">403 · Không đủ quyền</p><h1>Tài khoản chưa có role nội dung</h1><p>Import Lab yêu cầu CONTENT_EDITOR hoặc ACADEMIC_REVIEWER.</p></section></main>;
+    return <div className="import-page"><section className="forbidden-panel"><p className="eyebrow">403 · Không đủ quyền</p><h1>Tài khoản chưa có role nội dung</h1><p>Import Lab yêu cầu CONTENT_EDITOR hoặc ACADEMIC_REVIEWER.</p></section></div>;
   }
 
   return (
-    <main className="import-page" id="top">
+    <div className="import-page" id="top">
       <section className="import-hero">
         <div>
-          <p className="eyebrow">Content Editor · Import Lab</p>
           <h1>Kiểm tra gói đề trước khi duyệt</h1>
           <p>
             Tải Exam Package V1 dạng ZIP. Hệ thống giữ nguyên tệp nguồn và kiểm tra checksum,
@@ -157,7 +156,6 @@ export default function ImportPanel({ authUser, onLogin }) {
           )}
           {!result && !error && (
             <div className="empty-report">
-              <span>01</span>
               <h2>Chưa có báo cáo</h2>
               <p>Kết quả sẽ chỉ mô tả dữ liệu kỹ thuật. Gói hợp lệ vẫn phải qua reviewer học thuật.</p>
             </div>
@@ -204,6 +202,6 @@ export default function ImportPanel({ authUser, onLogin }) {
       {!canReview && result?.status === 'READY_FOR_REVIEW' && (
         <section className="review-launch"><div><p className="eyebrow">Đã chuyển reviewer</p><h2>Package đang chờ ACADEMIC_REVIEWER</h2><p>Content Editor không được tải answer payload hoặc tự ghi quyết định.</p></div></section>
       )}
-    </main>
+    </div>
   );
 }

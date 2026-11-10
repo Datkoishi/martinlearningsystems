@@ -39,6 +39,8 @@ The UI/UX Pro Max search returned an orange/blue Swiss-style proposal. The user-
 
 Student dashboard reads the public catalog. Editor reads owned assembly runs. Reviewer reads assembly and framework review queues. Specialist presents the framework workflow and opens the existing authoring workspace; there is no invented own-framework list. Grader reads assigned OPEN/COMPLETED queues. Profile shows authenticated identity; no fake activity chart or notification count is displayed. `SUPER_ADMIN` can access authorized operational tools without a sixth dashboard.
 
+Operational workspaces reuse one shell and one semantic `main` landmark. Their job-specific components render content containers rather than nested page landmarks. Import keeps the dark review hero; Assembly uses sage, Assessment uses sky and Manual Grading uses blush. Forms use flat 16px-radius panels, visible labels, 44px minimum controls, explicit focus and single-column mobile fallbacks. The palette changes hierarchy only; authorization and task state still come from live APIs.
+
 ## Responsive behavior
 
 Desktop: 247px sidebar, flexible workspace and optional 260px context rail. Tablet: sidebar thu gọn thành cột icon và context rail theo sau main content. Mobile: sidebar thành drawer, card một cột, controls tối thiểu 44px và danh sách có giới hạn. Navigation hỗ trợ URL trực tiếp và bàn phím. Mọi widget dữ liệu có loading, empty và error state.

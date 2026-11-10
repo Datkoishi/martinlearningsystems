@@ -145,7 +145,7 @@ export default function PublishedCatalog({ authUser, onLogin, onNavigate }) {
   }, [exams, query]);
 
   return (
-    <main className="catalog-page">
+    <div className="catalog-page">
       <section className="catalog-hero">
         <div className="catalog-hero-copy">
           <span>Kho đề đã xuất bản</span>
@@ -208,6 +208,6 @@ export default function PublishedCatalog({ authUser, onLogin, onNavigate }) {
           onAttemptChange={updateAttempt}
         />
       )}
-    </main>
+    </div>
   );
 }
