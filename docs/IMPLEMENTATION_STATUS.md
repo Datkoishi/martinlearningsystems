@@ -56,6 +56,7 @@
 - Kho đề công khai dùng cùng hệ thống lavender/pastel: hero minh họa, copy hướng tới học sinh, search theo tên/môn/lớp/mode, selected state rõ ràng và empty/error/retry state. Khi chưa có đề, CTA mở bài DEMO thay vì yêu cầu người học xử lý approval/publish.
 - Import, Assembly, Assessment và Manual Grading workspace dùng chung hierarchy premium: hero theo ngữ cảnh, panel phẳng, control tối thiểu 44px, focus rõ và breakpoint một cột. Component workspace không còn tạo `<main>` lồng trong landmark chính của portal; catalog công khai cũng giữ đúng một `<main>`.
 - Player Student và `/demo` dùng chung `StudentExamView`, nên hình/math/table/stimulus, tiến độ và responsive behavior không còn hai implementation lệch nhau. Player có điều hướng câu hỏi 44px, trạng thái đã trả lời, autosave live status và bước xác nhận nộp inline nêu rõ số câu bỏ trống thay cho browser dialog.
+- Authenticated browser matrix đã đăng nhập riêng bằng năm role kỹ thuật `STUDENT`, `CONTENT_EDITOR`, `ACADEMIC_REVIEWER`, `ASSESSMENT_SPECIALIST`, `MANUAL_GRADER`. Mỗi phiên vào đúng dashboard/menu/profile, tải projection thật hoặc empty state đúng quyền, có một `main`, không tràn ngang ở 1185px và không có console warning/error; phiên cuối đã logout.
 
 ## Partial / giới hạn
 
@@ -63,9 +64,10 @@
 - Assembly chưa có failed-run persistence, option shuffle, soft optimization/student history hoặc assignment policy; editor revision form hiện tối ưu cho Blueprint một section dù API hỗ trợ schema nhiều section.
 - Math hiển thị semantic LaTeX text, chưa dùng KaTeX/MathJax.
 - SVG DEMO là asset nội bộ tin cậy; package upload hiện từ chối SVG không an toàn nhưng chưa có pipeline convert/sanitize nâng cao.
-- Browser QA đã xác nhận landing desktop/mobile, login/access, DEMO và catalog công khai. Năm dashboard đã được xem bằng preview role tạm thời chỉ trong Vite dev, sau đó mã preview được gỡ; Student desktop/mobile và bốn role còn lại ở desktop. Chưa có tài khoản fixture trong phiên này để kiểm tra luồng API bảo vệ sau đăng nhập hoặc toàn bộ workspace cũ bằng trình duyệt.
-- Lượt kiểm tra 2026-11-10 xác nhận public catalog ở 1280px/390px không tràn ngang và không có nested main; bốn workspace bảo vệ build PASS nhưng visual/task-flow sau đăng nhập vẫn chờ tài khoản kỹ thuật. Docker daemon trên máy không chạy ở thời điểm kiểm tra nên chưa rebuild image cho thay đổi này.
-- Student player mới đã qua production build và root regression nhưng chưa browser-QA với attempt có session thật; Docker daemon vẫn tắt nên phiên này không dựng backend/MySQL hoặc tạo fixture account/attempt.
+- Browser QA đã xác nhận landing desktop/mobile, login/access, DEMO, catalog công khai và đăng nhập đủ năm dashboard bằng session role thật. Các hành động mutation sâu trong Import/Assembly/Assessment/Grading và Student attempt có dữ liệu vẫn chưa chạy vì local database chỉ có empty state, không có package/exam/assignment production-like.
+- Docker Desktop 29.9.2 đã chạy lại; image frontend mới được rebuild và MySQL/backend/frontend đều healthy. Health cuối: backend live `ok`, ready `database: connected`, frontend `/healthz` = `ok`.
+- Student player mới đã qua production build/root regression; dashboard Student đã authenticated-QA nhưng player attempt thật vẫn chờ một ExamVersion published và attempt kỹ thuật phù hợp.
+- Web Interface Guidelines source review còn hai polish item không chặn: search input dashboard chưa có `name`/`autocomplete="off"`; một số placeholder chưa dùng dấu `…` theo style guideline.
 - Không có API tự đăng ký; `/register` giải thích quy trình cấp tài khoản qua quản trị viên, không gửi dữ liệu đăng ký giả.
 - Session chưa có rotation/idle timeout, recovery/MFA hay distributed rate limit; role hiện global và chưa có tenant/school scope.
 - TLS/secret/monitoring bundle đã verified bằng fixture nhưng chưa được deploy với domain/certificate/secret manager thật; import feature flag mặc định tắt để rollout có chủ đích.

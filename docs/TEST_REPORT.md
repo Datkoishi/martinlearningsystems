@@ -364,3 +364,19 @@ Lượt root test đầu trong sandbox có 7 HTTP/metrics case fail do `listen E
 | Browser attempt QA | PENDING | Docker daemon không chạy và không có session/fixture Student; không tự khởi động daemon hoặc tạo dữ liệu |
 
 Không đổi API/schema, không tạo account/attempt và không mở answer key. Xác nhận nộp inline vẫn gọi nguyên submit path có CSRF, idempotency và autosave revision gate hiện hữu.
+
+## 2026-11-10 — TASK-022 Authenticated five-dashboard matrix
+
+| Gate | Kết quả | Evidence |
+|---|---|---|
+| Docker runtime | PASS | Docker Desktop 29.9.2; MySQL/backend/frontend healthy; backend live/ready và frontend `/healthz` PASS |
+| Student login | PASS | `/dashboard/student`; đúng menu/profile; catalog/assessment projection empty an toàn |
+| Content Editor login | PASS | `/dashboard/editor`; owned assembly request hoàn tất; đúng Import/Assembly/Catalog menu |
+| Academic Reviewer login | PASS | `/dashboard/reviewer`; blueprint/framework queue đều empty đúng quyền; không self-review bypass |
+| Assessment Specialist login | PASS | `/dashboard/specialist`; đúng framework authoring guidance và menu |
+| Manual Grader login | PASS | `/dashboard/grader`; assignee-scoped queue empty, privacy note hiện đúng |
+| Layout/console | PASS | mỗi dashboard có đúng một `main`, `scrollWidth <= innerWidth` ở viewport 1185×972; 0 warning/error console |
+| Logout | PASS | logout phiên cuối quay về `/`, nút đăng nhập xuất hiện |
+| Web guideline source review | WARN | `Dashboards.jsx` search input thiếu `name`/`autocomplete="off"`; một số placeholder chưa kết thúc bằng `…` |
+
+QA tạo 10 account kỹ thuật cục bộ bằng CLI/password stdin: 5 account đầu không dùng do clipboard handoff không khả dụng và 5 account Browser QA đã dùng cho ma trận. Không có dữ liệu trẻ em, package, exam, attempt, framework hoặc assignment được tạo. Credential không được ghi vào repo/tài liệu; các account vẫn nằm trong local development database và cần lifecycle/cleanup có chủ đích thay vì xóa SQL tay.

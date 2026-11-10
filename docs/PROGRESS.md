@@ -373,3 +373,17 @@
 - Known limitations: chưa browser-QA player với attempt có session thật; Docker daemon trên máy vẫn không chạy nên không rebuild image/dựng DB trong task này.
 - Next actionable task: chạy authenticated browser matrix cho Student attempt và bốn workspace chuyên môn khi có account kỹ thuật; sau đó hoàn thiện timer/deadline + attempt policy (`PLAY-001d`) hoặc tenant/class scope (`ASMNT-002`).
 - Git branch: `main`; commit: `feat(ui): refine student exam player` (xem Git history); push: chưa thực hiện, cần xác nhận rõ remote.
+
+## [2026-11-10 14:22 +07:00] TASK-022 — Authenticated QA cho năm dashboard
+
+- Mục tiêu / feature IDs: UI-002, AUTH-001; thay preview role bằng đăng nhập/session thật cho đủ năm dashboard chuyên môn.
+- Trạng thái: VERIFIED cho login/dashboard shell; mutation flow có dữ liệu của từng workspace vẫn PENDING.
+- Phạm vi thực hiện: khởi động/rebuild Docker stack; tạo account QA qua password stdin; đăng nhập lần lượt Student/Editor/Reviewer/Specialist/Grader; xác nhận route, menu, profile, API/empty state, landmark, overflow, console và logout.
+- Files modified: chỉ feature/status/test/progress docs; không đổi product code/schema/API.
+- DB/data impact: tạo 10 technical-only account local (5 account bootstrap đầu không dùng vì clipboard handoff không khả dụng, 5 Browser QA dùng cho test); không có dữ liệu trẻ em hoặc package/exam/attempt/framework/assignment. Không xóa/sửa SQL tay.
+- Test commands actually run: `docker info`; `docker compose up -d --build`; `docker compose ps`; backend/frontend health curl; five-role browser login/logout matrix; Web Interface Guidelines source review; `git diff --check`.
+- Test results: cả năm role vào đúng `/dashboard/{role}`; một `main`; không overflow ở 1185×972; 0 console warning/error; API empty state đúng quyền; MySQL/backend/frontend healthy; live/ready/healthz PASS.
+- Security/privacy: role lấy từ session server, không preview bypass; Reviewer/Grader chỉ thấy empty scoped queue; credential không ghi vào repo/tài liệu. Account kỹ thuật còn trong local DB và cần cleanup/lifecycle qua công cụ được duyệt, không SQL tay.
+- Findings: dashboard search inputs còn thiếu `name`/`autocomplete="off"`; placeholder style chưa đồng nhất dấu `…`. Không chặn login hoặc phân quyền.
+- Next actionable task: thêm lifecycle CLI cho technical QA users hoặc xác nhận policy giữ fixture; seed dữ liệu kỹ thuật tách biệt để chạy mutation flow Import→Review→Publish→Student attempt→Manual Grading.
+- Git branch: `main`; commit/push: chưa thực hiện; push vẫn cần xác nhận rõ remote.
